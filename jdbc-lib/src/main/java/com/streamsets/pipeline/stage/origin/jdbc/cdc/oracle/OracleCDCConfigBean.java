@@ -21,6 +21,7 @@ package com.streamsets.pipeline.stage.origin.jdbc.cdc.oracle;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
+import com.streamsets.pipeline.api.Dependency;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.stage.origin.jdbc.cdc.CDCSourceConfigBean;
 
@@ -74,7 +75,7 @@ public class OracleCDCConfigBean {
       triggeredByValue = "SCN"
   )
   public String startSCN;
-
+  
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,
@@ -85,5 +86,28 @@ public class OracleCDCConfigBean {
   )
   @ValueChooserModel(DictionaryChooserValues.class)
   public DictionaryValues dictionary;
-
+  
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Set LogMiner StartSCN",
+      defaultValue = "false",
+      description = "Enable setting LogMiner's startSCN ",
+      displayPosition = 40,
+      group = "CDC"
+  )
+  public boolean useLogMinerSCN;
+  
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.STRING,
+      label = "LogMiner Start SCN",
+      description = "System change number to use for LogMiner",
+      displayPosition = 40,
+      group = "CDC",
+      dependencies = {
+          @Dependency(configName = "useLogMinerSCN", triggeredByValues = "true"),
+      }
+  )
+  public String logMinerStartSCN;
 }

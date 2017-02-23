@@ -521,7 +521,14 @@ public class OracleCDCSource extends BaseSource {
 
   private void startLogMiner() throws SQLException, StageException {
     BigDecimal endSCN = getEndingSCN();
-
+  
+    if ( cachedSCN == BigDecimal.ZERO
+        && configBean.useLogMinerSCN
+        && StringUtils.isNotEmpty(configBean.logMinerStartSCN)) {
+      LOG.debug("log miner start SCN " + configBean.logMinerStartSCN);
+      cachedSCN = new BigDecimal(configBean.startSCN);
+    }
+    
     // Try starting using cached SCN to avoid additional query if the cache one is still the oldest.
     if (cachedSCN != BigDecimal.ZERO) { // Yes, it is an == comparison since we are checking if this is the actual ZERO object
       try {
@@ -537,7 +544,7 @@ public class OracleCDCSource extends BaseSource {
 
     SQLException lastException = null;
     boolean startedLogMiner = false;
-
+    
     getOldestSCN.setBigDecimal(1, cachedSCN);
     try (ResultSet rs = getOldestSCN.executeQuery()) {
       while (rs.next()) {
@@ -566,7 +573,8 @@ public class OracleCDCSource extends BaseSource {
       startLogMnr.setBigDecimal(1, oldestSCN);
       startLogMnr.setBigDecimal(2, endSCN);
       startLogMnr.execute();
-      cachedSCN = oldestSCN;
+//      cachedSCN = oldestSCN;
+      cachedSCN = endSCN;  // update new start endSCN
       if (LOG.isDebugEnabled()) {
         LOG.debug(
             Utils.format("Started LogMiner with start offset: {} and end offset: {}",
