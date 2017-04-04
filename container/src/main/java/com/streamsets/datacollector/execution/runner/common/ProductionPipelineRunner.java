@@ -73,8 +73,8 @@ import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.pipeline.api.BatchContext;
-import com.streamsets.pipeline.api.ErrorListener;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
+import com.streamsets.pipeline.api.ErrorListener;
 import com.streamsets.pipeline.api.OffsetCommitTrigger;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.Record;
@@ -144,6 +144,8 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
 
   /*indicates if the execution must be stopped after the current batch*/
   private volatile boolean stop = false;
+  /*indicates an external stage (eg. PipelineFinisherExecutor) is finishing the pipeline. */
+  private volatile boolean finished = false;
   /*indicates if the next batch of data should be captured, only the next batch*/
   private volatile int batchesToCapture = 0;
   /*indicates the snapshot name to be captured*/
@@ -323,6 +325,7 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
       } else {
         runPollSource();
       }
+
     } catch (Throwable throwable) {
       LOG.error("Pipeline execution failed", throwable);
       sendPipelineErrorNotificationRequest(throwable);
@@ -347,7 +350,6 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
 
     // Push origin will block on the call until the either all data have been consumed or the pipeline stopped
     originPipe.process(offsetTracker.getOffsets(), batchSize, this);
-
     // If execution failed on exception, we should propagate it up
     if(exceptionFromExecution != null) {
       Throwables.propagateIfInstanceOf(exceptionFromExecution, StageException.class);
@@ -451,8 +453,14 @@ public class ProductionPipelineRunner implements PipelineRunner, PushSourceConte
     retainErrorMessagesInMemory(ImmutableMap.of(stage, ImmutableList.of(errorMessage)));
   }
 
+  @Override
+  public void setFinished() {
+    finished = true;
+    ((StageContext)originPipe.getStage().getContext()).setStop(true);
+  }
+
   public void runPollSource() throws StageException, PipelineException {
-    while (!offsetTracker.isFinished() && !stop) {
+    while (!offsetTracker.isFinished() && !stop && !finished) {
       if (threadHealthReporter != null) {
         threadHealthReporter.reportHealth(ProductionPipelineRunnable.RUNNABLE_NAME, -1, System.currentTimeMillis());
       }

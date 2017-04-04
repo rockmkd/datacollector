@@ -37,7 +37,7 @@ public class TestPipelineEL {
 
   @Test
   public void testUndefinedPipelineNameAndVersion() {
-    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(5, 5, UUID.randomUUID(), "label", "", Collections.<Config>emptyList(), Collections.<String, Object>emptyMap(), Collections.<StageConfiguration>emptyList(), null, null);
+    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(5, 5, "pipelineId", UUID.randomUUID(), "label", "", Collections.<Config>emptyList(), Collections.<String, Object>emptyMap(), Collections.<StageConfiguration>emptyList(), null, null);
     PipelineEL.setConstantsInContext(pipelineConfiguration, new UserContext(null));
     Assert.assertEquals("UNDEFINED", PipelineEL.name());
     Assert.assertEquals("UNDEFINED", PipelineEL.version());
@@ -50,13 +50,13 @@ public class TestPipelineEL {
   public void testPipelineNameAndVersion() {
     Map<String, Object> metadata = ImmutableMap.<String, Object>of(PipelineEL.PIPELINE_VERSION_VAR, "3");
     UUID uuid = UUID.randomUUID();
-    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(5, 5, uuid, "label", "", Collections.<Config>emptyList(), Collections.<String, Object>emptyMap(), Collections.<StageConfiguration>emptyList(), null, null);
+    PipelineConfiguration pipelineConfiguration = new PipelineConfiguration(5, 5, "pipelineId", uuid, "label", "", Collections.<Config>emptyList(), Collections.<String, Object>emptyMap(), Collections.<StageConfiguration>emptyList(), null, null);
     pipelineConfiguration.setMetadata(metadata);
     pipelineConfiguration.setPipelineInfo(new PipelineInfo("hello" , "label", "", new Date(), new Date(), "", "", "", uuid, false, metadata));
     PipelineEL.setConstantsInContext(pipelineConfiguration, new UserContext("test-user"));
-    Assert.assertEquals(uuid.toString(), PipelineEL.name());
+    Assert.assertEquals("hello", PipelineEL.name());
     Assert.assertEquals("3", PipelineEL.version());
-    Assert.assertEquals(uuid.toString(), PipelineEL.id());
+    Assert.assertEquals("hello", PipelineEL.id());
     Assert.assertEquals("label", PipelineEL.title());
     Assert.assertEquals("test-user", PipelineEL.user());
   }

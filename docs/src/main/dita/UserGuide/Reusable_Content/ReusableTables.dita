@@ -1323,16 +1323,57 @@
       <entry>Auth Endpoint</entry>
       <entry>Salesforce SOAP API authentication endpoint. Enter one of the following values:<ul
         id="ul_lnr_x2c_tx">
-        <li>login.salesforce.com - To connect to a Production or Developer Edition
+        <li>login.salesforce.com - Use to connect to a Production or Developer Edition
          organization.</li>
-        <li>test.salesforce.com - To connect to a sandbox organization.</li>
+        <li>test.salesforce.com - Use to connect to a sandbox organization.</li>
        </ul><p>Default is login.salesforce.com.</p></entry>
      </row>
      <row>
       <entry>API Version</entry>
       <entry id="SalesforceAPIVersion">Salesforce API version to use to connect to Salesforce.
-        <p>Default is 36.0. If you change the version, you also must download the relevant JAR files
+        <p>Default is 38.0. If you change the version, you also must download the relevant JAR files
         from Salesforce Web Services Connector (WSC).</p></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+  <draft-comment author="alisontaylor">All  Salesforce stages use the rows in this
+   table</draft-comment>
+  <table frame="all" rowsep="1" colsep="1" id="Salesforce_Proxy">
+   <tgroup cols="2">
+    <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+    <colspec colname="c2" colnum="2" colwidth="3.0*"/>
+    <thead>
+     <row>
+      <entry>Advanced Property</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row id="row_SalesforceProxy">
+      <entry>Use Proxy</entry>
+      <entry>Specifies whether to use an HTTP proxy to connect to Salesforce.</entry>
+     </row>
+     <row>
+      <entry>Proxy Hostname</entry>
+      <entry>Proxy host.</entry>
+     </row>
+     <row id="row_SalesforceProxyPort">
+      <entry>Proxy Port</entry>
+      <entry>Proxy port.</entry>
+     </row>
+     <row id="row_SalesforceProxyCredentials">
+      <entry>Proxy Requires Credentials</entry>
+      <entry>Specifies whether the proxy requires a user name and password.</entry>
+     </row>
+     <row id="row_SalesforceProxyUser">
+      <entry>Proxy Username</entry>
+      <entry>User name for proxy credentials.</entry>
+     </row>
+     <row id="row_SalesforceProxyPassword">
+      <entry>Proxy Password</entry>
+      <entry>Password for proxy credentials.<note
+        conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"/></entry>
      </row>
     </tbody>
    </tgroup>
@@ -1518,6 +1559,78 @@
         path as <codeph>/mapr/&lt;cluster name>/&lt;table path></codeph>.</p>
       </entry>
      </row>
+    </tbody>
+   </tgroup>
+  </table>
+  <draft-comment author="alisontaylor">The following table is used by the Salesforce origin and the
+   Salesforce Lookup processor</draft-comment>
+  <table
+   frame="all" rowsep="1" colsep="1" id="table_SalesforceFieldAtts">
+   <tgroup cols="2">
+    <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+    <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+    <thead>
+     <row>
+      <entry>Salesforce Field Attribute</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry>&lt;Salesforce prefix>salesforceType</entry>
+      <entry id="entry_JDBCType">Provides the original Salesforce data type
+       for the field.</entry>
+     </row>
+     <row>
+      <entry>&lt;Salesforce prefix>length</entry>
+      <entry id="entry_JDBCprecision">Provides the original length for all
+       string and textarea fields. </entry>
+     </row>
+     <row>
+      <entry>&lt;Salesforce prefix>precision</entry>
+      <entry>Provides the original precision for all double fields. </entry>
+     </row>
+     <row>
+      <entry>&lt;Salesforce prefix>scale</entry>
+      <entry id="entry_JDBCscale">Provides the original scale for all double
+       fields. </entry>
+     </row>
+     <row>
+      <entry>&lt;Salesforce prefix>digits</entry>
+      <entry>Provides the maximum number of digits for all integer
+       fields.</entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+  <draft-comment author="alisontaylor">These rows are used by the Groovy, JavaScript, Jython
+   Evaluators</draft-comment>
+  <table frame="all" rowsep="1" colsep="1" id="table_sgr_tmr_kz">
+   <tgroup cols="2">
+    <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+    <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+    <thead>
+     <row>
+      <entry>Property</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row id="row-InitScript">
+      <entry>Init Script</entry>
+      <entry>Optional initialization script to use in the processor.<p>Use to set up connections or
+       resources required by the processor. Runs once when the pipeline starts.</p></entry>
+     </row>
+    <row id="row-Script">
+     <entry>Script</entry>
+     <entry>Main processing script to use in the processor.<p>Runs for each record or each batch of
+       data, based on the configured processing mode.</p></entry>
+    </row>
+    <row id="row-DestroyScript">
+     <entry>Destroy Script</entry>
+     <entry>Optional destroy script to use in the processor.<p>Use to close any connections or
+       resources required by the processor. Runs once when the pipeline stops.</p></entry>
+    </row>
     </tbody>
    </tgroup>
   </table>

@@ -22,19 +22,23 @@ package com.streamsets.pipeline.stage.origin.jdbc.table;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
+import com.streamsets.pipeline.stage.origin.jdbc.table.util.OffsetQueryUtil;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
 import java.sql.SQLException;
@@ -46,15 +50,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class BasicIT extends BaseTableJdbcSourceIT {
   private static final String STARS_INSERT_TEMPLATE = "INSERT into TEST.%s values (%s, '%s', '%s')";
   private static final String TRANSACTION_INSERT_TEMPLATE = "INSERT into TEST.%s values (%s, %s, '%s')";
-  private static final String STREAMING_TABLE_INSERT_TEMPLATE = "INSERT into TEST.%s values (%s, '%s')";
+  private static final String OTHER_TABLE_INSERT_TEMPLATE = "INSERT into `TEST`.%s values (%s, '%s')";
+  private static final String OTHER_TABLE_CREATE_TEMPLATE =
+      "CREATE TABLE `TEST`.%s(unique_int INT NOT NULL PRIMARY KEY, random_string VARCHAR(255))";
+
+  private static final String QUOTED_TABLE_NAME_WITHOUT_QUOTES = "05CDB2D7-6B8C-42F2-A6A6-041E123883EE";
+  private static final String QUOTED_TABLE_NAME = "`" + QUOTED_TABLE_NAME_WITHOUT_QUOTES + "`";
 
   private static List<Record> EXPECTED_CRICKET_STARS_RECORDS;
   private static List<Record> EXPECTED_TENNIS_STARS_RECORDS;
   private static List<Record> EXPECTED_TRANSACTION_RECORDS;
+  private static List<Record> EXPECTED_QUOTE_TESTING_RECORDS;
+
 
   private static Record createSportsStarsRecords(int pid, String first_name, String last_name) {
     Record record = RecordCreator.create();
@@ -83,7 +96,7 @@ public class BasicIT extends BaseTableJdbcSourceIT {
     return records;
   }
 
-  private static Record createStreamingTableRecord(int index) {
+  private static Record createOtherTableRecord(int index) {
     Record record = RecordCreator.create();
     LinkedHashMap<String, Field> fields = new LinkedHashMap<>();
     fields.put("unique_int", Field.create(Field.Type.INTEGER, index + 1));
@@ -126,6 +139,8 @@ public class BasicIT extends BaseTableJdbcSourceIT {
     );
 
     EXPECTED_TRANSACTION_RECORDS = createTransactionRecords(20);
+
+    EXPECTED_QUOTE_TESTING_RECORDS = IntStream.range(0, 20).mapToObj(BasicIT::createOtherTableRecord).collect(Collectors.toList());
 
     try (Statement statement = connection.createStatement()) {
       //CRICKET_STARS
@@ -182,19 +197,34 @@ public class BasicIT extends BaseTableJdbcSourceIT {
         );
       }
 
-      statement.addBatch(
-          "CREATE TABLE TEST.STREAMING_TABLE " +
-              "(unique_int INT NOT NULL PRIMARY KEY, random_string VARCHAR(255))"
-      );
+      //STREAMING_TABLE
+      statement.addBatch(String.format(OTHER_TABLE_CREATE_TEMPLATE, "STREAMING_TABLE"));
 
+      //System.out.println(String.format(OTHER_TABLE_CREATE_TEMPLATE, QUOTED_TABLE_NAME));
+
+      //QUOTE_TESTING
+      statement.addBatch(String.format(OTHER_TABLE_CREATE_TEMPLATE, QUOTED_TABLE_NAME));
       statement.executeBatch();
+
+      for (Record record : EXPECTED_QUOTE_TESTING_RECORDS) {
+        statement.execute(
+            String.format(
+                OTHER_TABLE_INSERT_TEMPLATE,
+                QUOTED_TABLE_NAME,
+                record.get("/unique_int").getValueAsInteger(),
+                record.get("/random_string").getValueAsString()
+            )
+        );
+      }
+
     }
   }
 
   @AfterClass
   public static void tearDown() throws SQLException {
     try (Statement statement = connection.createStatement()) {
-      for (String table : ImmutableList.of("CRICKET_STARS", "TENNIS_STARS", "TRANSACTION_TABLE", "STREAMING_TABLE")) {
+      for (String table : ImmutableList.of("CRICKET_STARS", "TENNIS_STARS", "TRANSACTION_TABLE",
+          "STREAMING_TABLE", QUOTED_TABLE_NAME)) {
         statement.addBatch(String.format(DROP_STATEMENT_TEMPLATE, database, table));
       }
       statement.executeBatch();
@@ -609,11 +639,11 @@ public class BasicIT extends BaseTableJdbcSourceIT {
 
     Map<String, String> offsets = new HashMap<>();
     for (int i = 0 ; i < 10; i++) {
-      final Record record = createStreamingTableRecord(i);
+      final Record record = createOtherTableRecord(i);
       try (Statement statement = connection.createStatement()) {
         statement.execute(
             String.format(
-                STREAMING_TABLE_INSERT_TEMPLATE,
+                OTHER_TABLE_INSERT_TEMPLATE,
                 "STREAMING_TABLE",
                 record.get("/unique_int").getValueAsInteger(),
                 record.get("/random_string").getValueAsString()
@@ -660,7 +690,7 @@ public class BasicIT extends BaseTableJdbcSourceIT {
     );
   }
 
-   private void runSourceForInitialOffset(List<Record> expectedRecords, int batchSize, Map<String, String> lastOffsets) throws Exception {
+  private void runSourceForInitialOffset(List<Record> expectedRecords, int batchSize, Map<String, String> lastOffsets) throws Exception {
     TableConfigBean tableConfigBean =  new TableJdbcSourceTestBuilder.TableConfigBeanTestBuilder()
         .tablePattern("TENNIS_STARS")
         .schema(database)
@@ -693,5 +723,114 @@ public class BasicIT extends BaseTableJdbcSourceIT {
     //Now the origin is started again with initial offset 5 but we pass the last offset, which means
     //we should read from id 9
     runSourceForInitialOffset(EXPECTED_TENNIS_STARS_RECORDS.subList(8, 15), 100, lastOffsets);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testUpgradeOffsetsToV1() throws Exception {
+    Map<String, String> lastOffsets = Maps.newLinkedHashMap(
+        Collections.singletonMap(
+            Source.POLL_SOURCE_OFFSET_KEY, OffsetQueryUtil.serializeOffsetMap(
+                Maps.newLinkedHashMap(
+                    ImmutableMap.of(
+                        "TEST.CRICKET_STARS", "P_ID=5",
+                        "TEST.TENNIS_STARS", "P_ID=7"
+                    )
+                )
+            )
+        )
+    );
+    TableConfigBean tableConfigBean =  new TableJdbcSourceTestBuilder.TableConfigBeanTestBuilder()
+        .tablePattern("%_STARS")
+        .schema(database)
+        .build();
+
+    TableJdbcSource tableJdbcSource = new TableJdbcSourceTestBuilder(JDBC_URL, true, USER_NAME, PASSWORD)
+        .tableConfigBeans(ImmutableList.of(tableConfigBean))
+        .build();
+
+    tableJdbcSource = Mockito.spy(tableJdbcSource);
+
+    PushSourceRunner runner = Mockito.spy(
+        new PushSourceRunner.Builder(TableJdbcDSource.class, tableJdbcSource)
+            .addOutputLane("a")
+            .setOnRecordError(OnRecordError.TO_ERROR)
+            .build()
+    );
+
+    //Check offset upgrade
+    Mockito.doAnswer(invocationOnMock -> {
+      Map<String, String> lastOffsetStringMap = (Map<String, String>) invocationOnMock.getArguments()[0];
+
+      Assert.assertTrue(lastOffsetStringMap.containsKey(Source.POLL_SOURCE_OFFSET_KEY));
+
+      Map<String, String> oldOffsetMap =
+          OffsetQueryUtil.deserializeOffsetMap(lastOffsetStringMap.get(Source.POLL_SOURCE_OFFSET_KEY));
+
+
+      TableJdbcSource source = (TableJdbcSource) invocationOnMock.getMock();
+
+      Object returnVal = invocationOnMock.callRealMethod();
+
+      //Check the local offsets variable from the TableJdbcSource
+      Map<String, String> upgradedOffset = (Map<String, String>) Whitebox.getInternalState(source, "offsets");
+
+      //Should not contain poll source offset key
+      Assert.assertFalse(upgradedOffset.containsKey(Source.POLL_SOURCE_OFFSET_KEY));
+
+      //Contain all other table values
+      for (Map.Entry<String, String> oldOffsetEntry : oldOffsetMap.entrySet()) {
+        Assert.assertTrue(upgradedOffset.containsKey(oldOffsetEntry.getKey()));
+        Assert.assertEquals(oldOffsetEntry.getValue(), upgradedOffset.get(oldOffsetEntry.getKey()));
+      }
+      //Call the real method, thus upgrading
+      return returnVal;
+    }).when(tableJdbcSource).handleLastOffset(Mockito.anyMapOf(String.class, String.class));
+
+    runner.runInit();
+
+    JdbcPushSourceTestCallback callback = new JdbcPushSourceTestCallback(runner, 2);
+
+    try {
+      runner.runProduce(lastOffsets, 10, callback);
+      List<List<Record>> batches = callback.waitForAllBatchesAndReset();
+      Assert.assertEquals(2, batches.size());
+
+      checkRecords(EXPECTED_CRICKET_STARS_RECORDS.subList(5, EXPECTED_CRICKET_STARS_RECORDS.size()), batches.get(0));
+      checkRecords(EXPECTED_TENNIS_STARS_RECORDS.subList(7, EXPECTED_TENNIS_STARS_RECORDS.size()), batches.get(1));
+
+      Map<String, String> runnerOffsets = runner.getOffsets();
+
+      //Check the offsets after upgraded offsets are used by the runner
+      Assert.assertEquals(3, runnerOffsets.size());
+      Assert.assertFalse(runnerOffsets.containsKey(Source.POLL_SOURCE_OFFSET_KEY));
+      Assert.assertTrue(runnerOffsets.containsKey(TableJdbcSource.OFFSET_VERSION));
+
+      Assert.assertEquals(TableJdbcSource.OFFSET_VERSION_1, runnerOffsets.get(TableJdbcSource.OFFSET_VERSION));
+
+
+      Assert.assertTrue(runnerOffsets.containsKey("TEST.CRICKET_STARS"));
+      Assert.assertTrue(runnerOffsets.containsKey("TEST.TENNIS_STARS"));
+
+      Assert.assertEquals("P_ID=10", runnerOffsets.get("TEST.CRICKET_STARS"));
+      Assert.assertEquals("P_ID=15", runnerOffsets.get("TEST.TENNIS_STARS"));
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testQuoting() throws Exception  {
+    TableConfigBean tableConfigBean =  new TableJdbcSourceTestBuilder.TableConfigBeanTestBuilder()
+        .tablePattern(QUOTED_TABLE_NAME_WITHOUT_QUOTES)
+        .schema(database)
+        .build();
+
+    TableJdbcSource tableJdbcSource = new TableJdbcSourceTestBuilder(JDBC_URL, true, USER_NAME, PASSWORD)
+        .tableConfigBeans(ImmutableList.of(tableConfigBean))
+        .quoteChar(QuoteChar.BACKTICK)
+        .build();
+    List<Record> records = runProduceSingleBatchAndGetRecords(tableJdbcSource, new HashMap<>(), 20);
+    checkRecords(EXPECTED_QUOTE_TESTING_RECORDS, records);
   }
 }

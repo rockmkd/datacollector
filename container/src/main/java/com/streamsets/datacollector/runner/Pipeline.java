@@ -84,7 +84,7 @@ public class Pipeline {
   private final List<Stage.Info> stageInfos;
   private final UserContext userContext;
   private final List<Map<String, Object>> runnerSharedMaps;
-  private final Map<String, Object> runtimeConstants;
+  private final Map<String, Object> runtimeParameters;
 
   private Pipeline(
       String name,
@@ -104,7 +104,7 @@ public class Pipeline {
       List<Stage.Info> stageInfos,
       UserContext userContext,
       List<Map<String, Object>> runnerSharedMaps,
-      Map<String, Object> runtimeConstants
+      Map<String, Object> runtimeParameters
   ) {
     this.pipelineBean = pipelineBean;
     this.name = name;
@@ -125,7 +125,7 @@ public class Pipeline {
     this.stageInfos = stageInfos;
     this.runnerSharedMaps = runnerSharedMaps;
     this.userContext = userContext;
-    this.runtimeConstants = runtimeConstants;
+    this.runtimeParameters = runtimeParameters;
   }
 
   PipelineConfigBean getPipelineConfig() {
@@ -177,8 +177,8 @@ public class Pipeline {
     }
   }
 
-  public Map<String, Object> getRuntimeConstants() {
-    return runtimeConstants;
+  public Map<String, Object> getRuntimeParameters() {
+    return runtimeParameters;
   }
 
   @SuppressWarnings("unchecked")
@@ -281,8 +281,12 @@ public class Pipeline {
 
     // Initialize all source-less pipeline runners
     for(PipeRunner pipeRunner: pipes) {
-      pipeRunner.forEachNoException(p -> issues.addAll(initPipe(p, pipeContext)));
+      pipeRunner.forEachNoException(pipe -> {
+        ((StageContext)pipe.getStage().getContext()).setPipelineFinisherDelegate((PipelineFinisherDelegate)runner);
+        issues.addAll(initPipe(pipe, pipeContext));
+      });
     }
+    ((StageContext)originPipe.getStage().getContext()).setPipelineFinisherDelegate((PipelineFinisherDelegate)runner);
 
     return issues;
   }
@@ -407,7 +411,7 @@ public class Pipeline {
       return build(runner, null);
     }
 
-    public Pipeline build(PipelineRunner runner, Map<String, Object> runtimeConstants) throws PipelineRuntimeException {
+    public Pipeline build(PipelineRunner runner, Map<String, Object> runtimeParameters) throws PipelineRuntimeException {
       Pipeline pipeline = null;
       errors = new ArrayList<>();
       List<Stage.Info> stageInfos = new ArrayList<>();
@@ -416,7 +420,7 @@ public class Pipeline {
           stageLib,
           pipelineConf,
           errors,
-          runtimeConstants
+          runtimeParameters
       );
       StageRuntime errorStage;
       StageRuntime statsAggregator;
@@ -522,7 +526,7 @@ public class Pipeline {
             stageInfos,
             userContext,
             runnerSharedMaps,
-            runtimeConstants
+            runtimeParameters
           );
         } catch (Exception e) {
           String msg = "Can't instantiate pipeline: " + e;

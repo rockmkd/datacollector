@@ -17,12 +17,11 @@
  <title>Salesforce</title>
  <shortdesc>The Salesforce origin reads data from Salesforce.</shortdesc>
  <conbody>
-  <p><indexterm>origins<indexterm>Salesforce</indexterm></indexterm><indexterm>Salesforce
+        <p><indexterm>origins<indexterm>Salesforce</indexterm></indexterm><indexterm>Salesforce
                     origin<indexterm>overview</indexterm></indexterm>When you configure the
             Salesforce origin, you define connection information that the origin uses to connect to
-            Salesforce, including the API type that the origin uses to connect to Salesforce. By
-            default, the origin uses Salesforce API version 36.0. You can change the API version if
-            needed.</p>
+            Salesforce, including the API type and version that the origin uses to connect to
+            Salesforce. </p>
         <p>You can configure the origin to read data in one or both of the following ways: </p>
         <ul id="ul_kr4_1np_tx">
             <li>Execute a query to read existing data from Salesforce. </li>
@@ -32,9 +31,10 @@
         <p>When processing existing data, you can configure the origin to query Salesforce at
             regular intervals. You cannot use repeating queries when subscribed to notifications.
             When repeating a query, the origin can perform a full or incremental read. </p>
-        <p>The origin creates Salesforce header attributes to provide information about the source
-            data in record headers. The origin also <ph
+        <p>The origin generates Salesforce record header attributes and Salesforce field attributes
+            that provide additional information about each record and field. The origin also <ph
                 conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/ph-CDCoverview"
             /></p>
- </conbody>
+        <p>You can optionally use an HTTP proxy to connect to Salesforce.</p>
+    </conbody>
 </concept>

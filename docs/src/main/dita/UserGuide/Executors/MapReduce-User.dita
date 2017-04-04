@@ -25,13 +25,15 @@
                 conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>
             uses the Kerberos principal. </p>
         <p>To use a MapReduce user, perform the following tasks:<ol id="ul_mb1_xpt_ls">
-                <li>On external system, configure the <ph
+                <li>On the external system, configure the <ph
                         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
                     /> user as a proxy user and authorize the <ph
                         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
                     /> user to impersonate the MapReduce user. <p>For more information, see the
                         MapReduce documentation. </p></li>
-                <li>In the MapReduce executor, enter the MapReduce user name.</li>
+                <li>In the MapReduce executor, on the <uicontrol>MapReduce</uicontrol> tab,
+                    configure the <uicontrol>MapReduce User</uicontrol> property to use the
+                    MapReduce user name.</li>
             </ol></p>
  </conbody>
 </concept>

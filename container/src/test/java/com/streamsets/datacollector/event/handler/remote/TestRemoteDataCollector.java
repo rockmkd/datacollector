@@ -42,10 +42,14 @@ import com.streamsets.datacollector.execution.manager.PipelineStateImpl;
 import com.streamsets.datacollector.execution.preview.common.PreviewOutputImpl;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.execution.runner.common.SampledRecord;
+import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.restapi.bean.SourceOffsetJson;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.production.OffsetFileUtil;
+import com.streamsets.datacollector.runner.production.SourceOffset;
+import com.streamsets.datacollector.runner.production.SourceOffsetUpgrader;
 import com.streamsets.datacollector.store.AclStoreTask;
 import com.streamsets.datacollector.store.PipelineInfo;
 import com.streamsets.datacollector.store.PipelineRevInfo;
@@ -80,6 +84,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertNull;
 
 public class TestRemoteDataCollector {
 
@@ -218,11 +223,11 @@ public class TestRemoteDataCollector {
       pipelineList.add(pipelineStatus3);
       pipelineList.add(pipelineStatus4);
       pipelineList.add(pipelineStatus5);
-      stateMap.put(pipelineStatus1.getName() + "::" + pipelineStatus1.getRev(), pipelineStatus1);
-      stateMap.put(pipelineStatus2.getName() + "::" + pipelineStatus2.getRev(), pipelineStatus2);
-      stateMap.put(pipelineStatus3.getName() + "::" + pipelineStatus3.getRev(), pipelineStatus3);
-      stateMap.put(pipelineStatus4.getName() + "::" + pipelineStatus4.getRev(), pipelineStatus4);
-      stateMap.put(pipelineStatus5.getName() + "::" + pipelineStatus5.getRev(), pipelineStatus5);
+      stateMap.put(pipelineStatus1.getPipelineId() + "::" + pipelineStatus1.getRev(), pipelineStatus1);
+      stateMap.put(pipelineStatus2.getPipelineId() + "::" + pipelineStatus2.getRev(), pipelineStatus2);
+      stateMap.put(pipelineStatus3.getPipelineId() + "::" + pipelineStatus3.getRev(), pipelineStatus3);
+      stateMap.put(pipelineStatus4.getPipelineId() + "::" + pipelineStatus4.getRev(), pipelineStatus4);
+      stateMap.put(pipelineStatus5.getPipelineId() + "::" + pipelineStatus5.getRev(), pipelineStatus5);
       return pipelineList;
     }
 
@@ -334,7 +339,7 @@ public class TestRemoteDataCollector {
 
     @Override
     public void start(
-        Map<String, Object> runtimeConstants
+        Map<String, Object> runtimeParameters
     ) throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
         StageException {
       // TODO Auto-generated method stub
@@ -342,7 +347,7 @@ public class TestRemoteDataCollector {
 
     @Override
     public void startAndCaptureSnapshot(
-        Map<String, Object> runtimeConstants,
+        Map<String, Object> runtimeParameters,
         String snapshotName,
         String snapshotLabel,
         int batches,
@@ -712,8 +717,8 @@ public class TestRemoteDataCollector {
     @Override
     public PipelineConfiguration create(
         String user,
-        String name,
-        String label,
+        String pipelineId,
+        String pipelineTitle,
         String description,
         boolean isRemote
     ) throws PipelineStoreException {
@@ -721,6 +726,7 @@ public class TestRemoteDataCollector {
       return new PipelineConfiguration(
           1,
           1,
+          "pipelineId",
           UUID.randomUUID(),
           "label",
           "",
@@ -943,7 +949,10 @@ public class TestRemoteDataCollector {
     File testFolder = tempFolder.newFolder();
     Mockito.when(runtimeInfo.getDataDir()).thenReturn(testFolder.getAbsolutePath());
     Acl acl = new Acl();
-    dataCollector.savePipeline("user", "foo", "0", "", "offset:1000", Mockito.mock(PipelineConfiguration.class), null,
+    SourceOffset sourceOffset = new SourceOffset();
+    sourceOffset.setOffset("offset:1000");
+    new SourceOffsetUpgrader().upgrade(sourceOffset);
+    dataCollector.savePipeline("user", "foo", "0", "", sourceOffset, Mockito.mock(PipelineConfiguration.class), null,
         acl);
     Mockito.verify(aclStoreTask, Mockito.times(1)).saveAcl(Mockito.eq("foo"), Mockito.eq(acl));
   }
@@ -985,10 +994,16 @@ public class TestRemoteDataCollector {
     );
     File testFolder = tempFolder.newFolder();
     Mockito.when(runtimeInfo.getDataDir()).thenReturn(testFolder.getAbsolutePath());
-    dataCollector.savePipeline("user", "foo", "0", "", "offset:1000", Mockito.mock(PipelineConfiguration.class), null,
+    SourceOffset sourceOffset = new SourceOffset();
+    sourceOffset.setOffset("offset:1000");
+    new SourceOffsetUpgrader().upgrade(sourceOffset);
+    dataCollector.savePipeline("user", "foo", "0", "", sourceOffset, Mockito.mock(PipelineConfiguration.class), null,
         new Acl());
     assertTrue("Offset File doesn't exist", OffsetFileUtil.getPipelineOffsetFile(runtimeInfo, "foo", "0").exists());
-    assertEquals("offset:1000", OffsetFileUtil.getOffsets(runtimeInfo, "foo", "0").get(Source.POLL_SOURCE_OFFSET_KEY));
+    assertEquals(
+        sourceOffset.getOffsets().get(Source.POLL_SOURCE_OFFSET_KEY),
+        OffsetFileUtil.getOffsets(runtimeInfo, "foo", "0").get(Source.POLL_SOURCE_OFFSET_KEY)
+    );
   }
 
   @Test
@@ -1035,7 +1050,15 @@ public class TestRemoteDataCollector {
     assertTrue(pipelineAndValidationStatus.getWorkerInfos().isEmpty());
     assertTrue(pipelineAndValidationStatus.isRemote());
     assertEquals("message", pipelineAndValidationStatus.getMessage());
-    assertEquals("offset:1000", pipelineAndValidationStatus.getOffset());
+    // "{\n" + "  \"offsets\" : {\n" + "    \"$com.streamsets.datacollector.pollsource.offset$\" : \"offset:1000\"\n" + "  },\n" + "  \"version\" : 2\n" + "}"
+
+    SourceOffsetJson sourceOffsetJson = ObjectMapperFactory.get().readValue(
+        pipelineAndValidationStatus.getOffset(),
+        SourceOffsetJson.class
+    );
+    assertNotNull(sourceOffsetJson);
+    assertEquals(2, sourceOffsetJson.getVersion());
+    assertEquals("offset:1000", sourceOffsetJson.getOffsets().get(Source.POLL_SOURCE_OFFSET_KEY));
     assertNull(pipelineAndValidationStatus.getValidationStatus());
   }
 }

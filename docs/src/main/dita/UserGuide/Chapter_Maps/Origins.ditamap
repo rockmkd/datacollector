@@ -52,6 +52,16 @@
    </topicref>
    <topicref href="../Origins/Directory-Configuring.dita"/>
   </topicref>
+  <topicref href="../Origins/Elasticsearch.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/Elasticsearch-BatchIncrementalMode.dita"/>
+   <topicref href="../Origins/Elasticsearch-Query.dita">
+    <topicref href="../Origins/Elasticsearch-IncrementalQuery.dita"/>
+   </topicref>
+   <topicref href="../Origins/Elasticsearch-ScrollTimeout.dita"/>
+   <topicref href="../Origins/Elasticsearch-MultithreadProcessing.dita"/>
+   <topicref href="../Origins/Elasticsearch-Configuring.dita"/>
+  </topicref>
   <topicref href="../Origins/FileTail.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
    <topicref href="../Origins/FileTail-FileProcessing.dita"/>
@@ -97,7 +107,10 @@
   </topicref>
   <topicref href="../Origins/HTTPServer.dita" chunk="to-content">
    <topicmeta><shortdesc></shortdesc></topicmeta>
-   <topicref href="../Origins/HTTPServer-Prerequisites.dita"/>
+   <topicref href="../Origins/HTTPServer-Prerequisites.dita">
+    <topicref href="../Origins/HTTPServer-PrerequisitesPort.dita"/>
+    <topicref href="../Origins/HTTPServer-PrerequisitesAppID.dita"/>
+   </topicref>
    <topicref href="../Origins/HTTPServer-MultithreadProcessing.dita"/>
    <topicref href="../Origins/HTTPServer-DataFormat.dita"/>
    <topicref href="../Origins/HTTPServer-Configuring.dita"/>
@@ -121,6 +134,7 @@
    <topicref href="../Origins/MultiTableJDBCConsumer-DriverInstall.dita">
     <topicref href="../Origins/MultiTableJDBCConsumer-MySQLDriver.dita"/>
    </topicref>
+   <topicref href="../Origins/MultiTableJDBCConsumer-Multithread.dita"/>
    <topicref href="../Origins/MultiTableJDBCConsumer-BatchStrategy.dita"/>
    <topicref href="../Origins/MultiTableJDBCConsumer-TableConfiguration.dita">
     <topicref href="../Origins/MultiTableJDBCConsumer-TableName.dita"/>
@@ -280,8 +294,11 @@
     <topicref href="../Origins/Salesforce-SubscribeRecordFormat.dita"/>
    </topicref>
    <topicref href="../Origins/Salesforce-CustomFields.dita"/>
-   <topicref href="../Origins/Salesforce-HeaderAttributes.dita"/>
-   <topicref href="../Origins/Salesforce-CRUDHeaderAttribute.dita"/>
+   <topicref href="../Origins/Salesforce-Attributes.dita">
+    <topicref href="../Origins/Salesforce-HeaderAttributes.dita"/>
+    <topicref href="../Origins/Salesforce-CRUDHeaderAttribute.dita"/>
+    <topicref href="../Origins/Salesforce-FieldAttributes.dita"/>
+   </topicref>
    <topicref href="../Origins/Salesforce-APIVersion.dita"/>
    <topicref href="../Origins/Salesforce-Configuring.dita"/>
   </topicref>
@@ -323,6 +340,16 @@
     <topicref href="../Origins/UDPtoKafka-EnableSSLKerb.dita"/>
    </topicref>
    <topicref href="../Origins/UDPtoKafka-Configuring.dita"/>
+  </topicref>
+  <topicref href="../Origins/WebSocketServer.dita" chunk="to-content">
+   <topicmeta><shortdesc></shortdesc></topicmeta>
+   <topicref href="../Origins/WebSocketServer-Prerequisites.dita">
+    <topicref href="../Origins/WebSocketServer-PrerequisitesPort.dita"/>
+    <topicref href="../Origins/WebSocketServer-PrerequisitesAppID.dita"/>
+   </topicref>
+   <topicref href="../Origins/WebSocketServer-MultithreadProcessing.dita"/>
+   <topicref href="../Origins/WebSocketServer-DataFormat.dita"/>
+   <topicref href="../Origins/WebSocketServer-Configuring.dita"/>
   </topicref>
  </topicref>
 </map>

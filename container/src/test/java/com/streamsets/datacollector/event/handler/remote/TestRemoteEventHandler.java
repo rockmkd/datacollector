@@ -65,6 +65,7 @@ import com.streamsets.datacollector.io.DataStore;
 import com.streamsets.datacollector.restapi.bean.BeanHelper;
 import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
 import com.streamsets.datacollector.runner.MockStages;
+import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.util.ContainerError;
@@ -78,7 +79,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import java.beans.EventHandler;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -91,9 +91,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TestRemoteEventHandler {
 
@@ -288,6 +286,7 @@ public class TestRemoteEventHandler {
         // API Config needs fixing
         PipelineConfiguration pipelineConf = new PipelineConfiguration(PipelineStoreTask.SCHEMA_VERSION,
             PipelineConfigBean.VERSION,
+            "pipelineId",
             UUID.randomUUID(),
             "label",
             "description",
@@ -419,7 +418,7 @@ public class TestRemoteEventHandler {
         String name,
         String rev,
         String description,
-        String offset,
+        SourceOffset offset,
         PipelineConfiguration pipelineConfiguration,
         RuleDefinitions ruleDefinitions, Acl acl
     ) throws PipelineStoreException {
@@ -763,7 +762,8 @@ public class TestRemoteEventHandler {
         "1.7",
         stageInfoList,
         sdcBuildInfo,
-        Arrays.asList("label_1", "label_2")
+        Arrays.asList("label_1", "label_2"),
+        2
     );
     ClientEvent clientEvent = new ClientEvent(
         id1.toString(),

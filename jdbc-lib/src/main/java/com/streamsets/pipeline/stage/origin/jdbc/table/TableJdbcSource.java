@@ -29,7 +29,7 @@ import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BasePushSource;
-import com.streamsets.pipeline.lib.event.EventCreator;
+import com.streamsets.pipeline.lib.event.CommonEvents;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
@@ -44,6 +44,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,17 +57,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class TableJdbcSource extends BasePushSource {
-  public static final String JDBC_NO_MORE_DATA= "jdbc-no-more-data";
+  public static final String OFFSET_VERSION =
+      "$com.streamsets.pipeline.stage.origin.jdbc.table.TableJdbcSource.offset.version$";
+  public static final String OFFSET_VERSION_1 = "1";
 
   private static final Logger LOG = LoggerFactory.getLogger(TableJdbcSource.class);
   private static final Joiner NEW_LINE_JOINER = Joiner.on("\n");
   private static final String HIKARI_CONFIG_PREFIX = "hikariConfigBean.";
   private static final String CONNECTION_STRING = HIKARI_CONFIG_PREFIX + "connectionString";
-  private static final String OFFSET_VERSION = "$com.streamsets.pipeline.stage.origin.jdbc.table.TableJdbcSource.offset.version$";
-  private static final String OFFSET_VERSION_1 = "1";
 
   private final HikariPoolConfigBean hikariConfigBean;
   private final CommonSourceConfigBean commonSourceConfigBean;
@@ -76,7 +79,6 @@ public class TableJdbcSource extends BasePushSource {
   //can keep track of different closeables from different threads
   private final Collection<Cache<TableContext, TableReadContext>> toBeInvalidatedThreadCaches;
 
-  private Calendar calendar;
   private HikariDataSource hikariDataSource;
   private ConnectionManager connectionManager;
   private Map<String, String> offsets;
@@ -112,8 +114,6 @@ public class TableJdbcSource extends BasePushSource {
     }
     if (issues.isEmpty()) {
       try {
-        calendar = Calendar.getInstance(TimeZone.getTimeZone(tableJdbcConfigBean.timeZoneID));
-
         connectionManager = new ConnectionManager(hikariDataSource);
 
         for (TableConfigBean tableConfigBean : tableJdbcConfigBean.tableConfigs) {
@@ -156,14 +156,10 @@ public class TableJdbcSource extends BasePushSource {
 
           try {
             tableOrderProvider.initialize(allTableContexts);
-            int maxQueueSize =
-                (tableJdbcConfigBean.batchTableStrategy == BatchTableStrategy.SWITCH_TABLES) ?
-                    allTableContexts.size() / numberOfThreads
-                    : 1;
             this.tableOrderProvider = new MultithreadedTableProvider(
                 allTableContexts,
                 tableOrderProvider.getOrderedTables(),
-                maxQueueSize
+                decideMaxTableSlotsForThreads()
             );
           } catch (ExecutionException e) {
             LOG.debug("Error during Table Order Provider Init", e);
@@ -186,9 +182,45 @@ public class TableJdbcSource extends BasePushSource {
             )
         );
       } finally {
-        Optional.ofNullable(connectionManager).ifPresent(ConnectionManager::closeAll);
+        Optional.ofNullable(connectionManager).ifPresent(ConnectionManager::closeConnection);
       }
     }
+  }
+
+  private Map<Integer, Integer> decideMaxTableSlotsForThreads() {
+    Map<Integer, Integer> threadNumberToMaxQueueSize = new HashMap<>();
+    if (tableJdbcConfigBean.batchTableStrategy == BatchTableStrategy.SWITCH_TABLES) {
+      //If it is switch table strategy, we equal divide the work between all threads
+      //(and if it cannot be equal distribute the remaining table slots to subset of threads)
+      int totalNumberOfTables = allTableContexts.size();
+      int balancedQueueSize = totalNumberOfTables / numberOfThreads;
+      //first divide total tables / number of threads to get
+      //an exact balanced number of table slots to be assigned to all threads
+      IntStream.range(0, numberOfThreads).forEach(
+          threadNumber -> threadNumberToMaxQueueSize.put(threadNumber, balancedQueueSize)
+      );
+      //Remaining table slots which are not assigned, can be assigned to a subset of threads
+      int toBeAssignedTableSlots = totalNumberOfTables % numberOfThreads;
+
+      //Randomize threads and pick a set of threads for processing extra slots
+      List<Integer> threadNumbers = IntStream.range(0, numberOfThreads).boxed().collect(Collectors.toList());
+      Collections.shuffle(threadNumbers);
+      threadNumbers = threadNumbers.subList(0, toBeAssignedTableSlots);
+
+      //Assign the remaining table slots to thread by incrementing the max table slot for each of the randomly selected
+      //thread by 1
+      for (int threadNumber : threadNumbers) {
+        threadNumberToMaxQueueSize.put(threadNumber, threadNumberToMaxQueueSize.get(threadNumber) + 1);
+      }
+    } else {
+      //Assign one table slot to each thread if the strategy is process all available rows
+      //So each table will pick up one table process it completely then return it back to pool
+      //then pick up a new table and work on it.
+      IntStream.range(0, numberOfThreads).forEach(
+          threadNumber -> threadNumberToMaxQueueSize.put(threadNumber, 1)
+      );
+    }
+    return threadNumberToMaxQueueSize;
   }
 
   @Override
@@ -199,10 +231,10 @@ public class TableJdbcSource extends BasePushSource {
     issues = commonSourceConfigBean.validateConfigs(context, issues);
     issues = tableJdbcConfigBean.validateConfigs(context, issues);
 
-    //Max pool size should be at least one greater than number of threads
-    //The main thread needs one connection and each individual data threads needs
-    //one connection
-    if (tableJdbcConfigBean.numberOfThreads >= hikariConfigBean.maximumPoolSize) {
+    //Max pool size should be equal to number of threads
+    //The main thread will use one connection to list threads and close (return to hikari pool) the connection
+    // and each individual data threads needs one connection
+    if (tableJdbcConfigBean.numberOfThreads > hikariConfigBean.maximumPoolSize) {
       issues.add(
           getContext().createConfigIssue(
               Groups.ADVANCED.name(),
@@ -238,7 +270,6 @@ public class TableJdbcSource extends BasePushSource {
         TableJdbcRunnable runnable = new TableJdbcRunnable.Builder()
             .context(getContext())
             .threadNumber(threadNumber)
-            .calendar(calendar)
             .batchSize(batchSize)
             .connectionManager(connectionManager)
             .offsets(offsets)
@@ -255,7 +286,6 @@ public class TableJdbcSource extends BasePushSource {
         generateNoMoreDataEventIfNeeded();
       }
     } finally {
-      connectionManager.closeConnection();
       shutdownExecutorIfNeeded();
     }
   }
@@ -269,8 +299,7 @@ public class TableJdbcSource extends BasePushSource {
       //throw event
       LOG.info("No More data to process, Triggered No More Data Event");
       BatchContext batchContext = getContext().startBatch();
-      new EventCreator.Builder(JDBC_NO_MORE_DATA, 1).build()
-          .create(getContext(), batchContext).createAndSend();
+      CommonEvents.NO_MORE_DATA.create(getContext(), batchContext).createAndSend();
       getContext().processBatch(batchContext);
     }
   }
@@ -320,7 +349,8 @@ public class TableJdbcSource extends BasePushSource {
     });
   }
 
-  private void handleLastOffset(Map<String, String> lastOffsets) throws StageException {
+  @VisibleForTesting
+  void handleLastOffset(Map<String, String> lastOffsets) throws StageException {
     if (lastOffsets != null) {
       if (lastOffsets.containsKey(Source.POLL_SOURCE_OFFSET_KEY)) {
         String innerTableOffsetsAsString = lastOffsets.get(Source.POLL_SOURCE_OFFSET_KEY);
@@ -335,11 +365,13 @@ public class TableJdbcSource extends BasePushSource {
         //Do this at last so as not to lose the offsets if there is failure in the middle
         //when we call commitOffset above
         getContext().commitOffset(Source.POLL_SOURCE_OFFSET_KEY, null);
-
-        //Version the offset so as to allow for future evolution.
-        getContext().commitOffset(OFFSET_VERSION, OFFSET_VERSION_1);
       } else {
         offsets.putAll(lastOffsets);
+      }
+      //Only if it is not already committed
+      if (!lastOffsets.containsKey(OFFSET_VERSION)) {
+        //Version the offset so as to allow for future evolution.
+        getContext().commitOffset(OFFSET_VERSION, OFFSET_VERSION_1);
       }
     }
 

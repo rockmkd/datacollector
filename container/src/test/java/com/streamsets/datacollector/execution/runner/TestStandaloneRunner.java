@@ -130,15 +130,15 @@ public class TestStandaloneRunner {
   @Test(timeout = 20000)
   public void testPipelineStartWithParameters() throws Exception {
     Runner runner = pipelineManager.getRunner("admin", TestUtil.MY_PIPELINE, "0");
-    Map<String, Object> runtimeConstants = new HashMap<>();
-    runtimeConstants.put("param1", "Param1 Value");
-    runner.start(runtimeConstants);
+    Map<String, Object> runtimeParameters = new HashMap<>();
+    runtimeParameters.put("param1", "Param1 Value");
+    runner.start(runtimeParameters);
     waitForState(runner, PipelineStatus.RUNNING);
     PipelineState pipelineState = runner.getState();
     Map<String, Object> runtimeConstantsInState = (Map<String, Object>) pipelineState.getAttributes()
-        .get(ProductionPipeline.RUNTIME_CONSTANTS_ATTR);
+        .get(ProductionPipeline.RUNTIME_PARAMETERS_ATTR);
     assertNotNull(runtimeConstantsInState);
-    assertEquals(runtimeConstants.get("param1"), runtimeConstantsInState.get("param1"));
+    assertEquals(runtimeParameters.get("param1"), runtimeConstantsInState.get("param1"));
     ((AsyncRunner)runner).getRunner().prepareForStop();
     ((AsyncRunner)runner).getRunner().stop();
     waitForState(runner, PipelineStatus.STOPPED);
@@ -462,7 +462,7 @@ public class TestStandaloneRunner {
   @Test (timeout = 60000)
   public void testStartAndCaptureSnapshot() throws Exception {
     Runner runner = pipelineManager.getRunner("admin", TestUtil.MY_PIPELINE, "0");
-    final String snapshotId = UUID.randomUUID().toString();
+    String snapshotId = UUID.randomUUID().toString();
     runner.startAndCaptureSnapshot(null, snapshotId, "snapshot label", 1, 10);
     waitForState(runner, PipelineStatus.RUNNING);
 
@@ -481,7 +481,17 @@ public class TestStandaloneRunner {
     ((AsyncRunner)runner).getRunner().prepareForStop();
     ((AsyncRunner)runner).getRunner().stop();
     waitForState(runner, PipelineStatus.STOPPED);
+
+    // try with batch size less than 0
+    snapshotId = UUID.randomUUID().toString();
+    try {
+      runner.startAndCaptureSnapshot(null, snapshotId, "snapshot label", 1, 0);
+      Assert.fail("Expected PipelineRunnerException");
+    } catch (PipelineRunnerException e) {
+      Assert.assertEquals(ContainerError.CONTAINER_0107, e.getErrorCode());
+    }
   }
+
 
   @Test (timeout = 60000)
   public void testRunningMaxPipelines() throws Exception {

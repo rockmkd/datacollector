@@ -25,8 +25,9 @@
 angular
   .module('dataCollectorApp.home')
 
-  .controller('SummaryController', function ($scope, $rootScope, $modal, $http, pipelineConstant, $filter, authService,
-                                             $timeout) {
+  .controller('SummaryController', function (
+    $scope, $rootScope, $modal, $http, pipelineConstant, $filter, authService, $timeout
+  ) {
     var chartList = [
       {
         label: 'home.detailPane.summaryTab.slaveSDCInstances',
@@ -73,8 +74,12 @@ angular
         templateId: 'memoryConsumedLineChartTemplate'
       },
       {
-        label: 'home.detailPane.summaryTab.runtimeConstants',
+        label: 'home.detailPane.summaryTab.runtimeParameters',
         templateId: 'summaryRuntimeConstantsTemplate'
+      },
+      {
+        label: 'home.detailPane.summaryTab.runnersHistogram',
+        templateId: 'summaryPipelineRunnersTemplate'
       }
     ];
 
@@ -163,8 +168,8 @@ angular
       }
     });
 
-    if(!$rootScope.$storage.summaryPanelList) {
-      $rootScope.$storage.summaryPanelList = chartList;
+    if(!$rootScope.$storage.summaryPanelList_v1) {
+      $rootScope.$storage.summaryPanelList_v1 = chartList;
     }
 
     if(!$rootScope.$storage.counters) {
@@ -261,7 +266,7 @@ angular
 
       if(pipelineMetrics.counters) {
         var persistedCounters = ['memoryConsumed'],
-          pipelineCounterKey = 'pipeline.' + pipelineConfig.info.name,
+          pipelineCounterKey = 'pipeline.' + pipelineConfig.info.pipelineId,
           currentTime = new Date().getTime(),
           counterValue;
 

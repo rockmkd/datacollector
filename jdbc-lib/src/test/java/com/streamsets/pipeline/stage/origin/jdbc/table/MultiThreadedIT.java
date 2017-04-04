@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.lib.event.CommonEvents;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.StageRunner;
@@ -33,6 +34,8 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.reflect.Whitebox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -236,7 +239,7 @@ public class MultiThreadedIT extends BaseTableJdbcSourceIT {
       Record eventRecord = runner.getEventRecords().get(0);
       String eventType = eventRecord.getHeader().getAttribute("sdc.event.type");
       Assert.assertNotNull(eventType);
-      Assert.assertTrue(TableJdbcSource.JDBC_NO_MORE_DATA.equals(eventType));
+      Assert.assertTrue(CommonEvents.NO_MORE_DATA_TAG.equals(eventType));
     } finally {
       runner.runDestroy();
     }
@@ -291,5 +294,29 @@ public class MultiThreadedIT extends BaseTableJdbcSourceIT {
         .build();
 
     testMultiThreadedRead(tableJdbcSource);
+  }
+
+  @Test
+  public void testNumThreadsMoreThanNumTables() throws Exception {
+    TableConfigBean tableConfigBean =  new TableJdbcSourceTestBuilder.TableConfigBeanTestBuilder()
+        .tablePattern("%")
+        .schema(database)
+        .build();
+    TableJdbcSource tableJdbcSource = new TableJdbcSourceTestBuilder(JDBC_URL, true, USER_NAME, PASSWORD)
+        .tableConfigBeans(ImmutableList.of(tableConfigBean))
+        // 20 threads in config but there are only 10 tables
+        .numberOfThreads(NUMBER_OF_TABLES + 10)
+        .batchTableStrategy(BatchTableStrategy.SWITCH_TABLES)
+        .build();
+    tableJdbcSource = PowerMockito.spy(tableJdbcSource);
+    PushSourceRunner runner = new PushSourceRunner.Builder(TableJdbcDSource.class, tableJdbcSource)
+        .addOutputLane("a").build();
+    runner.runInit();
+    try {
+      int numberOfThreads = Whitebox.getInternalState(tableJdbcSource, "numberOfThreads");
+      Assert.assertEquals(NUMBER_OF_TABLES, numberOfThreads);
+    } finally {
+      runner.runDestroy();
+    }
   }
 }

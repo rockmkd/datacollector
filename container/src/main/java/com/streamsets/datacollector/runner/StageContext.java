@@ -63,8 +63,8 @@ import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.ext.ContextExtensions;
 import com.streamsets.pipeline.api.ext.RecordReader;
-import com.streamsets.pipeline.api.ext.Sampler;
 import com.streamsets.pipeline.api.ext.RecordWriter;
+import com.streamsets.pipeline.api.ext.Sampler;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.lib.sampling.RecordSampler;
@@ -116,6 +116,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
   private final EmailSender emailSender;
   private final Sampler sampler;
   private final Map<String, Object> sharedRunnerMap;
+  private PipelineFinisherDelegate pipelineFinisherDelegate;
 
   //for SDK
   public StageContext(
@@ -236,6 +237,15 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
     }
     return configToElDefMap;
 
+  }
+
+  @Override
+  public void finishPipeline() {
+    pipelineFinisherDelegate.setFinished();
+  }
+
+  public void setPipelineFinisherDelegate(PipelineFinisherDelegate runner) {
+    pipelineFinisherDelegate = runner;
   }
 
   PushSourceContextDelegate pushSourceContextDelegate;

@@ -363,4 +363,11 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
   @Override
   public void reportError(String stage, ErrorMessage errorMessage) {
   }
+
+  @Override
+  public void setFinished() {
+    LOG.info("PreviewPipelineRunner:  setFinished() was called. ");
+
+  }
+
 }
