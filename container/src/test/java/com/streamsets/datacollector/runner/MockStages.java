@@ -26,6 +26,7 @@ import com.streamsets.datacollector.config.ModelDefinition;
 import com.streamsets.datacollector.config.ModelType;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.PipelineDefinition;
+import com.streamsets.datacollector.config.PipelineRulesDefinition;
 import com.streamsets.datacollector.config.RawSourceDefinition;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
@@ -352,7 +353,12 @@ public class MockStages {
     }
 
     @Override
-    public void put(List<Map.Entry> batch) throws InterruptedException {
+    public Object put(List<Map.Entry> batch) throws InterruptedException {
+      return null;
+    }
+
+    @Override
+    public void completeBatch() throws InterruptedException {
 
     }
 
@@ -648,6 +654,11 @@ public class MockStages {
     @Override
     public PipelineDefinition getPipeline() {
       return PipelineDefinition.getPipelineDef();
+    }
+
+    @Override
+    public PipelineRulesDefinition getPipelineRules() {
+      return PipelineRulesDefinition.getPipelineRulesDef();
     }
 
     @Override

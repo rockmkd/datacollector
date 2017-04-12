@@ -14,6 +14,7 @@
    </topicmeta>
    <topicref href="../Upgrade/PreUpgrade-InstallRequirements.dita"/>
    <topicref href="../Upgrade/PreUpgrade-Java8.dita"/>
+   <topicref href="../Upgrade/PreUpgrade-Cluster.dita"/>
   </topicref>
   <topicref href="../Upgrade/Tarball.dita" chunk="to-content">
    <topicmeta>
@@ -56,6 +57,7 @@
    <topicmeta>
     <shortdesc/>
    </topicmeta>
+   <topicref href="../Upgrade/PostUpgrade-Preconditions.dita"/>
    <topicref href="../Upgrade/2410DockerAuthentication.dita"/>
    <topicref href="../Upgrade/2400-PipelinePermissions.dita"/>
    <topicref href="../Upgrade/PostUpgrade-Elasticsearch.dita"/>

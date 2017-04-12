@@ -19,13 +19,15 @@
  */
 package com.streamsets.datacollector.restapi.bean;
 
+import com.streamsets.datacollector.config.PipelineDefinition;
+
 import java.util.List;
 
 public class PipelineDefinitionJson {
 
-  private final com.streamsets.datacollector.config.PipelineDefinition pipelineDefinition;
+  private final PipelineDefinition pipelineDefinition;
 
-  public PipelineDefinitionJson(com.streamsets.datacollector.config.PipelineDefinition pipelineDefinition) {
+  PipelineDefinitionJson(PipelineDefinition pipelineDefinition) {
     this.pipelineDefinition = pipelineDefinition;
   }
 

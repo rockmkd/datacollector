@@ -138,9 +138,12 @@ public class Pipeline {
     return originPipe;
   }
 
-  @VisibleForTesting
-  List<PipeRunner> getRunners() {
+  public List<PipeRunner> getRunners() {
     return pipes;
+  }
+
+  public int getNumOfRunners() {
+    return pipes.size();
   }
 
   private boolean calculateShouldStopOnStageError() {

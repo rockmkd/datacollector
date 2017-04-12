@@ -21,7 +21,7 @@ package com.streamsets.pipeline.spark;
 
 import com.streamsets.pipeline.Utils;
 
-public class MapRBootstrapSparkFunction extends AbstractBootstrapSparkFunction {
+public class MapRBootstrapSparkFunction<T1, T2> extends AbstractBootstrapSparkFunction<T1, T2> {
 
   @Override
   protected int getBatchSize() {

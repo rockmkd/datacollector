@@ -31,4 +31,8 @@ public interface HttpConstants {
   String X_SDC_COMPRESSION_HEADER = "X-SDC-COMPRESSION";
   String SNAPPY_COMPRESSION = "snappy";
 
+  String GZIP_COMPRESSION = "gzip";
+
+  String CONTENT_ENCODING_HEADER = "Content-Encoding";
+
 }

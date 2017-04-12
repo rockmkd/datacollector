@@ -24,6 +24,8 @@ import com.streamsets.datacollector.config.ConfigDefinition;
 import com.streamsets.datacollector.config.ModelType;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.PipelineGroups;
+import com.streamsets.datacollector.config.PipelineWebhookConfig;
+import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.config.StageLibraryDefinition;
@@ -41,6 +43,7 @@ import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.impl.Utils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +62,7 @@ import java.util.Properties;
 public abstract class PipelineBeanCreator {
   private static final Logger LOG = LoggerFactory.getLogger(PipelineBeanCreator.class);
   public static final String PIPELINE_LIB_DEFINITION = "Pipeline";
+  public static final String RULE_DEFINITIONS_LIB_DEFINITION = "RuleDefinitions";
 
   private static final PipelineBeanCreator CREATOR = new PipelineBeanCreator() {
   };
@@ -70,16 +74,60 @@ public abstract class PipelineBeanCreator {
   public static final StageDefinition PIPELINE_DEFINITION = getPipelineDefinition();
 
   static private StageDefinition getPipelineDefinition() {
-    StageLibraryDefinition libraryDef = new StageLibraryDefinition(Thread.currentThread().getContextClassLoader(),
-                                                                   PIPELINE_LIB_DEFINITION, PIPELINE_LIB_DEFINITION, new Properties(), null, null,
-                                                                   null);
+    StageLibraryDefinition libraryDef = new StageLibraryDefinition(
+        Thread.currentThread().getContextClassLoader(),
+        PIPELINE_LIB_DEFINITION,
+        PIPELINE_LIB_DEFINITION,
+        new Properties(),
+        null,
+        null,
+        null
+    );
     return StageDefinitionExtractor.get().extract(libraryDef, PipelineConfigBean.class, "Pipeline Config Definitions");
+  }
+
+  public static final StageDefinition RULES_DEFINITION = getRulesDefinition();
+
+  static private StageDefinition getRulesDefinition() {
+    StageLibraryDefinition libraryDef = new StageLibraryDefinition(
+        Thread.currentThread().getContextClassLoader(),
+        RULE_DEFINITIONS_LIB_DEFINITION,
+        RULE_DEFINITIONS_LIB_DEFINITION,
+        new Properties(),
+        null,
+        null,
+        null
+    );
+    return StageDefinitionExtractor.get().extract(
+        libraryDef,
+        RuleDefinitionsConfigBean.class,
+        "Rules Definitions Config Definitions"
+    );
   }
 
   public PipelineConfigBean create(PipelineConfiguration pipelineConf, List<Issue> errors) {
     int priorErrors = errors.size();
     PipelineConfigBean pipelineConfigBean = createPipelineConfigs(pipelineConf, errors);
     return (errors.size() == priorErrors) ? pipelineConfigBean : null;
+  }
+
+
+  public RuleDefinitionsConfigBean createRuleDefinitionsConfigBean(
+      RuleDefinitions ruleDefinitions,
+      List<Issue> errors
+  ) {
+    RuleDefinitionsConfigBean ruleDefinitionsConfigBean = new RuleDefinitionsConfigBean();
+    if (createConfigBeans(ruleDefinitionsConfigBean, "", RULES_DEFINITION, "pipeline", errors)) {
+      injectConfigs(
+          ruleDefinitionsConfigBean,
+          "", RULES_DEFINITION.getConfigDefinitionsMap(),
+          RULES_DEFINITION,
+          getRulesConfAsStageConf(ruleDefinitions),
+          Collections.EMPTY_MAP,
+          errors
+      );
+    }
+    return ruleDefinitionsConfigBean;
   }
 
   public PipelineBean create(
@@ -169,8 +217,29 @@ public abstract class PipelineBeanCreator {
             errors
         );
       } else {
-        errors.add(IssueCreator.getPipeline().create(PipelineGroups.BAD_RECORDS.name(), "badRecordsHandling",
-                                                     CreationError.CREATION_009));
+        errors.add(IssueCreator.getPipeline().create(
+            PipelineGroups.BAD_RECORDS.name(),
+            "badRecordsHandling",
+            CreationError.CREATION_009
+        ));
+      }
+
+      // Validate Webhook Configs
+      if (pipelineConfigBean.webhookConfigs != null && !pipelineConfigBean.webhookConfigs.isEmpty()) {
+        int index = 0;
+        for (PipelineWebhookConfig webhookConfig: pipelineConfigBean.webhookConfigs) {
+          if (StringUtils.isEmpty(webhookConfig.webhookUrl)) {
+            Issue issue = IssueCreator.getPipeline().create(
+                PipelineGroups.NOTIFICATIONS.name(),
+                "webhookUrl",
+                CreationError.CREATION_080
+            );
+            issue.setAdditionalInfo("index", index);
+            errors.add(issue);
+            break;
+          }
+          index++;
+        }
       }
     }
 
@@ -294,6 +363,22 @@ public abstract class PipelineBeanCreator {
   public static StageConfiguration getPipelineConfAsStageConf(PipelineConfiguration pipelineConf) {
     return new StageConfiguration(null, "none", "pipeline", pipelineConf.getVersion(), pipelineConf.getConfiguration(),
                                   Collections.EMPTY_MAP, Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+  }
+
+
+  @SuppressWarnings("unchecked")
+  public static StageConfiguration getRulesConfAsStageConf(RuleDefinitions ruleDefinitions) {
+    return new StageConfiguration(
+        null,
+        "none",
+        "pipeline",
+        ruleDefinitions.getVersion(),
+        ruleDefinitions.getConfiguration(),
+        Collections.EMPTY_MAP,
+        Collections.EMPTY_LIST,
+        Collections.EMPTY_LIST,
+        Collections.EMPTY_LIST
+    );
   }
 
   @SuppressWarnings("unchecked")

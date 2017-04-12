@@ -102,12 +102,12 @@ public class PipelineEL {
     if (null != pipelineConfiguration.getInfo() && null != pipelineConfiguration.getInfo().getTitle()) {
       title = pipelineConfiguration.getInfo().getTitle();
     }
-    if (null != pipelineConfiguration.getInfo() && null != pipelineConfiguration.getInfo().getUuid()) {
+    if (null != pipelineConfiguration.getInfo() && null != pipelineConfiguration.getInfo().getPipelineId()) {
       id = pipelineConfiguration.getInfo().getPipelineId();
     }
     if (null != pipelineConfiguration.getMetadata() &&
         pipelineConfiguration.getMetadata().containsKey(PIPELINE_VERSION_VAR)) {
-      version = (String) pipelineConfiguration.getMetadata().get(PIPELINE_VERSION_VAR);
+      version = pipelineConfiguration.getMetadata().get(PIPELINE_VERSION_VAR).toString();
     }
     Map<String, Object> variablesInScope = CONSTANTS_IN_SCOPE_TL.get();
     variablesInScope.put(PipelineEL.SDC_PIPELINE_VERSION_VAR, version);

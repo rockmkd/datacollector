@@ -120,14 +120,14 @@ public class RemoteDataCollector implements DataCollector {
       LOG.warn("Pipeline {}:{} is already in active state {}", pipelineState.getPipelineId(), pipelineState.getRev(),
           pipelineState.getStatus());
     } else {
-      manager.getRunner(user, name, rev).start();
+      manager.getRunner(name, rev).start(user);
     }
   }
 
   @Override
   public void stop(String user, String name, String rev) throws PipelineException {
     validateIfRemote(name, rev, "STOP");
-    manager.getRunner(user, name, rev).stop();
+    manager.getRunner(name, rev).stop(user);
   }
 
   @Override
@@ -140,7 +140,7 @@ public class RemoteDataCollector implements DataCollector {
   @Override
   public void deleteHistory(String user, String name, String rev) throws PipelineException {
     validateIfRemote(name, rev, "DELETE_HISTORY");
-    manager.getRunner(user, name, rev).deleteHistory();
+    manager.getRunner(name, rev).deleteHistory();
   }
 
   @Override
@@ -198,7 +198,7 @@ public class RemoteDataCollector implements DataCollector {
   @Override
   public void resetOffset(String user, String name, String rev) throws PipelineException {
     validateIfRemote(name, rev, "RESET_OFFSET");
-    manager.getRunner(user, name, rev).resetOffset();
+    manager.getRunner(name, rev).resetOffset(user);
   }
 
   @Override
@@ -217,7 +217,11 @@ public class RemoteDataCollector implements DataCollector {
     } else {
       PipelineState pipelineState = pipelineStateStore.getState(name, rev);
       if (pipelineState.getStatus().isActive()) {
-        manager.getRunner(user, name, rev).stop();
+        try {
+          manager.getRunner(name, rev).stop(user);
+        } catch (Exception e) {
+          LOG.warn("Error while stopping the pipeline {}", e, e);
+        }
       }
       long now = System.currentTimeMillis();
       // wait for 10 secs for a graceful stop
@@ -261,13 +265,15 @@ public class RemoteDataCollector implements DataCollector {
       boolean isClusterMode = (pipelineState.getExecutionMode() != ExecutionMode.STANDALONE) ? true : false;
       List<WorkerInfo> workerInfos = new ArrayList<>();
       String title;
+      int runnerCount = 0;
       if (pipelineStore.hasPipeline(name)) {
         title = pipelineStore.getInfo(name).getTitle();
-        Runner runner = manager.getRunner(pipelineState.getUser(), name, rev);
+        Runner runner = manager.getRunner(name, rev);
         latestState = runner.getState();
         if (isClusterMode) {
           workerInfos = getWorkers(runner.getSlaveCallbackList(CallbackObjectType.METRICS));
         }
+        runnerCount = runner.getRunnerCount();
       } else {
         title = null;
         latestState = pipelineState;
@@ -282,7 +288,8 @@ public class RemoteDataCollector implements DataCollector {
           workerInfos,
           isClusterMode,
           getSourceOffset(offset),
-          null
+          null,
+          runnerCount
       ));
     }
     return pipelineAndValidationStatuses;
@@ -329,7 +336,6 @@ public class RemoteDataCollector implements DataCollector {
       PipelineInfo pipelineInfo = pipelineStore.getInfo(name);
       String title = pipelineInfo.getTitle();
       String rev = pipelineState.getRev();
-      String user = pipelineState.getUser();
       if (manager.isRemotePipeline(name, rev)) {
         isRemote = true;
       }
@@ -337,8 +343,9 @@ public class RemoteDataCollector implements DataCollector {
       if (isRemote || manager.isPipelineActive(name, rev)) {
         List<WorkerInfo> workerInfos = new ArrayList<>();
         boolean isClusterMode = (pipelineState.getExecutionMode() != ExecutionMode.STANDALONE) ? true: false;
+        Runner runner = manager.getRunner(name, rev);
         if (isClusterMode) {
-          for (CallbackInfo callbackInfo : manager.getRunner(user, name, rev).getSlaveCallbackList(CallbackObjectType.METRICS)) {
+          for (CallbackInfo callbackInfo : runner.getSlaveCallbackList(CallbackObjectType.METRICS)) {
             WorkerInfo workerInfo = new WorkerInfo();
             workerInfo.setWorkerURL(callbackInfo.getSdcURL());
             workerInfo.setWorkerId(callbackInfo.getSlaveSdcId());
@@ -360,7 +367,8 @@ public class RemoteDataCollector implements DataCollector {
             workerInfos,
             isClusterMode,
             isRemote ? getOffset(name, rev) : null,
-            acl
+            acl,
+            runner.getRunnerCount()
         ));
       }
     }

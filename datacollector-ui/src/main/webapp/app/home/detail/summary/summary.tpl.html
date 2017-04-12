@@ -241,12 +241,18 @@
     <div class="panel panel-default">
       <div class="panel-heading">
         <span title="{{'home.detailPane.summaryTab.runnersHistogram' | translate}}"
-              translate="home.detailPane.summaryTab.runnersHistogram">Pipeline Runners Histogram (5 minutes decay)</span>
+              translate="home.detailPane.summaryTab.runnersHistogram">Available Pipeline Runners Histogram (5 minutes decay)</span>
         <button type="button" class="close" aria-label="Close" ng-click="removeChart(chart, chartIndex)">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
       <div class="panel-body">
+          <ul class="properties">
+            <li>
+              <span class="properties-label">Current runners:</span>
+              <span class="properties-value">{{common.pipelineMetrics.gauges['RuntimeStatsGauge.gauge'].value.availableRunners}}/{{common.pipelineMetrics.gauges['RuntimeStatsGauge.gauge'].value.totalRunners}}</span>
+            </li>
+          </ul>
         <nvd3 options="chartOptions" data="timerData" config="{ refreshDataOnly: true }"></nvd3>
       </div>
     </div>

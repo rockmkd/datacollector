@@ -19,7 +19,6 @@
  */
 package com.streamsets.pipeline.stage.processor.spark.cluster;
 
-import com.google.common.base.Throwables;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
@@ -30,10 +29,13 @@ import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.processor.spark.util.RecordCloner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Tuple2;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 import static com.streamsets.pipeline.stage.processor.spark.Errors.SPARK_04;
@@ -41,15 +43,18 @@ import static com.streamsets.pipeline.stage.processor.spark.Errors.SPARK_04;
 public class ClusterExecutorSparkProcessor extends SingleLaneProcessor {
 
   private static final Logger LOG = LoggerFactory.getLogger(ClusterExecutorSparkProcessor.class);
+  public static final String CLUSTER_ERROR_REASON_HDR = "streamsetsInternalClusterErrorReason";
 
   private final Semaphore batchReceived = new Semaphore(0);
   private final Semaphore batchTransformed = new Semaphore(0);
+
+  private static final boolean IS_DEBUG_ENABLED = LOG.isDebugEnabled();
 
   private ErrorRecordHandler errorRecordHandler;
 
   private Iterator<Record> batch;
   private SingleLaneBatchMaker currentBatchMaker;
-  private Iterator<Tuple2<Record, String>> errors;
+  private Map<Record, String> errors = new LinkedHashMap<>();
 
   @Override
   public List<ConfigIssue> init() {
@@ -59,19 +64,45 @@ public class ClusterExecutorSparkProcessor extends SingleLaneProcessor {
     return issues;
   }
 
-  public Iterator<Record> getBatch() {
+  public Iterable<Record> getBatch() {
     try {
+      if (IS_DEBUG_ENABLED) {
+        LOG.debug("Trying to read batch at " + System.currentTimeMillis());
+      }
+      synchronized (this) {
+        if (batch != null) {
+          return toIterable(batch); // no waiting, if batch was already set.
+        }
+      }
       batchReceived.acquire();
     } catch (InterruptedException ex) { // NOSONAR
       LOG.warn("Interrupted while waiting for batch to be received", ex);
       return null;
     }
-    return batch;
+    if (IS_DEBUG_ENABLED) {
+      LOG.debug("Returning received batch");
+    }
+    synchronized (this) {
+      if (batch == null) {
+        return Collections.emptyList();
+      }
+      return toIterable(batch);
+    }
+  }
+
+  private Iterable<Record> toIterable(Iterator<Record> recordIterator) {
+    final ArrayList<Record> records = new ArrayList<>();
+    while (recordIterator.hasNext()) {
+      records.add(recordIterator.next());
+    }
+    return Collections.unmodifiableList(records);
   }
 
   @Override
   public void process(Batch batch, SingleLaneBatchMaker singleLaneBatchMaker) throws StageException {
-    this.batch = batch.getRecords();
+    synchronized (this) {
+      this.batch = batch.getRecords();
+    }
     this.currentBatchMaker = singleLaneBatchMaker;
     batchReceived.release();
 
@@ -79,27 +110,41 @@ public class ClusterExecutorSparkProcessor extends SingleLaneProcessor {
       batchTransformed.acquire();
     } catch (InterruptedException ex) { // NOSONAR
       LOG.error("Interrupted while waiting for batch to be processed", ex);
-      throw Throwables.propagate(ex);
+      throw new RuntimeException(ex);
     }
 
-    if (errors != null) {
-      while (errors.hasNext()) {
-        Tuple2<Record, String> error = errors.next();
+  }
+
+  private Iterator<Record> clone(Iterator<Object> records) {
+    List<Record> cloned = new ArrayList<>();
+    records.forEachRemaining(record -> cloned.add(RecordCloner.clone(record, getContext())));
+    return cloned.iterator();
+  }
+
+  @SuppressWarnings("unchecked")
+  public void setErrors(List errors) throws StageException {
+    errors.forEach(error -> {
+      try {
+        Record cloned = RecordCloner.clone(error, getContext());
+        String reason = cloned.getHeader().getAttribute(CLUSTER_ERROR_REASON_HDR);
         errorRecordHandler.onError(
-            new OnRecordErrorException(RecordCloner.clone(error._1(), getContext()), SPARK_04, error._2()));
+            new OnRecordErrorException(cloned, SPARK_04, reason));
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
       }
-    }
+    });
   }
 
-  public void setErrors(Iterator<Tuple2<Record, String>> errors) throws StageException {
-    this.errors = errors;
-  }
-
-  public void continueProcessing(Iterator<Record> transformed) {
-    while(transformed.hasNext()) {
-      currentBatchMaker.addRecord(transformed.next());
+  public void continueProcessing(Iterator<Object> transformed) {
+    Iterator<Record> newBatch = clone(transformed);
+    while(newBatch.hasNext()) {
+      currentBatchMaker.addRecord(newBatch.next());
     }
     currentBatchMaker = null;
+    synchronized (this) {
+      batch = null;
+    }
     batchTransformed.release();
   }
+
 }

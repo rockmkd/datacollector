@@ -33,6 +33,7 @@ import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
+import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
 import com.streamsets.datacollector.event.handler.remote.RemoteDataCollector;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.PipelineState;
@@ -47,6 +48,7 @@ import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
 import com.streamsets.datacollector.restapi.bean.PipelineDefinitionJson;
 import com.streamsets.datacollector.restapi.bean.PipelineEnvelopeJson;
 import com.streamsets.datacollector.restapi.bean.PipelineInfoJson;
+import com.streamsets.datacollector.restapi.bean.PipelineRulesDefinitionJson;
 import com.streamsets.datacollector.restapi.bean.PipelineStateJson;
 import com.streamsets.datacollector.restapi.bean.RuleDefinitionsJson;
 import com.streamsets.datacollector.restapi.bean.StageDefinitionJson;
@@ -606,11 +608,14 @@ public class PipelineStoreResource {
         MetricType.COUNTER, MetricElement.COUNTER_COUNT, MEMORY_LIMIt_CONDITION, false, false, timestamp));
 
     RuleDefinitions ruleDefinitions = new RuleDefinitions(
+        PipelineStoreTask.RULE_DEFINITIONS_SCHEMA_VERSION,
+        RuleDefinitionsConfigBean.VERSION,
         metricsRuleDefinitions,
         Collections.<DataRuleDefinition>emptyList(),
         Collections.<DriftRuleDefinition>emptyList(),
         Collections.<String>emptyList(),
-        null
+        null,
+        stageLibrary.getPipelineRules().getPipelineRulesDefaultConfigs()
     );
     store.storeRules(pipelineId, "0", ruleDefinitions);
 
@@ -795,6 +800,10 @@ public class PipelineStoreResource {
       List<PipelineDefinitionJson> pipeline = new ArrayList<>(1);
       pipeline.add(BeanHelper.wrapPipelineDefinition(stageLibrary.getPipeline()));
       definitions.setPipeline(pipeline);
+
+      List<PipelineRulesDefinitionJson> pipelineRules = new ArrayList<>(1);
+      pipelineRules.add(BeanHelper.wrapPipelineRulesDefinition(stageLibrary.getPipelineRules()));
+      definitions.setPipelineRules(pipelineRules);
 
       pipelineEnvelope.setLibraryDefinitions(definitions);
     }

@@ -25,6 +25,7 @@ import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.email.EmailSender;
 import com.streamsets.datacollector.event.handler.remote.RemoteDataCollector;
 import com.streamsets.datacollector.execution.alerts.EmailNotifier;
+import com.streamsets.datacollector.execution.alerts.WebHookNotifier;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
@@ -78,13 +79,18 @@ public abstract  class AbstractRunner implements Runner {
     return aclStoreTask.getAcl(name);
   }
 
-  protected void registerEmailNotifierIfRequired(PipelineConfigBean pipelineConfigBean, String name, String rev) {
+  protected void registerEmailNotifierIfRequired(
+      PipelineConfigBean pipelineConfigBean,
+      String pipelineId,
+      String pipelineTitle,
+      String rev
+  ) {
     //remove existing email notifier
     StateEventListener toRemove = null;
     List<StateEventListener> stateEventListenerList = eventListenerManager.getStateEventListenerList();
     for(StateEventListener s : stateEventListenerList) {
       if(s instanceof EmailNotifier &&
-        ((EmailNotifier)s).getName().equals(name) &&
+        ((EmailNotifier)s).getPipelineId().equals(pipelineId) &&
         ((EmailNotifier)s).getRev().equals(rev)) {
         toRemove = s;
       }
@@ -101,9 +107,51 @@ public abstract  class AbstractRunner implements Runner {
       for(com.streamsets.datacollector.config.PipelineState s : pipelineConfigBean.notifyOnStates) {
         states.add(s.name());
       }
-      EmailNotifier emailNotifier = new EmailNotifier(name, rev, runtimeInfo, new EmailSender(configuration),
-        pipelineConfigBean.emailIDs, states);
+      EmailNotifier emailNotifier = new EmailNotifier(
+          pipelineId,
+          pipelineTitle,
+          rev,
+          runtimeInfo,
+          new EmailSender(configuration),
+          pipelineConfigBean.emailIDs,
+          states
+      );
       eventListenerManager.addStateEventListener(emailNotifier);
+    }
+  }
+
+  protected void registerWebhookNotifierIfRequired(
+      PipelineConfigBean pipelineConfigBean,
+      String pipelineId,
+      String pipelineTitle,
+      String rev
+  ) {
+    //remove existing Webhook notifier
+    StateEventListener toRemove = null;
+    List<StateEventListener> stateEventListenerList = eventListenerManager.getStateEventListenerList();
+    for(StateEventListener s : stateEventListenerList) {
+      if(s instanceof WebHookNotifier &&
+          ((WebHookNotifier)s).getPipelineId().equals(pipelineId) &&
+          ((WebHookNotifier)s).getRev().equals(rev)) {
+        toRemove = s;
+      }
+    }
+
+    if(toRemove != null) {
+      eventListenerManager.removeStateEventListener(toRemove);
+    }
+
+    //register new one if required
+    if(pipelineConfigBean.notifyOnStates != null && !pipelineConfigBean.notifyOnStates.isEmpty() &&
+        pipelineConfigBean.webhookConfigs != null && !pipelineConfigBean.webhookConfigs.isEmpty()) {
+      WebHookNotifier webHookNotifier = new WebHookNotifier(
+          pipelineId,
+          pipelineTitle,
+          rev,
+          pipelineConfigBean,
+          runtimeInfo
+      );
+      eventListenerManager.addStateEventListener(webHookNotifier);
     }
   }
 
@@ -114,6 +162,7 @@ public abstract  class AbstractRunner implements Runner {
   }
 
   protected ScheduledFuture<Void> scheduleForRetries(
+      String user,
       ScheduledExecutorService runnerExecutor
   ) throws PipelineStoreException {
     long delay = 0;
@@ -123,19 +172,16 @@ public abstract  class AbstractRunner implements Runner {
       delay = retryTimeStamp - currentTime;
     }
     LOG.info("Scheduling retry in '{}' milliseconds", delay);
-    return runnerExecutor.schedule(new Callable<Void>() {
-      @Override
-      public Void call() throws StageException, PipelineException {
-        LOG.info("Starting the runner now");
-        prepareForStart();
-        start(runtimeParameters);
-        return null;
-      }
+    return runnerExecutor.schedule(() -> {
+      LOG.info("Starting the runner now");
+      prepareForStart(user);
+      start(user, runtimeParameters);
+      return null;
     }, delay, TimeUnit.MILLISECONDS);
   }
 
   @Override
-  public void start() throws PipelineException, StageException {
-    start(null);
+  public void start(String user) throws PipelineException, StageException {
+    start(user, null);
   }
 }

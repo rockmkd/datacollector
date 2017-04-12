@@ -206,7 +206,8 @@
               "vault.proxy.port",
               "vault.proxy.username",
               "vault.proxy.password",
-              "vault.read.timeout"
+              "vault.read.timeout",
+              "runner.thread.pool.size"
             ],
             "excludedParams": [
               "datacollector.users",
@@ -773,7 +774,7 @@
           "label": "Pipeline runner thread pool",
           "description": "Number of threads that are used for running pipelines.",
           "type": "long",
-          "default": 20
+          "default": 50
         },
         {
           "name": "xmail.from.address",

@@ -39,6 +39,7 @@ import com.streamsets.datacollector.execution.StateEventListener;
 import com.streamsets.datacollector.execution.alerts.AlertInfo;
 import com.streamsets.datacollector.execution.manager.PipelineManagerException;
 import com.streamsets.datacollector.execution.manager.PipelineStateImpl;
+import com.streamsets.datacollector.execution.manager.standalone.StandaloneAndClusterPipelineManager;
 import com.streamsets.datacollector.execution.preview.common.PreviewOutputImpl;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.execution.runner.common.SampledRecord;
@@ -84,6 +85,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 public class TestRemoteDataCollector {
@@ -145,7 +147,6 @@ public class TestRemoteDataCollector {
 
     @Override
     public Runner getRunner(
-        String user,
         String name,
         String rev
     ) throws PipelineStoreException, PipelineManagerException {
@@ -268,13 +269,7 @@ public class TestRemoteDataCollector {
     }
 
     @Override
-    public String getUser() {
-      // TODO Auto-generated method stub
-      return null;
-    }
-
-    @Override
-    public void resetOffset() throws PipelineStoreException, PipelineRunnerException {
+    public void resetOffset(String user) throws PipelineStoreException, PipelineRunnerException {
       // TODO Auto-generated method stub
 
     }
@@ -292,53 +287,54 @@ public class TestRemoteDataCollector {
     }
 
     @Override
-    public void prepareForDataCollectorStart() throws PipelineStoreException, PipelineRunnerException {
+    public void prepareForDataCollectorStart(String user) throws PipelineStoreException, PipelineRunnerException {
       // TODO Auto-generated method stub
 
     }
 
     @Override
-    public void onDataCollectorStart() throws PipelineException, StageException {
+    public void onDataCollectorStart(String user) throws PipelineException, StageException {
       // TODO Auto-generated method stub
 
     }
 
     @Override
-    public void onDataCollectorStop() throws PipelineStoreException, PipelineRunnerException, PipelineRuntimeException {
+    public void onDataCollectorStop(String user) throws PipelineStoreException, PipelineRunnerException, PipelineRuntimeException {
       // TODO Auto-generated method stub
 
     }
 
     @Override
-    public void stop() throws PipelineException {
+    public void stop(String user) throws PipelineException {
       stopCalled++;
     }
 
     @Override
-    public void forceQuit() throws PipelineException {
+    public void forceQuit(String user) throws PipelineException {
       // No-op
     }
 
     @Override
-    public void prepareForStart() throws PipelineStoreException, PipelineRunnerException {
+    public void prepareForStart(String user) throws PipelineStoreException, PipelineRunnerException {
       // TODO Auto-generated method stub
 
     }
 
     @Override
-    public void prepareForStop() throws PipelineStoreException, PipelineRunnerException {
+    public void prepareForStop(String user) throws PipelineStoreException, PipelineRunnerException {
       // TODO Auto-generated method stub
 
     }
 
     @Override
-    public void start() throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
+    public void start(String user) throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
         StageException {
       // TODO Auto-generated method stub
     }
 
     @Override
     public void start(
+        String user,
         Map<String, Object> runtimeParameters
     ) throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
         StageException {
@@ -347,6 +343,7 @@ public class TestRemoteDataCollector {
 
     @Override
     public void startAndCaptureSnapshot(
+        String user,
         Map<String, Object> runtimeParameters,
         String snapshotName,
         String snapshotLabel,
@@ -358,6 +355,7 @@ public class TestRemoteDataCollector {
 
     @Override
     public String captureSnapshot(
+        String user,
         String snapshotName,
         String snapshotLabel,
         int batches,
@@ -473,6 +471,11 @@ public class TestRemoteDataCollector {
     public String getToken() {
       // TODO Auto-generated method stub
       return null;
+    }
+
+    @Override
+    public int getRunnerCount() {
+      return 0;
     }
 
   }
@@ -1060,5 +1063,40 @@ public class TestRemoteDataCollector {
     assertEquals(2, sourceOffsetJson.getVersion());
     assertEquals("offset:1000", sourceOffsetJson.getOffsets().get(Source.POLL_SOURCE_OFFSET_KEY));
     assertNull(pipelineAndValidationStatus.getValidationStatus());
+  }
+
+  @Test
+  public void testRunnerCount() throws Exception {
+    Manager manager = Mockito.mock(StandaloneAndClusterPipelineManager.class);
+    PipelineStoreTask pipelineStoreTask = Mockito.mock(PipelineStoreTask.class);
+    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(manager,
+        pipelineStoreTask,
+        Mockito.mock(PipelineStateStore.class),
+        Mockito.mock(AclStoreTask.class),
+        Mockito.mock(RemoteStateEventListener.class),
+        Mockito.mock(RuntimeInfo.class),
+        Mockito.mock(AclCacheHelper.class)
+    ));
+    PipelineState pipelineStatus1 = new PipelineStateImpl("user",
+        "ns:name",
+        "rev",
+        PipelineStatus.RUNNING,
+        null,
+        System.currentTimeMillis(),
+        null,
+        ExecutionMode.STANDALONE,
+        null,
+        0,
+        -1
+    );
+    Mockito.when(manager.isPipelineActive(Mockito.anyString(), Mockito.anyString())).thenReturn(true);
+    Mockito.when(manager.getPipelines()).thenReturn(Arrays.asList(pipelineStatus1));
+    Mockito.when(pipelineStoreTask.getInfo(Mockito.anyString())).thenReturn(Mockito.mock(PipelineInfo.class));
+    Runner runner = Mockito.mock(Runner.class);
+    Mockito.when(runner.getRunnerCount()).thenReturn(10);
+    Mockito.when(manager.getRunner(Mockito.anyString(), Mockito.anyString())).thenReturn(runner);
+    assertEquals(1, dataCollector.getPipelines().size());
+    PipelineAndValidationStatus pipelineAndValidationStatus = dataCollector.getPipelines().iterator().next();
+    assertEquals(10, pipelineAndValidationStatus.getRunnerCount());
   }
 }

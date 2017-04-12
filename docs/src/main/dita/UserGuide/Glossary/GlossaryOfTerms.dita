@@ -150,17 +150,13 @@
             conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>.</dd>
       </dlentry>
       <dlentry>
-        <dt>pipeline constant</dt>
-        <dd>A constant that you define for the pipeline and that you can use in any stage in the
-          pipeline. </dd>
-      </dlentry>
-      <dlentry>
         <dt>pipeline runner</dt>
         <dd>Used in multithreaded pipelines to run a sourceless instance of a pipeline. </dd>
       </dlentry>
       <dlentry>
         <dt>preconditions</dt>
-        <dd>Conditions that a record must satisfy to enter the stage for processing. </dd>
+        <dd>Conditions that a record must satisfy to enter the stage for processing. Records that
+          don't meet all preconditions are processed based on stage error handling.</dd>
       </dlentry>
       <dlentry>
         <dt>processors</dt>
@@ -169,12 +165,18 @@
       <dlentry>
         <dt>required fields</dt>
         <dd>A required field is a field that must exist in a record to allow it into the stage for
-          processing. </dd>
+          processing. Records that don't have all required fields are processed based on pipeline
+          error handling.</dd>
       </dlentry>
       <dlentry>
         <dt>RPC ID</dt>
         <dd>A user-defined identifier configured in the SDC RPC origin and destination to allow the
           destination to write to the origin.</dd>
+      </dlentry>
+      <dlentry>
+        <dt>runtime parameters</dt>
+        <dd>Parameters that you define for the pipeline and call from within that same pipeline. Use
+          to specify values for pipeline properties when you start the pipeline.</dd>
       </dlentry>
       <dlentry>
         <dt>runtime properties</dt>
@@ -186,8 +188,8 @@
       </dlentry>
       <dlentry>
         <dt>runtime resources</dt>
-        <dd>Runtime resources are values that you can define in a restricted file local to the <ph
-            conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>and
+        <dd>Values that you define in a restricted file local to the <ph
+            conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/> and
           call from within a pipeline. Use to load sensitive information from files at runtime.</dd>
       </dlentry>
       <dlentry>
@@ -200,6 +202,12 @@
         <dt>SDC RPC pipelines</dt>
         <dd>A set of pipelines that use the SDC RPC destination and SDC RPC origin to pass data from
           one pipeline to another without writing to an intermediary system. </dd>
+      </dlentry>
+      <dlentry>
+        <dt>sourceless pipeline instance</dt>
+        <dd>An instance of the pipeline that includes all of the processors and destinations in the
+          pipeline and represents all pipeline processing after the origin. Used in multithreaded
+          pipelines.</dd>
       </dlentry>
       <dlentry>
         <dt>snapshot</dt>

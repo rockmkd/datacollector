@@ -540,7 +540,7 @@
         "timeOfLastReceivedRecord": "Last Record Received",
         "threadLastRun": "Thread Health Report (Last Run Time)",
         "batchStartTime": "Batch Start Time",
-        "runnersHistogram": "Pipeline Runners Histogram (5 minutes decay)",
+        "runnersHistogram": "Available Pipeline Runners Histogram (5 minutes decay)",
         "stageBatchProcessingTimer": "Stage Batch Processing Timer (in seconds)",
         "stageBatchProcessingTimerYAxis": "( Mean Timer Percentiles )",
         "stageMemoryConsumed": "Stage Heap Memory Usage (in MB)",
@@ -554,7 +554,8 @@
         "memoryConsumed": "Heap Memory Usage",
         "recordCount": "Record Count (since last startup)",
         "recordThroughput": "Record Throughput"
-      }
+      },
+      "webhook": "Webhook"
     },
     "previewPane": {
       "batchSize": "Preview Batch Size",
@@ -829,6 +830,7 @@
   "sdcSettings": {
     "title": "Settings",
     "helpBar": "Hide Pipeline Creation Help Bar",
+    "lineWrapping": "Wrap Long Lines",
     "restResponse": "Hide REST Response Menu",
     "runPreviewForFieldPaths": "Run preview in background for fetching fields paths"
   },

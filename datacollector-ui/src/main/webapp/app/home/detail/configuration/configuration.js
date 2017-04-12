@@ -25,8 +25,10 @@
 angular
   .module('dataCollectorApp.home')
 
-  .controller('ConfigurationController', function ($scope, $rootScope, $q, $modal, _, $timeout,
-                                                   api, previewService, pipelineConstant, pipelineService) {
+  .controller('ConfigurationController', function (
+    $scope, $rootScope, $q, $modal, _, $timeout, api, previewService, pipelineConstant, pipelineService
+  ) {
+
     var getIssues = function(config, issues, instanceName, configDefinition) {
       if (instanceName && issues.stageIssues && issues.stageIssues[instanceName]) {
         issues = issues.stageIssues[instanceName];
@@ -85,11 +87,13 @@ angular
 
         if (configDefinition.type !== 'TEXT') {
           codeMirrorOptions = {
-            dictionary: $scope.getCodeMirrorHints(configDefinition)
+            dictionary: $scope.getCodeMirrorHints(configDefinition),
+            lineWrapping: $rootScope.$storage.lineWrapping
           };
         } else {
           codeMirrorOptions = {
-            dictionary: $scope.getTextCodeMirrorHints(configDefinition)
+            dictionary: $scope.getTextCodeMirrorHints(configDefinition),
+            lineWrapping: $rootScope.$storage.lineWrapping
           };
         }
 

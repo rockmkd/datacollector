@@ -34,6 +34,7 @@ import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.config.json.PipelineConfigAndRulesJson;
 import com.streamsets.datacollector.config.json.PipelineStatusJson;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
+import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
 import com.streamsets.datacollector.event.binding.MessagingJsonToFromDto;
 import com.streamsets.datacollector.event.client.api.EventClient;
 import com.streamsets.datacollector.event.client.api.EventException;
@@ -311,11 +312,15 @@ public class TestRemoteEventHandler {
             true,
             System.currentTimeMillis()
         ));
-        RuleDefinitions ruleDefinitions = new RuleDefinitions(metricRulesList,
+        RuleDefinitions ruleDefinitions = new RuleDefinitions(
+            PipelineStoreTask.RULE_DEFINITIONS_SCHEMA_VERSION,
+            RuleDefinitionsConfigBean.VERSION,
+            metricRulesList,
             new ArrayList<DataRuleDefinition>(),
             new ArrayList<DriftRuleDefinition>(),
             new ArrayList<String>(),
-            id1
+            id1,
+            Collections.emptyList()
         );
         configRulesJson.setPipelineRules(MessagingJsonToFromDto.INSTANCE.serialize(BeanHelper.wrapRuleDefinitions(
             ruleDefinitions)));
@@ -463,7 +468,8 @@ public class TestRemoteEventHandler {
             null,
             false,
             null,
-            null
+            null,
+            10
         ));
         list.add(new PipelineAndValidationStatus(
             "name2",
@@ -475,7 +481,8 @@ public class TestRemoteEventHandler {
             null,
             false,
             null,
-            null
+            null,
+            10
         ));
       }
       return list;
@@ -495,7 +502,8 @@ public class TestRemoteEventHandler {
             null,
             false,
             null,
-            null
+            null,
+            10
         ));
       }
       return list;
@@ -739,6 +747,7 @@ public class TestRemoteEventHandler {
     assertEquals("title1", pipelineStateInfoList.get(0).getTitle());
     assertEquals("rev1", pipelineStateInfoList.get(0).getRev());
     assertEquals(PipelineStatusJson.RUNNING, pipelineStateInfoList.get(0).getPipelineStatus());
+    assertEquals(10, pipelineStateInfoList.get(0).getRunnerCount());
 
     assertEquals("name2", pipelineStateInfoList.get(1).getName());
     assertEquals("title2", pipelineStateInfoList.get(1).getTitle());

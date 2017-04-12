@@ -20,6 +20,7 @@
 package com.streamsets.pipeline.impl;
 
 import java.io.Serializable;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -29,10 +30,30 @@ import java.util.Map;
 public interface ClusterFunction extends Serializable {
 
   /**
-   * Invoke pipeline to process a batch. List passed to this interface
+   * Invoke pipeline to start a batch. List passed to this interface
    * may not be reused after this call returns.
+   *
+   * @return The batch produced by the first Spark processor (or empty batch if none exist in the pipeline)
    */
-  void invoke(List<Map.Entry> batch) throws Exception;
+  Iterable startBatch(List<Map.Entry> batch) throws Exception;
 
+  /**
+   * Set the number of spark processors in this pipeline.
+   */
+  void setSparkProcessorCount(int count);
+
+  /**
+   * Send the transformed batch to the i-th Spark processor in the pipeline.
+   */
+  Iterable forwardTransformedBatch(Iterator<Object> batch, int id) throws Exception;
+
+  /**
+   * Write errors to the i-th Spark processor in the pipeline.
+   */
+  void writeErrorRecords(List errors, int id) throws Exception;
+
+  /**
+   * Shutdown all Embedded SDCs and thus all stages.
+   */
   void shutdown() throws Exception;
 }

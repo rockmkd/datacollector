@@ -20,7 +20,6 @@
 package com.streamsets.pipeline.stage.processor.spark.cluster;
 
 import com.google.common.base.Throwables;
-import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
@@ -28,11 +27,10 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.sdk.ProcessorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.stage.processor.spark.SparkDProcessor;
 import org.junit.Assert;
 import org.junit.Test;
-import scala.Tuple2;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -46,6 +44,7 @@ public class TestClusterExecutorSparkProcessor {
   private static final String LANE = "spark";
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testProcessor() throws Exception {
     final OnRecordError onRecordError = OnRecordError.TO_ERROR;
 
@@ -55,57 +54,42 @@ public class TestClusterExecutorSparkProcessor {
     for (int i = 0; i < 100; i++) {
       Record r = RecordCreator.create();
       records.add(r);
-      r.set(Field.create(new HashMap<String, Field>()));
+      r.set(Field.create(new HashMap<>()));
       r.set("/value", Field.create(i));
     }
 
-    final ProcessorRunner runner = new ProcessorRunner.Builder(ClusterExecutorSparkDProcessor.class, processor)
+    final ProcessorRunner runner = new ProcessorRunner.Builder(SparkDProcessor.class, processor)
         .addOutputLane(LANE).setOnRecordError(onRecordError).build();
 
     final AtomicReference<StageRunner.Output> output = new AtomicReference<>();
     runner.runInit();
     Executor executor = Executors.newSingleThreadExecutor();
-    executor.execute(new Runnable() {
-      @Override
-      public void run() {
-        try {
-          output.set(runner.runProcess(records));
-        } catch (Exception ex) {
-          throw Throwables.propagate(ex);
-        }
+    executor.execute(() -> {
+      try {
+        output.set(runner.runProcess(records));
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
       }
     });
-    Record[] dataFromProcessor = Iterators.toArray(processor.getBatch(), Record.class);
+    Record[] dataFromProcessor = Iterators.toArray(processor.getBatch().iterator(), Record.class);
     Iterator<Record> inputBatchReceived = Iterators.forArray(dataFromProcessor);
     for (Record record : records) {
       Assert.assertTrue(inputBatchReceived.hasNext());
       Assert.assertEquals(record.get(), inputBatchReceived.next().get());
     }
 
-    Iterator<Record> transformed = Iterators.transform(
+    Iterator transformed = Iterators.transform(
         Iterators.forArray(Arrays.copyOfRange(dataFromProcessor, 0, dataFromProcessor.length - 5)),
-        new Function<Record, Record>() {
-          @Nullable
-          @Override
-          public Record apply(@Nullable Record record) {
-            Record newR = RecordCreator.create();
-            newR.set(Field.create(new HashMap<String, Field>()));
-            newR.set("/value", Field.create(record.get("/value").getValueAsInteger() + 100));
-            return newR;
-          }
+        record -> {
+          Record newR = RecordCreator.create();
+          newR.set(Field.create(new HashMap<>()));
+          newR.set("/value", Field.create(record.get("/value").getValueAsInteger() + 100));
+          return newR;
         });
 
-    Iterator<Tuple2<Record, String>> errors = Iterators.transform(
-        Iterators.forArray(Arrays.copyOfRange(dataFromProcessor, dataFromProcessor.length - 5, dataFromProcessor.length)),
-        new Function<Record, Tuple2<Record, String>>() {
-          @Nullable
-          @Override
-          public Tuple2<Record, String> apply(@Nullable Record record) {
-            return new Tuple2<>(record, "");
-          }
-        });
+    Record[] errors = Arrays.copyOfRange(dataFromProcessor, dataFromProcessor.length - 5, dataFromProcessor.length);
 
-    processor.setErrors(errors);
+    processor.setErrors(Arrays.asList(errors));
     processor.continueProcessing(transformed);
 
     Thread.sleep(1000);
