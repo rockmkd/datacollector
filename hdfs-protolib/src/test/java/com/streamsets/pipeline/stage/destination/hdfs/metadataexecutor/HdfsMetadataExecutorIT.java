@@ -21,6 +21,7 @@ package com.streamsets.pipeline.stage.destination.hdfs.metadataexecutor;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Record;
@@ -186,7 +187,7 @@ public class HdfsMetadataExecutorIT {
   /**
    * Assert proper event for the changed file.
    */
-  private void assertEvent(List<Record> events, Path expectedPath) {
+  private void assertEvent(String eventType, List<Record> events, Path expectedPath) {
     assertNotNull(events);
     Assert.assertEquals(1, events.size());
 
@@ -194,6 +195,7 @@ public class HdfsMetadataExecutorIT {
     assertNotNull(event);
     assertNotNull(event.get());
     Assert.assertEquals(Field.Type.MAP, event.get().getType());
+    Assert.assertEquals(eventType, event.getHeader().getAttribute(EventRecord.TYPE));
 
     Field path = event.get("/filepath");
     assertNotNull(path);
@@ -254,7 +256,6 @@ public class HdfsMetadataExecutorIT {
       .put("group", Field.create(Field.Type.STRING, "empire"))
       .put("perms_octal", Field.create(Field.Type.STRING, "777"))
       .put("perms_unix", Field.create(Field.Type.STRING, "rwxrwx---"))
-      .put("perms_string", Field.create(Field.Type.STRING, "a-rwx"))
       .put("acls", Field.create(Field.Type.STRING, "user::rwx,group::r--,other::---,user:sith:rw-"))
       .build()
     ));
@@ -270,7 +271,7 @@ public class HdfsMetadataExecutorIT {
 
     HdfsActionsConfig actions = new HdfsActionsConfig();
     actions.filePath = "${record:value('/new_dir')}/" + INPUT_FILE;
-    actions.createFile = true;
+    actions.taskType = TaskType.CREATE_EMPTY_FILE;
 
     HdfsMetadataExecutor executor = new HdfsMetadataExecutor(conn, actions);
 
@@ -280,7 +281,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), outputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CREATED.getName(), runner.getEventRecords(), outputPath);
     runner.runDestroy();
 
     assertFile(outputPath, "");
@@ -306,7 +307,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), outputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), outputPath);
     runner.runDestroy();
 
     assertFile(outputPath, CONTENT);
@@ -332,7 +333,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), outputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), outputPath);
     runner.runDestroy();
 
     assertFile(outputPath, CONTENT);
@@ -360,7 +361,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), outputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), outputPath);
     runner.runDestroy();
 
     assertFile(outputPath, CONTENT);
@@ -385,7 +386,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), inputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), inputPath);
     runner.runDestroy();
 
     assertFile(inputPath, CONTENT);
@@ -410,7 +411,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), inputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), inputPath);
     runner.runDestroy();
 
     assertFile(inputPath, CONTENT);
@@ -435,36 +436,11 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), inputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), inputPath);
     runner.runDestroy();
 
     assertFile(inputPath, CONTENT);
     assertPermissions(inputPath, "770");
-  }
-
-  @Test
-  public void testSetPermissionsString() throws Exception {
-    HdfsConnectionConfig conn = new HdfsConnectionConfig();
-    conn.hdfsConfDir = confDir;
-
-    HdfsActionsConfig actions = new HdfsActionsConfig();
-    actions.filePath = "${record:value('/path')}";
-    actions.shouldSetPermissions = true;
-    actions.newPermissions = "${record:value('/perms_string')}";
-
-    HdfsMetadataExecutor executor = new HdfsMetadataExecutor(conn, actions);
-
-    ExecutorRunner runner = new ExecutorRunner.Builder(HdfsMetadataDExecutor.class, executor)
-      .setOnRecordError(OnRecordError.STOP_PIPELINE)
-      .build();
-    runner.runInit();
-
-    runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), inputPath);
-    runner.runDestroy();
-
-    assertFile(inputPath, CONTENT);
-    assertPermissions(inputPath, "777");
   }
 
   @Test
@@ -485,7 +461,7 @@ public class HdfsMetadataExecutorIT {
     runner.runInit();
 
     runner.runWrite(ImmutableList.of(getTestRecord()));
-    assertEvent(runner.getEventRecords(), inputPath);
+    assertEvent(HdfsMetadataExecutorEvents.FILE_CHANGED.getName(), runner.getEventRecords(), inputPath);
     runner.runDestroy();
 
 

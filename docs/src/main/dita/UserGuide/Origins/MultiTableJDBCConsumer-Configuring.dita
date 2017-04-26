@@ -22,9 +22,46 @@
                 Consumer origin to use a JDBC connection to read database data from multiple tables. </p>
         </context>
         <steps>
-            <step
-                conref="../Reusable_Content/ReusableSteps.dita#task_kzs_5vz_sq/1stStepErrorHandling">
-                <cmd/>
+            <step>
+                <cmd>In the Properties panel, on the <wintitle>General</wintitle> tab, configure the
+                    following properties:</cmd>
+                <info>
+                    <table frame="all" rowsep="1" colsep="1" id="table_ac1_hss_5x">
+                        <tgroup cols="2">
+                            <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+                            <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+                            <thead>
+                                <row>
+                                    <entry>General Property</entry>
+                                    <entry>Description</entry>
+                                </row>
+                            </thead>
+                            <tbody>
+                                <row
+                                    conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/O-1stStep-Name">
+                                    <entry/>
+                                </row>
+                                <row
+                                    conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/O-1stStep-Desc">
+                                    <entry/>
+                                </row>
+                                <row>
+                                    <entry>Produce Events <xref
+                                            href="MultiTableJDBCConsumer-EventGen.dita">
+                                            <image href="../Graphics/icon_moreInfo.png" scale="10"
+                                                id="image_plp_tp2_px"/></xref></entry>
+                                    <entry
+                                        conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/O-1stStep-entry-Events"
+                                    />
+                                </row>
+                                <row
+                                    conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/O-1stStep-Error">
+                                    <entry/>
+                                </row>
+                            </tbody>
+                        </tgroup>
+                    </table>
+                </info>
             </step>
             <step>
                 <cmd>On the <wintitle>JDBC</wintitle> tab, configure the following properties:</cmd>
@@ -125,9 +162,39 @@
                                     <entry/>
                                 </row>
                                 <row>
+                                    <entry>Number of Retries on SQL Error</entry>
+                                    <entry>Number of times a thread tries to read a batch of data
+                                        after receiving an SQL error. After a thread retries this
+                                        number of times, the thread handles the error based on the
+                                        error handling configured for the origin.<p>Use to handle
+                                            transient network or connection issues that prevent a
+                                            thread from reading a batch of data.</p><p>Default is 0.
+                                        </p></entry>
+                                </row>
+                                <row>
                                     <entry>Data Time Zone</entry>
                                     <entry>Time zone to use to evaluate datetime-based offset column
                                         conditions. </entry>
+                                </row>
+                                <row>
+                                    <entry>Quote Character</entry>
+                                    <entry>Quote character to use around schema, table, and column
+                                        names in the query. Select the character used by the
+                                        database to allow for lower case, mixed-case, or special
+                                        characters in schema, table, or column names:<ul
+                                            id="ul_xrg_53s_pz">
+                                            <li>None - Uses no character around names in the query.
+                                                For example: <codeph>select * from mySchema.myTable
+                                                  order by myOffsetColumn</codeph>.</li>
+                                            <li>Backtick - Uses a backtick around names in the
+                                                query. For example: <codeph>select * from
+                                                  `mySchema`.`myTable` order by
+                                                  `myOffsetColumn`</codeph>.</li>
+                                            <li>Double Quotes - Uses double quotes around names in
+                                                the query. For example: <codeph>select * from
+                                                  "mySchema"."myTable" order by
+                                                  "myOffsetColumn"</codeph>.</li>
+                                        </ul></entry>
                                 </row>
                                 <row>
                                     <entry>Fetch Size</entry>

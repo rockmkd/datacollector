@@ -41,11 +41,12 @@
                 </info>
             </step>
             <step id="CreatePipeline2">
-                <cmd>In the <wintitle>New Pipeline</wintitle> window, enter a pipeline name and
+                <cmd>In the <wintitle>New Pipeline</wintitle> window, enter a pipeline title and
                     optional description, and click <uicontrol>Save</uicontrol>.</cmd>
-                <stepresult>The pipeline canvas displays the pipeline name and an error icon. The
-                    error icon indicates that you need to configure error handling for the pipeline.
-                    The Properties panel displays the pipeline properties. </stepresult>
+                <stepresult>The pipeline canvas displays the pipeline title, the generated pipeline
+                    ID, and an error icon. The error icon indicates that you need to configure error
+                    handling for the pipeline. The Properties panel displays the pipeline
+                    properties. </stepresult>
             </step>
             <step>
                 <cmd>
@@ -607,7 +608,7 @@
                 </cmd>
             </step>
             <step id="O-Binary">
-                <cmd>For binary data, on the <wintitle>Data Format</wintitle> tab and configure the
+                <cmd>For binary data, on the <wintitle>Data Format</wintitle> tab, configure the
                     following properties:</cmd>
                 <info>
                     <table frame="all" rowsep="1" colsep="1" id="table_dpx_kdm_35">
@@ -1396,7 +1397,8 @@
                     <draft-comment author="Loretta"><uicontrol>XML data </uicontrol>- step used by
                         message and file based origins: Kafka Consumer, Hadoop FS, Kinesis Consumer,
                         Directory, S3, HTTP Client, maybe more. Origins without compression uses
-                        rows - JMS Consumer</draft-comment>
+                        almost all the rows - JMS Consumer, Kafka Consumer, Rabbit MQ Consumer,
+                        Redis Consumer</draft-comment>
                 </cmd>
             </step>
             <step id="XMLprops">
@@ -1443,6 +1445,22 @@
                                             </ul></p>
                                     </entry>
                                 </row>
+                                <row id="O-row-XMLFieldXpath">
+                                    <entry>Include Field XPaths <xref
+                                            href="../Pipeline_Design/XMLDF-FieldXPathExp.dita">
+                                            <image href="../Graphics/icon_moreInfo.png" scale="10"
+                                                placement="inline"
+                                        /></xref></entry>
+                                    <entry>Includes the XPath to each parsed XML element and XML
+                                        attribute in field attributes. Also includes each namespace
+                                        in an xmlns record header attribute. <p>When not selected,
+                                            this information is not included in the record. By
+                                            default, the property is not selected.</p><p>
+                                            <note><ph
+                                                  conref="ReusablePhrases.dita#concept_vhs_5tz_xp/warn_FieldRecHeaderAtts"
+                                                /></note>
+                                        </p></entry>
+                                </row>
                                 <row id="O-row-XMLNamespaces">
                                     <entry>Namespaces </entry>
                                     <entry>Namespace prefix and URI to use when parsing the XML
@@ -1456,6 +1474,19 @@
                                                 href="../Pipeline_Design/XMLDF-XPath-Namespaces.dita#concept_mkk_3zj_dy"
                                             />.</p><p>Use the <uicontrol>Add</uicontrol> icon to add
                                             additional namespaces.</p></entry>
+                                </row>
+                                <row id="O-row-XMLOutputAtts">
+                                    <entry>Output Field Attributes</entry>
+                                    <entry>Includes XML attributes and namespace declarations in the
+                                        record as field attributes. When not selected, XML
+                                        attributes and namespace declarations are included in the
+                                        record as fields.<note><ph
+                                                conref="ReusablePhrases.dita#concept_vhs_5tz_xp/ph-FieldAtts-SDCRecord"
+                                            /> For more information about working with field
+                                            attributes, see <xref
+                                                href="../Pipeline_Design/FieldAttributes.dita#concept_xfm_wtp_1z"
+                                            />.</note><p>By default, the property is not
+                                            selected.</p></entry>
                                 </row>
                                 <row id="O-row-XML-MaxRecLength">
                                     <entry>Max Record Length (chars)</entry>
@@ -1578,9 +1609,10 @@
             </step>
             <step>
                 <cmd>
-                    <draft-comment author="Loretta"><uicontrol>HTTPClient-SSLTLS</uicontrol> - same
-                        as above, plus WebSocket Client destination uses this step
-                        also</draft-comment>
+                    <draft-comment author="Loretta"><uicontrol>HTTPClient-SSLTLS</uicontrol> - The
+                        following steps are used in HTTP Client origin, processor, and destination
+                        Configuring topics. Also used in the MQTT Subscriber origin and MQTT
+                        Publisher destination configuring topics.</draft-comment>
                 </cmd>
             </step>
             <step id="HTTPClient-SSLTLS">
@@ -2635,6 +2667,7 @@
                                         preconditions. <p>Records that do not meet all preconditions
                                             are processed based on the error handling configured for
                                             the stage.</p></entry>
+                                       
                                 </row>
                                 <row>
                                     <entry>On Record Error <xref
@@ -4356,14 +4389,16 @@
                                 <row id="row-BackOffPeriod">
                                     <entry>Back Off Period</entry>
                                     <entry>Milliseconds to wait before retrying writing a batch to
-                                        the SDC RPC origin.<p id="p-BackOffExample">The value that you enter increases
-                                            exponentially after each retry. For example, if you set
-                                            the back off period to 10, the destination attempts the
-                                            first retry after waiting 10 milliseconds, attempts the
-                                            second retry after waiting 100 milliseconds, and
-                                            attempts the third retry after waiting 1,000
-                                            milliseconds. Set to 0 to retry
-                                            immediately.</p><p id="p-BackOffDefault">Default is 0.</p></entry>
+                                        the SDC RPC origin.<p id="p-BackOffExample">The value that
+                                            you enter increases exponentially after each retry,
+                                            until it reaches the maximum wait time of 5 minutes. For
+                                            example, if you set the back off period to 10, the
+                                            destination attempts the first retry after waiting 10
+                                            milliseconds, attempts the second retry after waiting
+                                            100 milliseconds, and attempts the third retry after
+                                            waiting 1,000 milliseconds. </p><p>Set to 0 to retry
+                                            immediately.</p><p id="p-BackOffDefault">Default is
+                                            0.</p></entry>
                                 </row>
                                 <row id="row-ConTimeout">
                                     <entry>Connection Timeout (ms)</entry>
@@ -4425,8 +4460,9 @@ chmod 644 /opt/cloudera/csd/STREAMSETS*.jar</codeblock></info>
             </step>
             <step id="CSDInstallRestart">
                 <cmd>Use one of the following commands to restart Cloudera Manager Server:</cmd>
-                <info><p>For Ubuntu and CentOS 6:
-                        <codeblock>service cloudera-scm-server restart</codeblock></p>For CentOS 7:
+                <info><p>For Ubuntu 14.04, CentOS 6, or RedHat Enterprise Linux 6:
+                        <codeblock>service cloudera-scm-server restart</codeblock></p>For Ubuntu
+                    16.04, CentOS 7, or RedHat Enterprise Linux 7:
                     <codeblock>systemctl restart cloudera-scm-server</codeblock></info>
             </step>
             <step id="CSDInstallRestartService">
@@ -4538,6 +4574,99 @@ chmod 644 /opt/cloudera/csd/STREAMSETS*.jar</codeblock></info>
                             </tbody>
                         </tgroup>
                     </table>
+                </info>
+            </step>
+            <step>
+                <cmd>
+                    <draft-comment author="Loretta">Cluster doc shared steps – </draft-comment>
+                    <draft-comment author="Loretta">First checkpoint for Kafka and Mesos YARN
+                        Streaming, Info steps conrefed by other versions.</draft-comment>
+                </cmd>
+            </step>
+            <step id="Cluster-CheckpointStorage">
+                <cmd>To enable checkpoint metadata storage, grant the user defined in the SDC_USER
+                    environment variable write permission on
+                    <filepath>/user/$SDC_USER</filepath>.</cmd>
+                <info id="Cluster-info-SDCUSER">The SDC_USER environment variable defines the system
+                    user used to run Data Collector as a service. The variable is defined in the
+                    $SDC_DIST/libexec/sdcd-env.sh file. </info>
+                <info id="Cluster-info-SDCUser-Example">For example, say SDC_USER is defined as
+                        <filepath>sdc</filepath> and the cluster does not use Kerberos. Then you
+                    might use the following commands to create the directory and configure the
+                    necessary write
+                    permissions:<codeblock id="Cluster-Code-SDCUserCode">$sudo -u hdfs hadoop fs -mkdir /user/sdc
+$sudo -u hdfs hadoop fs -chown sdc /user/sdc</codeblock></info>
+            </step>
+            <step>
+                <cmd>
+                    <draft-comment author="Loretta">Mesos version of above, removed Kerberos from
+                        example.</draft-comment>
+                </cmd>
+            </step>
+            <step id="Cluster-CheckpointStorage-Mesos">
+                <cmd>To enable checkpoint metadata storage, grant $SDC_USER write permission on
+                        <filepath>/user/$SDC_USER</filepath>.</cmd>
+                <info conref="#task_kzs_5vz_sq/Cluster-info-SDCUSER"/>
+                <info>For example, say $SDC_USER is defined as <filepath>sdc</filepath>. Then you
+                    might use the following commands to create the directory and configure the
+                    necessary write
+                    permissions:<codeblock conref="#task_kzs_5vz_sq/Cluster-Code-SDCUserCode"/></info>
+            </step>
+            <step>
+                <cmd>
+                    <draft-comment author="Loretta">MapR Cluster Batch and HDFS (cluster
+                        batch)</draft-comment>
+                </cmd>
+            </step>
+            <step id="ClusterBatch-SDCUser">
+                <cmd>Grant the user defined in the SDC_USER environment variable write permission on
+                        <filepath>/user/$SDC_USER</filepath>.</cmd>
+                <info conref="#task_kzs_5vz_sq/Cluster-info-SDCUSER"/>
+                <info conref="#task_kzs_5vz_sq/Cluster-info-SDCUser-Example"/>
+            </step>
+            <step>
+                <cmd/>
+            </step>
+            <step id="Cluster-ConfigKerberos">
+                <cmd>If YARN is configured to use Kerberos authentication, configure <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                    /> to use Kerberos authentication. </cmd>
+                <info>When you configure Kerberos authentication for <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                    />, you enable <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                    /> to use Kerberos and define the principal and keytab. <note type="important"
+                        id="Cluster-KerbNote">For cluster pipelines, enter an absolute path to the
+                        keytab when configuring <ph
+                            conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                        />. Standalone pipelines do not require an absolute path.</note></info>
+                <info>Once enabled, <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                    /> automatically uses the Kerberos principal and keytab to connect to any YARN
+                    cluster that uses Kerberos. For more information, see <xref
+                        href="../Configuration/Kerberos.dita#concept_hnm_n4l_xs"/>.</info>
+            </step>
+            <step>
+                <cmd>
+                    <draft-comment author="Loretta">Just the bullets in this step used I
+                        think:</draft-comment>
+                </cmd>
+            </step>
+            <step>
+                <cmd>To enable <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                    /> to submit YARN jobs, perform one of the following tasks:</cmd>
+                <info>
+                    <ul id="Cluster-SubmitYarnTasks">
+                        <li>On YARN, set the min.user.id to a value equal to or lower than the user
+                            ID associated with the <ph
+                                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                            /> user ID, typically named "sdc".</li>
+                        <li>On YARN, add the <ph
+                                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                            /> user name, typically "sdc", to the allowed.system.users
+                            property.</li>
+                    </ul>
                 </info>
             </step>
             <step>

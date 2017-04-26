@@ -22,8 +22,8 @@ package com.streamsets.pipeline.lib.xml;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.ext.io.ObjectLengthException;
 import com.streamsets.pipeline.api.impl.Utils;
-import com.streamsets.pipeline.lib.io.ObjectLengthException;
 import com.streamsets.pipeline.lib.xml.xpath.MatchStatus;
 import com.streamsets.pipeline.lib.xml.xpath.XPathMatchingEventReader;
 import org.apache.commons.lang3.StringUtils;
@@ -111,6 +111,8 @@ public class StreamingXmlParser {
     }
     XMLInputFactory factory = XMLInputFactory.newFactory();
     factory.setProperty("javax.xml.stream.isCoalescing", true);
+    factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
+    factory.setProperty("javax.xml.stream.supportDTD", false);
     this.xmlEventReader = new XPathMatchingEventReader(factory.createXMLEventReader(reader), this.recordElement, namespaces);
     while (hasNext(xmlEventReader) && !peek(xmlEventReader).isEndDocument() && !peek(xmlEventReader).isStartElement()) {
       read(xmlEventReader);

@@ -748,9 +748,38 @@
    </table>
   </p>
   <p>
-   <draft-comment author="Loretta">Hadoop FS, Local FS, MapR FS</draft-comment>
+   <draft-comment author="Loretta">Table used by Salesforce Event Record and Multitable JDBC. JDBC
+    Query uses the no-more-data bullet.</draft-comment>
   </p>
-  <p/>
+  <p>
+   <table frame="all" rowsep="1" colsep="1" id="EventHead-NoMoreData-table">
+    <tgroup cols="2">
+     <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+     <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+     <thead>
+      <row>
+       <entry>Record Header Attribute</entry>
+       <entry>Description</entry>
+      </row>
+     </thead>
+     <tbody>
+      <row>
+       <entry conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/entry-eventType"/>
+       <entry>Event type. Uses the following type:<ul id="ul_f4w_xrs_kz">
+         <li id="noMoreData-bullet">no-more-data - Generated when the origin completes processing
+          all data returned by a query.</li>
+        </ul></entry>
+      </row>
+      <row conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/row-eventVersion">
+       <entry/>
+      </row>
+      <row conref="../Reusable_Content/ReusableTables.dita#concept_wfr_rnw_yq/row-eventTimestamp">
+       <entry/>
+      </row>
+     </tbody>
+    </tgroup>
+   </table>
+  </p>
   <p>
    <draft-comment author="Loretta">DESTINATION rows</draft-comment>
   </p>
@@ -1148,10 +1177,16 @@
      </row>
      <row>
       <entry>HBase User </entry>
-      <entry id="entry-HBaseUser">The HBase user to use to connect to HBase. When using this
-       property, make sure HBase is configured appropriately.<p>By default, the pipeline uses the
-         <ph conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/> user
-        to connect to HBase.</p></entry>
+      <entry id="entry-HBaseUser">The HBase user to use to write to HBase. When using this property,
+       make sure HBase is configured appropriately.<p>When not configured, the pipeline uses the
+        currently logged in <ph
+         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/> user.
+        </p><p>Not configurable when <ph
+         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/> is
+        configured to use the currently logged in <ph
+         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/> user. For
+        more information, see <xref
+         href="../Configuration/HadoopImpersonationMode.dita#concept_pmr_sy5_nz"/>.</p></entry>
      </row>
      <row>
       <entry>HBase Configuration Directory</entry>
@@ -1313,7 +1348,8 @@
     </table>
   <draft-comment author="alisontaylor">Salesforce origin, Salesforce Lookup processor, and
    Salesforce destination use the first three rows in this table, and use the description of the
-   last row. Wave Analytics destination uses the first two rows in the table.</draft-comment>
+   last row. Wave Analytics destination uses the first two rows in the table. Salesforce origin and
+   Lookup processor use the last row.</draft-comment>
   <table frame="all" rowsep="1" colsep="1" id="table_fg1_cbc_tx">
    <tgroup cols="2">
     <colspec colname="c1" colnum="1" colwidth="1.5*"/>
@@ -1347,8 +1383,17 @@
      <row>
       <entry>API Version</entry>
       <entry id="SalesforceAPIVersion">Salesforce API version to use to connect to Salesforce.
-        <p>Default is 38.0. If you change the version, you also must download the relevant JAR files
-        from Salesforce Web Services Connector (WSC).</p></entry>
+        <p>Default is <ph
+         conref="Reusable_Topics/Salesforce-APIVersion.dita#task_qzy_4ck_dy/ph_SalesforceAPIVersion"
+        />. If you change the version, you also must download the relevant JAR files from Salesforce
+        Web Services Connector (WSC).</p></entry>
+     </row>
+     <row id="SalesforceIncludeDeleted">
+      <entry>Include Deleted Records</entry>
+      <entry>Determines whether the SOQL query also retrieves deleted records from the Salesforce
+       recycle bin. <p>The query can retrieve deleted records when the stage uses the Salesforce
+        SOAP API or the Bulk API version 39.0 or later. Earlier versions of the Bulk API do not
+        support retrieving deleted records.</p></entry>
      </row>
     </tbody>
    </tgroup>
@@ -1647,6 +1692,53 @@
      <entry>Optional destroy script to use in the processor.<p>Use to close any connections or
        resources required by the processor. Runs once when the pipeline stops.</p></entry>
     </row>
+    </tbody>
+   </tgroup>
+  </table>
+  <draft-comment author="alisontaylor">These rows are used by the MQTT Subscriber and MQTT
+   Publisher</draft-comment>
+  <table frame="all" rowsep="1" colsep="1" id="table_yhx_fwr_mz">
+   <tgroup cols="2">
+    <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+    <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+    <thead>
+     <row>
+      <entry>MQTT Property</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row id="row_MQTTBrokerURL">
+      <entry>Broker URL</entry>
+      <entry>MQTT Broker URL. Enter in the following
+        format:<codeblock>&lt;tcp | ssl>://&lt;hostname>:&lt;port></codeblock><p>Use ssl for secure
+        connections to the broker.</p><p>For
+       example:<codeblock>tcp://localhost:1883</codeblock></p></entry>
+     </row>
+     <row id="row_MQTTClientID">
+      <entry>Client ID</entry>
+      <entry>MQTT Client ID. The ID must be unique across all clients connecting to the same
+        broker.<p>You can define an expression that evaluates to the client ID. For example, you can
+        enter the following expression to use the unique pipeline ID as the client
+        ID:<codeblock>${pipeline:id()}</codeblock></p></entry>
+     </row>
+     <row id="row_MQTTQoS">
+      <entry>Quality of Service</entry>
+      <entry>Determines the quality of service level used to guarantee message delivery:<ul
+        id="ul_gc5_mcr_mz">
+        <li>At Most Once (0)</li>
+        <li>At Least Once (1)</li>
+        <li>Exactly Once (2)</li>
+       </ul><p>For more information, see the <xref
+         href="http://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels"
+         format="html" scope="external">HiveMQ documentation on quality of service
+        levels</xref>.</p></entry>
+     </row>
+     <row id="row_MQTTUseCredentials">
+      <entry>Use Credentials</entry>
+      <entry>Enables entering credentials on the Credentials tab. Use when the MQTT broker requires
+       a user name and password.</entry>
+     </row>
     </tbody>
    </tgroup>
   </table>

@@ -34,9 +34,9 @@ import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.TargetRunner;
 import com.streamsets.pipeline.lib.redis.DataType;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.testcontainers.containers.GenericContainer;
 import redis.clients.jedis.Jedis;
@@ -49,12 +49,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Range.lessThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+@Ignore
 public class RedisTargetIT {
   private static final int REDIS_PORT = 6379;
   private static final String channel = "pubsub_channel";

@@ -33,8 +33,8 @@ import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
+import com.streamsets.pipeline.api.ext.json.Mode;
 import com.streamsets.pipeline.api.impl.Utils;
-import com.streamsets.pipeline.config.JsonMode;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
@@ -46,7 +46,6 @@ import com.streamsets.pipeline.lib.generator.DataGeneratorFormat;
 import com.streamsets.pipeline.lib.operation.OperationType;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
-import com.streamsets.pipeline.stage.config.elasticsearch.ElasticsearchConfig;
 import com.streamsets.pipeline.stage.config.elasticsearch.ElasticsearchTargetConfig;
 import com.streamsets.pipeline.stage.config.elasticsearch.Errors;
 import com.streamsets.pipeline.stage.config.elasticsearch.Groups;
@@ -134,7 +133,7 @@ public class ElasticsearchTarget extends BaseTarget {
     validateEL(
         indexEval,
         conf.indexTemplate,
-        ElasticsearchConfig.CONF_PREFIX + "indexTemplate",
+        "elasticSearchConfig.indexTemplate",
         Errors.ELASTICSEARCH_00,
         Errors.ELASTICSEARCH_01,
         issues
@@ -142,7 +141,7 @@ public class ElasticsearchTarget extends BaseTarget {
     validateEL(
         typeEval,
         conf.typeTemplate,
-        ElasticsearchConfig.CONF_PREFIX + "typeTemplate",
+        "elasticSearchConfig.typeTemplate",
         Errors.ELASTICSEARCH_02,
         Errors.ELASTICSEARCH_03,
         issues
@@ -151,7 +150,7 @@ public class ElasticsearchTarget extends BaseTarget {
       validateEL(
           typeEval,
           conf.docIdTemplate,
-          ElasticsearchConfig.CONF_PREFIX + "docIdTemplate",
+          "elasticSearchConfig.docIdTemplate",
           Errors.ELASTICSEARCH_04,
           Errors.ELASTICSEARCH_05,
           issues
@@ -161,7 +160,7 @@ public class ElasticsearchTarget extends BaseTarget {
         issues.add(
             getContext().createConfigIssue(
                 Groups.ELASTIC_SEARCH.name(),
-                ElasticsearchConfig.CONF_PREFIX + "docIdTemplate",
+                "elasticSearchConfig.docIdTemplate",
                 Errors.ELASTICSEARCH_19,
                 conf.defaultOperation.getLabel()
             )
@@ -171,10 +170,10 @@ public class ElasticsearchTarget extends BaseTarget {
 
     delegate = new ElasticsearchStageDelegate(getContext(), conf);
 
-    issues = delegate.init(issues);
+    issues = delegate.init("elasticSearchConfig", issues);
 
     generatorFactory = new DataGeneratorFactoryBuilder(getContext(), DataGeneratorFormat.JSON)
-        .setMode(JsonMode.MULTIPLE_OBJECTS)
+        .setMode(Mode.MULTIPLE_OBJECTS)
         .setCharset(Charset.forName(conf.charset))
         .build();
 

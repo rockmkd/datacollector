@@ -39,6 +39,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class MongoDBConfig {
 
@@ -428,6 +429,11 @@ public class MongoDBConfig {
 
     MongoClient mongoClient = null;
     List<MongoCredential> credentials = createCredentials();
+
+    if (credentials.isEmpty()) {
+      Optional.ofNullable(mongoURI.getCredentials()).ifPresent(credentials::add);
+    }
+
     try {
       if(isSingleMode) {
         mongoClient = new MongoClient(servers.get(0), credentials, mongoURI.getOptions());
@@ -503,6 +509,8 @@ public class MongoDBConfig {
       case USER_PASS:
         credential = MongoCredential.createCredential(username, database, password.toCharArray());
         break;
+      case LDAP:
+        credential = MongoCredential.createCredential(username, "$external", password.toCharArray());
       case NONE:
       default:
         break;

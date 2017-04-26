@@ -144,6 +144,7 @@ public class MapReduceExecutor extends BaseExecutor {
           jobConfiguration.setInt(AvroParquetConstants.PAGE_SIZE, jobConfig.avroParquetConfig.pageSize);
           jobConfiguration.setInt(AvroParquetConstants.DICTIONARY_PAGE_SIZE, jobConfig.avroParquetConfig.dictionaryPageSize);
           jobConfiguration.setInt(AvroParquetConstants.MAX_PADDING_SIZE, jobConfig.avroParquetConfig.maxPaddingSize);
+          jobConfiguration.setBoolean(AvroParquetConstants.OVERWRITE_TMP_FILE, jobConfig.avroParquetConfig.overwriteTmpFile);
           break;
         case CUSTOM:
           // Nothing because custom is generic one that have no special config properties
@@ -170,29 +171,26 @@ public class MapReduceExecutor extends BaseExecutor {
   }
 
   private Job createAndSubmitJob(final Configuration configuration) throws IOException, InterruptedException {
-    return mapReduceConfig.getUGI().doAs(new PrivilegedExceptionAction<Job>() {
-      @Override
-      public Job run() throws Exception {
-        // Create new mapreduce job object
-        Callable<Job> jobCreator = ReflectionUtils.newInstance(jobConfig.getJobCreator(), configuration);
-        Job job = jobCreator.call();
+    return mapReduceConfig.getUGI().doAs((PrivilegedExceptionAction<Job>) () -> {
+      // Create new mapreduce job object
+      Callable<Job> jobCreator = ReflectionUtils.newInstance(jobConfig.getJobCreator(), configuration);
+      Job job = jobCreator.call();
 
-        // In trace mode, dump all the configuration that we're using for the job
-        if(LOG.isTraceEnabled()) {
-          LOG.trace("Using the following configuration object for mapreduce job.");
-          for(Map.Entry<String, String> entry : configuration) {
-            LOG.trace("  Config: {}={} from {}", entry.getKey(), entry.getValue());
-          }
+      // In trace mode, dump all the configuration that we're using for the job
+      if(LOG.isTraceEnabled()) {
+        LOG.trace("Using the following configuration object for mapreduce job.");
+        for(Map.Entry<String, String> entry : configuration) {
+          LOG.trace("  Config: {}={}", entry.getKey(), entry.getValue());
         }
-
-        // Submit it for processing. Blocking mode is only for testing.
-        job.submit();
-        if(waitForCompletition) {
-          job.waitForCompletion(true);
-        }
-
-        return job;
       }
+
+      // Submit it for processing. Blocking mode is only for testing.
+      job.submit();
+      if(waitForCompletition) {
+        job.waitForCompletion(true);
+      }
+
+      return job;
     });
   }
 }

@@ -109,9 +109,13 @@ public class AvroParquetConvertMapper extends Mapper<String, String, NullWritabl
     Path outputDir = new Path(output);
     fs.mkdirs(outputDir);
 
-    Path tempFile = new Path(outputDir, ".tmp_" + inputPath.getName());
+    Path tempFile = new Path(outputDir, AvroParquetConstants.TMP_PREFIX + inputPath.getName());
     if(fs.exists(tempFile)) {
-      throw new IOException("Temporary file " + tempFile + " already exists.");
+      if(conf.getBoolean(AvroParquetConstants.OVERWRITE_TMP_FILE, false)) {
+        fs.delete(tempFile, true);
+      } else {
+        throw new IOException("Temporary file " + tempFile + " already exists.");
+      }
     }
     LOG.info("Using temp file: {}", tempFile);
 
@@ -177,11 +181,19 @@ public class AvroParquetConvertMapper extends Mapper<String, String, NullWritabl
       .build();
 
     LOG.info("Started reading input file");
-    while (fileReader.hasNext()) {
-      GenericRecord record = fileReader.next();
-      parquetWriter.write(record);
+    long recordCount = 0;
+    try {
+      while (fileReader.hasNext()) {
+        GenericRecord record = fileReader.next();
+        parquetWriter.write(record);
 
-      context.getCounter(Counters.PROCESSED_RECORDS).increment(1);
+        context.getCounter(Counters.PROCESSED_RECORDS).increment(1);
+        recordCount++;
+      }
+    } catch(Exception e) {
+      // Various random stuff can happen while converting, so we wrap the underlying exception with more details
+      String message = "Exception at offset " + fileReader.tell() + " (record " + recordCount + "): " + e.toString();
+      throw new IOException(message, e);
     }
     LOG.info("Done reading input file");
     parquetWriter.close();

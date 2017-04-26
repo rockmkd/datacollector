@@ -15,24 +15,21 @@
 <!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
 <concept id="concept_kls_lqc_fv">
  <title>Using an HDFS User</title>
- <shortdesc>You can configure the MapR FS destination to use an HDFS user to write data to MapR
-        FS.</shortdesc>
  <conbody>
         <p><indexterm>MapR FS destination<indexterm>using an HDFS user to write to MapR
-                    FS</indexterm></indexterm>By default, the <ph
-                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>
-            uses the user account who started it to connect to external systems. When using
-            Kerberos, the <ph
-                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>
-            uses the Kerberos principal. <draft-comment author="alisontaylor">Make sure updates to
-                this topic go into the origin version of the file.</draft-comment></p>
-  <p>To use an HDFS user to connect to MapR FS, perform the following tasks:<ol id="ul_mb1_xpt_ls">
-                <li>On MapR, configure the <ph
-                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
-                    /> user as a proxy user and authorize the <ph
-                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
-                    /> user to impersonate the HDFS user. <p>For more information, see the HDFS
-                        documentation. </p></li>
+                    FS</indexterm></indexterm><ph
+                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/HUser-Intro"/>
+            destination to write to MapR FS. </p>
+        <p conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/HUser-ImpProperty"/>
+        <p>Note that the destination uses a different user account to connect. <ph
+                conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/HUser-ConnectGeneric"
+                /><draft-comment author="alisontaylor">Make sure updates to this topic go into the
+                origin version of the file.</draft-comment></p>
+  <p>To configure a user in the destination to write to MapR FS, perform the following tasks: <ol
+                id="ul_mb1_xpt_ls">
+                <li>On MapR, configure the user as a proxy user and authorize the user to
+                    impersonate a HDFS user. <p>For more information, see the HDFS documentation.
+                    </p></li>
                 <li>In the MapR FS destination, enter the HDFS user name.</li>
             </ol></p>
  </conbody>

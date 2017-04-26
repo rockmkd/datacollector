@@ -94,6 +94,7 @@
                         <li>File Tail</li>
                         <li>HTTP Client</li>
                         <li>HTTP Server</li>
+                        <li>MQTT Subscriber</li>
                         <li>SDC RPC</li>
                         <li>SFTP/FTP Client</li>
                         <li>UDP Source</li>
@@ -110,8 +111,9 @@
             </p>
             <p>
                   <ul id="BasicDestinations">
-                        <li>Local FS</li>
                         <li>HTTP Client</li>
+                        <li>Local FS</li>
+                        <li>MQTT Publisher</li>
                         <li>SDC RPC</li>
                         <li>To Error</li>
                         <li>Trash</li>
@@ -206,7 +208,7 @@
             <p>
                   <draft-comment author="Loretta"><uicontrol>DataFormats-ALL</uicontrol> - <b>no
                               longer all - no datagram, no wholefile</b> As of 7/14, Kafka Consumer
-                        has datagram, but no one else does. Some origins hae whole file. Used in
+                        has datagram, but no one else does. Some origins have whole file. Used in
                         MapR Streams Consumer, possibly others.</draft-comment>
             </p>
             <p>
@@ -665,38 +667,57 @@
                               <dt>XML</dt>
                               <dd>Generates records based on a user-defined delimiter element. Use
                                     an XML element directly under the root element or define a
-                                    simplified XPath expression. </dd>
-                              <dd>If you do not define a delimiter element, the origin treats the
-                                    XML file as a single record.</dd>
-                              <dd>For more information about XML processing, see <xref
-                                          href="../Pipeline_Design/XMLDFormat.dita#concept_lty_42b_dy"
-                                    />.</dd>
+                                    simplified XPath expression. If you do not define a delimiter
+                                    element, the origin treats the XML file as a single record.</dd>
+                              <dd>Generated records include XML attributes and namespace
+                                    declarations as fields in the record by default. You can
+                                    configure the stage to include them in the record as field
+                                    attributes. </dd>
+                              <dd>You can include XPath information for each parsed XML element and
+                                    XML attribute in field attributes. This also places each
+                                    namespace in an xmlns record header attribute. <note><ph
+                                                conref="#concept_vhs_5tz_xp/warn_FieldRecHeaderAtts"
+                                          /></note></dd>
                               <dd>When a record exceeds the user-defined maximum record length, the
                                     origin skips the record and continues processing with the next
                                     record. It sends the skipped record to the pipeline for error
                                     handling. </dd>
-                              <dd>Use the XML data format to process valid XML documents. If you
-                                    want to process invalid XML documents, you can try using the
-                                    text data format with custom delimiters. For more information,
-                                    see <xref
-                                          href="../Pipeline_Design/TextCDelim-XMLdata.dita#concept_okt_kmg_jx"
+                              <dd>Use the XML data format to process valid XML documents. For more
+                                    information about XML processing, see <xref
+                                          href="../Pipeline_Design/XMLDFormat.dita#concept_lty_42b_dy"
                                     />.</dd>
+                              <dd>
+                                    <note type="tip"><ph>If you want to process invalid XML
+                                                documents, you can try using the text data format
+                                                with custom delimiters. For more information, see
+                                                  <xref
+                                                  href="../Pipeline_Design/TextCDelim-XMLdata.dita#concept_okt_kmg_jx"
+                                                />.</ph>
+                                    </note>
+                              </dd>
                         </dlentry>
                         <dlentry id="OriginDF-XMLFILE">
                               <dt>XML</dt>
                               <dd>Generates records based on a user-defined delimiter element. Use
                                     an XML element directly under the root element or define a
-                                    simplified XPath expression. </dd>
-                              <dd>If you do not define a delimiter element, the origin treats the
-                                    XML file as a single record.</dd>
-                              <dd>For more information about XML processing, see <xref
-                                          href="../Pipeline_Design/XMLDFormat.dita#concept_lty_42b_dy"
-                                    />.</dd>
+                                    simplified XPath expression. If you do not define a delimiter
+                                    element, the origin treats the XML file as a single record. </dd>
+                              <dd>Generated records include XML attributes and namespace
+                                    declarations as fields in the record by default. You can
+                                    configure the stage to include them in the record as field
+                                    attributes. </dd>
+                              <dd>You can include XPath information for each parsed XML element and
+                                    XML attribute in field attributes. This also places each
+                                    namespace in an xmlns record header attribute. </dd>
+                              <dd>
+                                    <note><ph conref="#concept_vhs_5tz_xp/warn_FieldRecHeaderAtts"
+                                          /></note>
+                              </dd>
                               <dd>When a record exceeds the user-defined maximum record length, the
                                     origin cannot continue processing data in the file. Records
                                     already processed from the file are passed to the pipeline. The
                                     behavior of the origin is then based on the error handling
-                                    configured for the stage:<ul id="ul_rnb_qdp_ht">
+                                    configured for the stage:<ul id="ul_t2x_xvn_qz">
                                           <li>Discard - The origin continues processing with the
                                                 next file, leaving the partially-processed file in
                                                 the directory. </li>
@@ -707,13 +728,16 @@
                                                 Otherwise, it leaves the file in the directory.</li>
                                           <li>Stop Pipeline - The origin stops the pipeline. </li>
                                     </ul></dd>
-                              <dd>Use the XML data format to process valid XML documents. <ph
-                                          id="ph-p-InvalidXML-CustomDelimXref">If you want to
-                                          process invalid XML documents, you can try using the text
-                                          data format with custom delimiters. For more information,
-                                          see <xref
-                                                href="../Pipeline_Design/TextCDelim-XMLdata.dita#concept_okt_kmg_jx"
-                                          />.</ph></dd>
+                              <dd>Use the XML data format to process valid XML documents. For more
+                                    information about XML processing, see <xref
+                                          href="../Pipeline_Design/XMLDFormat.dita#concept_lty_42b_dy"
+                                    />. <note type="tip"><ph id="ph-p-InvalidXML-CustomDelimXref">If
+                                                you want to process invalid XML documents, you can
+                                                try using the text data format with custom
+                                                delimiters. For more information, see <xref
+                                                  href="../Pipeline_Design/TextCDelim-XMLdata.dita#concept_okt_kmg_jx"
+                                                />.</ph>
+                                    </note></dd>
                         </dlentry>
                   </dl>
             </p>
@@ -748,6 +772,7 @@
                   predicate:<codeblock>/&lt;element>[@&lt;attribute name>='&lt;attribute value>']</codeblock></p>
             <p><ph id="XML-ph-AttAsterisk">You can use the asterisk wildcard as the attribute value.
                         Surround the value in single quotation marks.</ph></p>
+            <p/>
             <p>
                   <draft-comment author="Loretta">Amazon <uicontrol>S3origin-CopyMove1</uicontrol>
                         and 2 used in Amazon S3 origin Configuring.</draft-comment>
@@ -883,11 +908,13 @@ web-0011.log</codeblock></dd>
                         used by Directory and File Tail</draft-comment>
             </p>
             <p id="O-EventHandling-overview">The origin can also generate events for an event
-                  stream. For more information about the event framework, see <xref
+                  stream. For more information about dataflow triggers and the event framework, see
+                        <xref
                         href="../Event_Handling/EventFramework-Overview.dita#concept_cph_5h4_lx"/>. </p>
             <p>
                   <draft-comment author="Loretta">Event Generation topic with multiple ph and p used
-                        by Directory and File Tail. </draft-comment>
+                        by Directory and File Tail. Last xref also used in executor
+                        overviews.</draft-comment>
             </p>
             <p><ph id="O-ph-EventGen1">can generate events that you can use in an event stream. When
                         you enable event generation, the origin generates event records each time
@@ -897,7 +924,17 @@ web-0011.log</codeblock></dd>
                         file processing information for later use. For an example, see <xref
                               href="../Event_Handling/CaseStudy-EventStorage.dita#concept_ocb_nnl_px"
                         />.</ph></p>
-            <p id="O-EventGen-xref">For more information about the event framework, see <xref
+            <p id="O-EventGen-xref">For more information about dataflow triggers and the event
+                  framework, see <xref
+                        href="../Event_Handling/EventFramework-Overview.dita#concept_cph_5h4_lx"
+                  />.</p>
+            <p>
+                  <draft-comment author="Loretta">next one used in executor overviews that generate
+                        events.</draft-comment>
+            </p>
+            <p id="p-Executor-EventXref">You can also configure the executor to generate events for
+                  another event stream. For more information about dataflow triggers and the event
+                  framework, see <xref
                         href="../Event_Handling/EventFramework-Overview.dita#concept_cph_5h4_lx"
                   />.</p>
             <p>
@@ -928,7 +965,30 @@ web-0011.log</codeblock></dd>
                                     />.</p></li>
                   </ul>
             </p>
+            <p>
+                  <draft-comment author="Loretta">Event Generation topic - Used for JDBC Query and
+                        Salesforce, JDBC Multitable uses the mini ph.</draft-comment>
+            </p>
+            <p>The Salesforce origin <ph id="EventGen-PipeFin-Ph1"><ph id="EventGen-PipeFin-mini"
+                              >can generate events that you can use in an event stream. When you
+                              enable event generation, the origin generates an event when it
+                              completes processing  the data returned by the specified</ph> query.
+                  </ph></p>
+            <p>If the origin is configured to repeat the query, it generates an event each time it
+                  completes a query.</p>
+            <p>You can use Salesforce events in the following ways:<ul id="EventGen-UseCase-ul">
+                        <li>
+                              <p>With a destination to store information about completed queries. </p>
+                              <p>For an example, see <xref
+                                          href="../Event_Handling/CaseStudy-EventStorage.dita#concept_ocb_nnl_px"
+                                    />.</p>
+                        </li>
+                  </ul></p>
+            <p conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/O-EventGen-xref"/>
             <p/>
+            <draft-comment author="Loretta">Event Record topics for JDBC Multitable and
+                  Salesforce.</draft-comment>
+            <p id="p-ERec-NoMoreData">The no-more-data event record includes no record fields.</p>
             <draft-comment author="Loretta">Used in Pipeline Concepts &amp; Design > Single &amp;
                   Multithreaded Pipes, and Multithreaded > Overview. And in Multithreaded Processing
                   topics in origin sections.</draft-comment>
@@ -1649,9 +1709,43 @@ input_stream.read()</codeblock></p>
                   we need here. </p>
             <draft-comment author="Loretta">The following is used in HDFS origin and destination
                   overviews:</draft-comment>
-            <p id="HDFS_user_props">When necessary, you can enable Kerberos authentication or use an
-                  HDFS user to connect to HDFS. You can also use Hadoop configuration files and add
-                  other Hadoop configuration properties as needed. </p>
+            <p id="HDFS_user_props">When necessary, you can enable Kerberos authentication and
+                  specify a Hadoop user. You can also use Hadoop configuration files and add other
+                  Hadoop configuration properties as needed. </p>
+            <p>
+                  <draft-comment author="Loretta">The following p's and ph's are used in
+                        Hadoop-related stages in the Hadoop User (or similar)
+                        topics.</draft-comment>
+            </p>
+            <p><ph id="HUser-Intro"><ph
+                              conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                        /> can either use the currently logged in <ph
+                              conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                        /> user or a user configured in the</ph> origin to read from HDFS. </p>
+            <p id="HUser-ImpProperty">A <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                  /> configuration property can be set that requires using the currently logged in
+                        <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                  /> user. When this property is not set, you can specify a user in the origin. For
+                  more information about Hadoop impersonation and the Data Collector property, see
+                        <xref
+                        href="../Configuration/HadoopImpersonationMode.dita#concept_pmr_sy5_nz"/>. </p>
+            <p>Note that the origin <ph id="HUser-ConnectUser">uses a different user account to
+                        connect to HDFS. <ph id="HUser-ConnectGeneric">By default, <ph
+                                    conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                              /> uses the user account who started it to connect to external
+                              systems. When using Kerberos, <ph
+                                    conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                              /> uses the Kerberos principal.</ph>
+                  </ph></p>
+            <p>
+                  <ol>
+                        <li id="HUser-Step1">On Hadoop, configure the user as a proxy user and
+                              authorize the user to impersonate a Hadoop user. <p>For more
+                                    information, see the Hadoop documentation. </p></li>
+                  </ol>
+            </p>
             <draft-comment author="Loretta">list of HDFS configuration files used by Hadoop FS
                   origin - used in Hadoop Properties and Configuring Hadoop FS
                   origin.</draft-comment>
@@ -1724,7 +1818,7 @@ input_stream.read()</codeblock></p>
                   <draft-comment author="Loretta"><uicontrol>D-HM-HiveSolution</uicontrol>,
                               <uicontrol>D-HM-Overview2</uicontrol>
                         <uicontrol>D-HM-compression</uicontrol> - used by Hadoop FS and MapR FS
-                        oreviews</draft-comment>
+                        overviews</draft-comment>
             </p>
             <p id="D-HM-HiveSolutionOverview1">As part of the Drift Synchronization Solution for
                   Hive, you can alternatively use record header attributes to perform record-based
@@ -1898,7 +1992,8 @@ ${YY()}_${MM()}_${DD()}</codeblock>
                   and 02:59 that arrive after the one hour time limit are considered late. The late
                   records are sent to the stage for error handling.</p>
             <draft-comment author="alisontaylor">Timeout to Close Idle Files - used for Hadoop FS,
-                  Local FS, and MapR FS destinations</draft-comment>
+                  Local FS, and MapR FS destinations  – also Azure Data Lake Store
+                  (lc)</draft-comment>
             <p id="IdleTimeoutOverview">You might want to configure an idle timeout when output
                   files remain open and idle for too long, thus delaying another system from
                   processing the files.</p>
@@ -1924,9 +2019,11 @@ ${YY()}_${MM()}_${DD()}</codeblock>
                   </ul></p>
             <p id="IdleTimeoutSummary">In either situation, configure an idle timeout so that other
                   systems can process the files sooner, instead of waiting for the configured
-                  maximum records, maximum file size, or late records conditions to occur.
-                        <draft-comment author="alisontaylor">Recovery - used for Hadoop FS, Local
-                        FS, and MapR FS destinations</draft-comment></p>
+                  maximum records, maximum file size, or late records conditions to occur. </p>
+            <p>
+                  <draft-comment author="alisontaylor">Recovery - used for Hadoop FS, Local FS, and
+                        MapR FS destinations</draft-comment>
+            </p>
             <p id="RecoveryIntro">The destination names temporary open output files using the
                   following format:<codeblock>_tmp_&lt;prefix>_&lt;runnerId></codeblock>Where
                         <codeph>&lt;prefix></codeph> is the file prefix defined for the destination
@@ -2406,6 +2503,15 @@ ${YY()}_${MM()}_${DD()}</codeblock>
             </p>
             <p><ph id="EX-ph-FileSystems">HDFS, MapR FS, or a local file system</ph></p>
             <p>
+                  <draft-comment author="Loretta">The note is used in HDFS File Metadata executor
+                        File Path topic and Configuring</draft-comment>
+            </p>
+            <p>
+                  <note id="FileMetadataEx-BadDefault">In most cases, you will not want to use the
+                        default expression. The default expression is more appropriate for changing
+                        file metadata.</note>
+            </p>
+            <p>
                   <draft-comment author="Loretta">note and ph- <uicontrol>HiveQuery</uicontrol>-
                         Used in Hive Query overview and Query topics. </draft-comment>
             </p>
@@ -2547,7 +2653,25 @@ ${YY()}_${MM()}_${DD()}</codeblock>
                               href="../Pipeline_Design/CDC-Overview.dita#concept_apw_l2c_ty"
                   />.</ph></p>
             <p/>
-            <p/>
+            <draft-comment author="Loretta">used in references to field attributes - XML parser, XML
+                  data format descriptions...</draft-comment>
+            <p><ph id="ph-FieldAtts-SDCRecord">Field attributes are automatically included in
+                        records written to destination systems only when you use the SDC RPC data
+                        format in the destination.</ph>
+            </p>
+            <p id="p-FieldAtts-Include">To include field attributes in the record data or to use
+                  field attributes in calculations, use the <codeph>record:fieldAttribute</codeph>
+                  and <codeph>record:fieldAttributeOrDefault</codeph> functions. For more
+                  information about field attribute functions, see <xref
+                        href="../Expression_Language/RecordFunctions.dita#concept_p1z_ggv_1r"/>.</p>
+            <p><ph id="warn_FieldRecHeaderAtts">Field attributes and record header attributes are
+                        written to destination systems automatially only when you use the SDC RPC
+                        data format in destinations. For more information about working with field
+                        attributes and record header attributes, and how to include them in records,
+                        see <xref href="../Pipeline_Design/FieldAttributes.dita#concept_xfm_wtp_1z"
+                        /> and <xref
+                              href="../Pipeline_Design/RecordHeaderAttributes.dita#concept_wn2_jcz_dz"
+                        />.</ph></p>
             <draft-comment author="alisontaylor">Used in the OAuth 2 Authorization topic for HTTP
                   Client origin, processor, and destination</draft-comment>
             <p id="OAuth2_Credentials">The credentials that you enter to request an access token
@@ -2636,9 +2760,11 @@ ${YY()}_${MM()}_${DD()}</codeblock>
                         <systemoutput>$SDC_DIST/libexec/sdc-env.sh</systemoutput> file.</p>
             <draft-comment author="alisontaylor">Use this for the pipeline --name option for any
                   commands in the CLI docs</draft-comment>
-            <p id="CliPipelineName">The name is automatically generated when the pipeline is created
-                  and is used by <ph
+            <p id="CliPipelineName"><ph
                         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
-                  /> to identify the pipeline. The pipeline name cannot be changed.</p>
+                  /> generates the ID when the pipeline is created. <ph
+                        conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
+                  /> uses the alphanumeric characters entered for the pipeline title as a prefix for
+                  the generated pipeline ID.</p>
       </conbody>
 </concept>

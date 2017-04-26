@@ -22,13 +22,14 @@
         <topicref href="../Executors/HDFSMetadata.dita" chunk="to-content">
             <topicmeta><shortdesc></shortdesc></topicmeta>
             <topicref href="../Executors/HDFSFileMeta-EventStages.dita"/>
-            <topicref href="../Executors/HDFSFileMeta-InputFile.dita"/>
+            <topicref href="../Executors/HDFSFileMeta-FilePath.dita"/>
             <topicref href="../Executors/HDFSFileMeta-Location.dita"/>
             <topicref href="../Executors/HDFSFileMeta-Permissions.dita"/>
             <topicref href="../Executors/HDFSFileMeta-EventGeneration.dita">
                 <topicref href="../Executors/HDFSFileMeta-EventRecords.dita"/>
             </topicref>
             <topicref href="../Executors/HDFSFileMeta-Kerberos.dita"/>
+            <topicref href="../Executors/HDFSFileMeta-HDFSUser.dita"/>
             <topicref href="../Executors/HDFSFileMeta-HDFSProperties.dita"/>
             <topicref href="../Executors/HDFSFileMeta-Configuring.dita"/>
         </topicref>
@@ -60,6 +61,11 @@
             <topicref href="../Executors/MapReduce-Kerberos.dita"/>
             <topicref href="../Executors/MapReduce-User.dita"/>
             <topicref href="../Executors/MapReduce-Configuring.dita"/>
+        </topicref>
+        <topicref href="../Executors/PipelineFinisher.dita" chunk="to-content">
+            <topicmeta><shortdesc></shortdesc></topicmeta>
+            <topicref href="../Executors/PipelineFinisher-Implementation.dita"/>
+            <topicref href="../Executors/PipelineFinisher-Configuring.dita"/>
         </topicref>
         <topicref href="../Executors/Spark.dita" chunk="to-content">
             <topicmeta><shortdesc></shortdesc></topicmeta>

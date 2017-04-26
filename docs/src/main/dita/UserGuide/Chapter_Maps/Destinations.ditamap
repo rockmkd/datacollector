@@ -50,6 +50,7 @@
    </topicref>
    <topicref href="../Destinations/DataLakeStore-DirTemplates.dita"/>
    <topicref href="../Destinations/DataLakeStore-TimeBasis.dita"/>
+   <topicref href="../Destinations/DataLakeStore-IdleTimeout.dita"/>
    <topicref href="../Destinations/DataLakeStore-DataFormats.dita"/>
    <topicref href="../Destinations/DataLakeStore-Configuring.dita"/>
   </topicref>
@@ -150,7 +151,7 @@
    <topicref href="../Destinations/HTTPClient-DestinationMethods.dita">
     <topicref href="../Destinations/HTTPClient-DestinationExpressionMethod.dita"/>
    </topicref>
-   <topicref href="../Destinations/HTTPClient-DestinationParallelRequests.dita"/>
+   <topicref href="../Destinations/HTTPClient-DestinationRequests.dita"/>
    <topicref href="../Destinations/HTTPClient-DestinationOAuth2.dita">
     <topicref href="../Destinations/HTTPClient-DestinationOAuth2Twitter.dita"/>
     <topicref href="../Destinations/HTTPClient-DestinationOAuth2AzureAD.dita"/>
@@ -284,6 +285,14 @@
    <topicref href="../Destinations/MongoDB-EnableSSL.dita"/>
    <topicref href="../Destinations/MongoDB-Configuring.dita"/>
   </topicref>
+  <topicref href="../Destinations/MQTTPublisher.dita" chunk="to-content">
+   <topicmeta>
+    <shortdesc/>
+   </topicmeta>
+   <topicref href="../Destinations/MQTTPublisher-Topic.dita"/>
+   <topicref href="../Destinations/MQTTPublisher-DataFormats.dita"/>
+   <topicref href="../Destinations/MQTTPublisher-Configuring.dita"/>
+  </topicref>
   <topicref href="../Destinations/RabbitMQ.dita" chunk="to-content">
    <topicmeta>
     <shortdesc/>
@@ -306,6 +315,7 @@
     <shortdesc/>
    </topicmeta>
    <topicref href="../Destinations/Salesforce-APIVersionDestination.dita"/>
+   <topicref href="../Destinations/Salesforce-DefineOperation.dita"/>
    <topicref href="../Destinations/Salesforce-Configuring.dita"/>
   </topicref>
   <topicref href="../Destinations/SDC_RPCdest.dita" chunk="to-content">
