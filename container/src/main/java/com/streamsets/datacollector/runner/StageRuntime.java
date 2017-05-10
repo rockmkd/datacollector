@@ -192,20 +192,16 @@ public class StageRuntime implements PushSourceContextDelegate {
   }
 
   public void execute(final Map<String, String> offsets, final int batchSize) throws StageException {
-      Callable<String> callable = new Callable<String>() {
-        @Override
-        public String call() throws Exception {
-          switch (getDefinition().getType()) {
-            case SOURCE: {
-              if(getStage() instanceof PushSource) {
-                ((PushSource)getStage()).produce(offsets, batchSize);
-                return null;
-              }
+      Callable<String> callable = () -> {
+        switch (getDefinition().getType()) {
+          case SOURCE:
+            if(getStage() instanceof PushSource) {
+              ((PushSource)getStage()).produce(offsets, batchSize);
+              return null;
             }
-            default: {
-              throw new IllegalStateException(Utils.format("Unknown stage type: '{}'", getDefinition().getType()));
-            }
-          }
+            // fall through
+          default:
+            throw new IllegalStateException(Utils.format("Unknown stage type: '{}'", getDefinition().getType()));
         }
       };
 
@@ -279,7 +275,7 @@ public class StageRuntime implements PushSourceContextDelegate {
    */
 
   @Override
-  public BatchContext startBatch() {
+  public final BatchContext startBatch() {
     return (BatchContext) AccessController.doPrivileged(new PrivilegedAction() {
       public Object run() {
         try {
@@ -293,7 +289,7 @@ public class StageRuntime implements PushSourceContextDelegate {
   }
 
   @Override
-  public boolean processBatch(final BatchContext batchContext, final String entity, final String offset) {
+  public final boolean processBatch(final BatchContext batchContext, final String entity, final String offset) {
     return (boolean) AccessController.doPrivileged(new PrivilegedAction() {
       public Object run() {
         try {
@@ -307,7 +303,7 @@ public class StageRuntime implements PushSourceContextDelegate {
   }
 
   @Override
-  public void commitOffset(final String entity, final String offset) {
+  public final void commitOffset(final String entity, final String offset) {
     AccessController.doPrivileged(new PrivilegedAction() {
       public Object run() {
         try {

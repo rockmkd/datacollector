@@ -24,6 +24,7 @@ import com.microsoft.azure.datalake.store.ADLFileOutputStream;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.el.ELEvalException;
+import com.streamsets.pipeline.lib.generator.StreamCloseEventHandler;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -33,8 +34,9 @@ interface OutputStreamHelper {
   final static String TMP_FILE_PREFIX = "_tmp_";
   OutputStream getOutputStream(String filePath)
       throws StageException, IOException;
-  String getTempFilePath(String dirPath, Record record, Date recordTime) throws ELEvalException;
+  String getTempFilePath(String dirPath, Record record, Date recordTime) throws StageException;
   void commitFile(String dirPath) throws IOException;
   void clearStatus() throws IOException;
   boolean shouldRoll(String dirPath);
+  StreamCloseEventHandler<?> getStreamCloseEventHandler();
 }

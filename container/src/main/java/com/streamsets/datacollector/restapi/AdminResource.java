@@ -20,12 +20,15 @@
 package com.streamsets.datacollector.restapi;
 
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.bundles.SupportBundleManager;
 import com.streamsets.datacollector.event.handler.remote.RemoteEventHandlerTask;
 import com.streamsets.datacollector.io.DataStore;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.UserGroupManager;
+import com.streamsets.datacollector.restapi.bean.BeanHelper;
 import com.streamsets.datacollector.restapi.bean.DPMInfoJson;
 import com.streamsets.datacollector.restapi.bean.MultiStatusResponseJson;
+import com.streamsets.datacollector.restapi.bean.SupportBundleContentDefinitionJson;
 import com.streamsets.datacollector.restapi.bean.UserJson;
 import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.util.AuthzRole;
@@ -53,10 +56,13 @@ import javax.annotation.security.DenyAll;
 import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Context;
@@ -69,7 +75,11 @@ import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -86,12 +96,19 @@ public class AdminResource {
   private final RuntimeInfo runtimeInfo;
   private final Configuration config;
   private final UserGroupManager userGroupManager;
+  private final SupportBundleManager supportBundleManager;
 
   @Inject
-  public AdminResource(RuntimeInfo runtimeInfo, Configuration config, UserGroupManager userGroupManager) {
+  public AdminResource(
+    RuntimeInfo runtimeInfo,
+    Configuration config,
+    UserGroupManager userGroupManager,
+    SupportBundleManager supportBundleManager
+  ) {
     this.runtimeInfo = runtimeInfo;
     this.config = config;
     this.userGroupManager = userGroupManager;
+    this.supportBundleManager = supportBundleManager;
   }
 
   @POST
@@ -574,6 +591,58 @@ public class AdminResource {
   })
   public Response getGroups() throws IOException {
     return Response.ok(userGroupManager.getGroups()).build();
+  }
+
+  @GET
+  @Path("/bundle/list")
+  @ApiOperation(
+      value = "Return list of available content generators for support bundles.",
+      response = SupportBundleContentDefinitionJson.class,
+      responseContainer = "List",
+      authorizations = @Authorization(value = "basic")
+  )
+  @Produces(MediaType.APPLICATION_JSON)
+  @RolesAllowed({
+      AuthzRole.ADMIN,
+      AuthzRole.ADMIN_REMOTE
+  })
+  public Response getSupportBundlesContentGenerators() throws IOException {
+    return Response.ok(BeanHelper.wrapSupportBundleDefinitions(supportBundleManager.getContentDefinitions())).build();
+  }
+
+  @GET
+  @Path("/bundle/generate")
+  @ApiOperation(
+      value = "Generates a new support bundle.",
+      response = Object.class,
+      authorizations = @Authorization(value = "basic")
+  )
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces("application/octet-stream")
+  @RolesAllowed({
+      AuthzRole.ADMIN,
+      AuthzRole.ADMIN_REMOTE
+  })
+  public Response createSupportBundlesContentGenerators(
+    @QueryParam("generators") @DefaultValue("") String generators
+  ) throws IOException {
+    List<String> generatorList = Collections.emptyList();
+    if(!generators.isEmpty()) {
+      generatorList = Arrays.asList(generators.split(","));
+    }
+
+    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss");
+    StringBuilder builder = new StringBuilder("bundle_");
+    builder.append(runtimeInfo.getId());
+    builder.append("_");
+    builder.append(dateFormat.format(new Date()));
+    builder.append(".zip");
+
+    return Response
+      .ok()
+      .header("content-disposition", "attachment; filename=\"" + builder.toString() + "\"")
+      .entity(supportBundleManager.generateNewBundle(generatorList))
+      .build();
   }
 
 }

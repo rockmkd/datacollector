@@ -31,6 +31,7 @@ import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
+import com.streamsets.pipeline.sdk.DataCollectorServicesUtils;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.stage.origin.jdbc.table.util.OffsetQueryUtil;
@@ -107,6 +108,8 @@ public class BasicIT extends BaseTableJdbcSourceIT {
 
   @BeforeClass
   public static void setupTables() throws SQLException {
+    DataCollectorServicesUtils.loadDefaultServices();
+
     EXPECTED_CRICKET_STARS_RECORDS = ImmutableList.of(
         createSportsStarsRecords(1, "Sachin", "Tendulkar"),
         createSportsStarsRecords(2, "Mahendra Singh", "Dhoni"),

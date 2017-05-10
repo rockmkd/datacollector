@@ -429,6 +429,13 @@
       <classifier>test</classifier>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>${kafka.version}</version>
+      <classifier>test</classifier>
+      <scope>test</scope>
+    </dependency>
 
     <!-- Explicitly add dependency on thrift version 0.9.0 -->
     <dependency>

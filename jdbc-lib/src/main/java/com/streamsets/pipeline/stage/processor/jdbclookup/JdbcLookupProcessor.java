@@ -49,7 +49,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -215,6 +214,8 @@ public class JdbcLookupProcessor extends SingleLaneRecordProcessor {
               // Just use the column name
               fieldPath = "/" + columnName;
               break;
+            default:
+              break;
           }
         }
         record.set(fieldPath, field);
@@ -233,13 +234,15 @@ public class JdbcLookupProcessor extends SingleLaneRecordProcessor {
 
   @SuppressWarnings("unchecked")
   private LoadingCache<String, Map<String, Field>> buildCache() {
-    JdbcLookupLoader loader = new JdbcLookupLoader(dataSource,
-        columnsToFields,
-        columnsToDefaults,
-        columnsToTypes,
-        maxClobSize,
-        maxBlobSize,
-        errorRecordHandler
+    JdbcLookupLoader loader = new JdbcLookupLoader(
+      getContext(),
+      dataSource,
+      columnsToFields,
+      columnsToDefaults,
+      columnsToTypes,
+      maxClobSize,
+      maxBlobSize,
+      errorRecordHandler
     );
     return LookupUtils.buildCache(loader, cacheConfig);
   }

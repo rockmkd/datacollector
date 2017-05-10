@@ -108,7 +108,7 @@ public class MongoDBConfig {
       label = "Username",
       required = true,
       dependsOn = "authenticationType",
-      triggeredByValue = "USER_PASS",
+      triggeredByValue = {"USER_PASS","LDAP"},
       group = "CREDENTIALS",
       displayPosition = 50,
       elDefs = VaultEL.class
@@ -120,7 +120,7 @@ public class MongoDBConfig {
       label = "Password",
       required = true,
       dependsOn = "authenticationType",
-      triggeredByValue = "USER_PASS",
+      triggeredByValue = {"USER_PASS","LDAP"},
       group = "CREDENTIALS",
       displayPosition = 60,
       elDefs = VaultEL.class
@@ -511,6 +511,7 @@ public class MongoDBConfig {
         break;
       case LDAP:
         credential = MongoCredential.createCredential(username, "$external", password.toCharArray());
+        break;
       case NONE:
       default:
         break;

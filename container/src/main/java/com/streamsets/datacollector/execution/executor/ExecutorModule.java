@@ -71,6 +71,14 @@ public class ExecutorModule {
       "eventHandlerExecutor");
   }
 
+  @Provides @Singleton @Named("supportBundleExecutor")
+  public SafeScheduledExecutorService provideSupportBundleExecutor(Configuration configuration) {
+    return new SafeScheduledExecutorService(
+      configuration.get(ExecutorConstants.BUNDLE_EXECUTOR_THREAD_POOL_SIZE_KEY, ExecutorConstants.BUNDLE_EXECUTOR_THREAD_POOL_SIZE_DEFAULT),
+      "supportBundleExecutor"
+    );
+  }
+
   @Provides @Singleton
   ResourceManager provideResourceManager(Configuration configuration) {
     return new ResourceManager(configuration);

@@ -29,6 +29,10 @@
                   Collector</ph></p>
             <p>DPM long only: <ph id="DPM-LongOnly">Dataflow Performance Manager</ph></p>
             <p>DPM short: <ph id="DPM-short">DPM</ph></p>
+            <draft-comment author="alisontaylor">The following ph's for the current version are used
+                  in the install and upgrade steps:</draft-comment>
+            <p><ph id="version">2.6.0.0</ph></p>
+            <p><ph id="version_DirName">2600</ph></p>
             <p>
                   <draft-comment author="Loretta">The following ph is used by the registration DPM
                         topics. </draft-comment>
@@ -143,6 +147,31 @@
                   <li>The output data column for an origin.</li>
                   <li>The input data column for processors.</li>
             </ul>
+            <p>
+                  <draft-comment author="Loretta">WEBHOOKS: The following ph are used in the Webhook
+                        overview and Alert Webhook overview:</draft-comment>
+            </p>
+            <p><ph id="WH-Definition-ph">A webhook is a user-defined HTTP callback - an HTTP request
+                        that the pipeline sends automatically when certain actions occur. You can
+                        use webhooks to automatically trigger external tasks based on an HTTP
+                        request. Tasks can be as simple as sending a message through an application
+                        API or as powerful as passing commands to the <ph
+                              conref="#concept_vhs_5tz_xp/pName-long"/> command line interface.</ph>
+            </p>
+            <p id="WH-APIdocNote">
+                  <note type="important">You must configure webhooks as expected by the receiving
+                        system. For details on how to configure incoming webhooks check the
+                        receiving system's documentation. You might also need to enable webhook
+                        usage within that system.</note>
+            </p>
+            <p><ph id="WH-Config-URLmethods-ph">you specify the URL to send the request and the HTTP
+                        method to use. Some HTTP methods allow you to include a request body or
+                        payload.</ph>
+                  <ph id="WH-Config-params-ph">In the payload, you can use parameters to include
+                        information about the cause of the trigger, such as</ph> the text of the
+                  alert or the latest pipeline state. <ph id="WH-Config-Optional-ph">You can also
+                        include request headers, content type, authentication type, username and
+                        password as needed.</ph></p>
             <p>
                   <draft-comment author="Loretta">The following bullets are the types of origins
                         that can be reset / that remember where you left off. These are used
@@ -2766,5 +2795,38 @@ ${YY()}_${MM()}_${DD()}</codeblock>
                         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"
                   /> uses the alphanumeric characters entered for the pipeline title as a prefix for
                   the generated pipeline ID.</p>
+            <draft-comment author="alisontaylor">Used in the Credentials topic for MongoDB origin,
+                  MongoDB Oplog origin, and MongoDB destination</draft-comment>
+            <p id="MongoDBCredentials">To use username/password or LDAP authentication, enter the required credentials in
+                  one of the following ways:<dl>
+                        <dlentry>
+                              <dt>Connection string in the MongoDB tab</dt>
+                              <dd>Enter credentials in the connection string in the MongoDB
+                                    tab.</dd>
+                              <dd>To enter credentials for username/password authentication, enter
+                                    the username and password before the host name. Use the
+                                    following
+                                    format:<codeblock>mongodb://<b>username:password@</b>host[:port][/[database][?options]]</codeblock></dd>
+                              <dd>To enter credentials for LDAP authentication, enter the username
+                                    and password before the host name, and set the authMechanism
+                                    option to PLAIN. Use the following
+                                    format:<codeblock>mongodb://<b>username:password@</b>host[:port][/[database]<b>?authMechanism=PLAIN</b></codeblock></dd>
+                        </dlentry>
+                        <dlentry>
+                              <dt>Credentials tab</dt>
+                              <dd>Select either the Username/Password or LDAP authentication type in
+                                    the Credentials tab. Then enter the username and password for
+                                    the authentication type. </dd>
+                        </dlentry>
+                  </dl></p>
+            <p id="MongoDBCredentialsConclusion">If you enter credentials in both the connection string and in the Credentials tab,
+                  the Credentials tab takes precedence.</p>
+            <draft-comment author="alisontaylor">This text is used in Configuring a Pipeline and in
+                  Adding Labels to a Pipeline</draft-comment>
+            <p id="NestedLabels">You can use nested labels to create a hierarchy of pipeline
+                  groupings. Enter nested labels using the following
+                  format:<codeblock>&lt;label1>/&lt;label2>/&lt;label3></codeblock>For example, you
+                  might want to group pipelines in the test environment by the origin system. You
+                  add the labels Test/HDFS and Test/Elasticsearch to the appropriate pipelines.</p>
       </conbody>
 </concept>

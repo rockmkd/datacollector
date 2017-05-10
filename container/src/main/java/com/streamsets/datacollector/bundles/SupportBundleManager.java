@@ -19,11 +19,16 @@
  */
 package com.streamsets.datacollector.bundles;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.streamsets.datacollector.execution.PipelineStateStore;
+import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
+import org.cloudera.log4j.redactor.StringRedactor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,12 +41,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.util.Collection;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -52,6 +61,8 @@ public class SupportBundleManager implements BundleContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(SupportBundleManager.class);
 
+  private static final String REDACTOR_CONFIG = "support-bundle-redactor.json";
+
   /**
    * Executor service for generating new bundles.
    *
@@ -59,6 +70,8 @@ public class SupportBundleManager implements BundleContext {
    */
   private final ExecutorService executor;
 
+  private final PipelineStoreTask pipelineStore;
+  private final PipelineStateStore stateStore;
   private final RuntimeInfo runtimeInfo;
   private final BuildInfo buildInfo;
 
@@ -67,15 +80,26 @@ public class SupportBundleManager implements BundleContext {
    */
   private List<BundleContentGeneratorDefinition> definitions;
 
+  /**
+   * Redactor to remove sensitive data.
+   */
+  private StringRedactor redactor;
+
   @Inject
   public SupportBundleManager(
     @Named("supportBundleExecutor") SafeScheduledExecutorService executor,
+    PipelineStoreTask pipelineStore,
+    PipelineStateStore stateStore,
     RuntimeInfo runtimeInfo,
     BuildInfo buildInfo
   ) {
     this.executor = executor;
+    this.pipelineStore = pipelineStore;
+    this.stateStore = stateStore;
     this.runtimeInfo = runtimeInfo;
     this.buildInfo = buildInfo;
+
+    Set<String> ids = new HashSet<>();
 
     ImmutableList.Builder builder = new ImmutableList.Builder();
     try {
@@ -91,9 +115,21 @@ public class SupportBundleManager implements BundleContext {
           continue;
         }
 
+        String id = bundleClass.getSimpleName();
+        if(!def.id().isEmpty()) {
+          id = def.id();
+        }
+
+        if(ids.contains(id)) {
+          LOG.error("Ignoring duplicate id {} for generator {}.", id, bundleClass.getName());
+        } else {
+          ids.add(id);
+        }
+
         builder.add(new BundleContentGeneratorDefinition(
           bundleClass,
           def.name(),
+          id,
           def.description(),
           def.version(),
           def.enabledByDefault()
@@ -104,6 +140,14 @@ public class SupportBundleManager implements BundleContext {
     }
 
     definitions = builder.build();
+
+    // Create shared instance of redactor
+    try {
+      redactor = StringRedactor.createFromJsonFile(runtimeInfo.getConfigDir() + "/" + REDACTOR_CONFIG);
+    } catch (IOException e) {
+      LOG.error("Can't load redactor configuration, bundles will not be redacted", e);
+      redactor = StringRedactor.createEmpty();
+    }
   }
 
   /**
@@ -134,18 +178,14 @@ public class SupportBundleManager implements BundleContext {
    * Either get all definittions that should be used by default or only those specified in the generators argument.
    */
   private List<BundleContentGeneratorDefinition> getRequestedDefinitions(List<String> generators) {
-    List<BundleContentGeneratorDefinition> useDefs;
+    Stream<BundleContentGeneratorDefinition> stream = definitions.stream();
     if(generators == null || generators.isEmpty()) {
       // Filter out default generators
-      useDefs = definitions.stream()
-        .filter(BundleContentGeneratorDefinition::isEnabledByDefault)
-        .collect(Collectors.toList());
+      stream = stream.filter(BundleContentGeneratorDefinition::isEnabledByDefault);
     } else {
-      useDefs = definitions.stream()
-        .filter(def -> generators.contains(def.getKlass().getName()))
-        .collect(Collectors.toList());
+      stream = stream.filter(def -> generators.contains(def.getId()));
     }
-    return useDefs;
+    return stream.collect(Collectors.toList());
   }
 
   private void generateNewBundleInternal(List<BundleContentGeneratorDefinition> defs, ZipOutputStream zipStream) {
@@ -154,7 +194,11 @@ public class SupportBundleManager implements BundleContext {
 
       // Let each individual content generator run to generate it's content
       for(BundleContentGeneratorDefinition definition : defs) {
-        BundleWriter writer = new BundleWriterImpl(definition.getKlass().getName(), zipStream);
+        BundleWriter writer = new BundleWriterImpl(
+          definition.getKlass().getName(),
+          redactor,
+          zipStream
+        );
         BundleContentGenerator contentGenerator = definition.getKlass().newInstance();
 
         contentGenerator.generateContent(this, writer);
@@ -199,16 +243,29 @@ public class SupportBundleManager implements BundleContext {
     return runtimeInfo;
   }
 
-  private static class BundleWriterImpl extends BundleWriter {
+  @Override
+  public PipelineStoreTask getPipelineStore() {
+    return pipelineStore;
+  }
+
+  @Override
+  public PipelineStateStore getPipelineStateStore() {
+    return stateStore;
+  }
+
+  private static class BundleWriterImpl implements BundleWriter {
 
     private final String prefix;
+    private final StringRedactor redactor;
     private final ZipOutputStream zipOutputStream;
 
     public BundleWriterImpl(
       String prefix,
+      StringRedactor redactor,
       ZipOutputStream outputStream
     ) {
       this.prefix = prefix + File.separator;
+      this.redactor = redactor;
       this.zipOutputStream = outputStream;
     }
 
@@ -222,9 +279,61 @@ public class SupportBundleManager implements BundleContext {
       zipOutputStream.closeEntry();
     }
 
+    public void writeInternal(String string, boolean ln) {
+      try {
+        zipOutputStream.write(redactor.redact(string).getBytes());
+        if(ln) {
+          zipOutputStream.write('\n');
+        }
+      } catch (IOException e) {
+        throw new RuntimeException("Can't write string out: " + string, e);
+      }
+    }
+
     @Override
-    public void write(int b) throws IOException {
-      zipOutputStream.write(b);
+    public void write(String str) {
+      writeInternal(str, false);
+    }
+
+    @Override
+    public void writeLn(String str) {
+      writeInternal(str, true);
+    }
+
+    @Override
+    public void write(String fileName, Properties properties) throws IOException {
+      markStartOfFile(fileName);
+
+      for(Map.Entry<Object, Object> entry: properties.entrySet()) {
+        String key = (String) entry.getKey();
+        String value = (String) entry.getValue();
+
+        writeLn(Utils.format("{}={}", key, value));
+      }
+
+      markEndOfFile();
+    }
+
+    @Override
+    public void write(String dir, Path path) throws IOException {
+      // We're not interested in serializing non-existing files
+      if(!Files.exists(path)) {
+        return;
+      }
+
+      markStartOfFile(dir + "/" + path.getFileName());
+      try (Stream<String> stream = Files.lines(path)) {
+        stream.forEach(this::writeLn);
+      }
+      markEndOfFile();
+    }
+
+    @Override
+    public void writeJson(String fileName, Object object) throws IOException {
+      ObjectMapper objectMapper = ObjectMapperFactory.get();
+      markStartOfFile(fileName);
+      write(objectMapper.writeValueAsString(object));
+      markEndOfFile();
     }
   }
 }

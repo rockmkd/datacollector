@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import com.streamsets.datacollector.config.StageType;
 import com.streamsets.datacollector.el.RuntimeEL;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.json.JsonMapperImpl;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
@@ -41,16 +42,16 @@ import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.ext.DataCollectorServices;
+import com.streamsets.pipeline.api.ext.json.JsonMapper;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,7 +59,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("unchecked")
 public abstract class StageRunner<S extends Stage> {
@@ -66,7 +66,8 @@ public abstract class StageRunner<S extends Stage> {
 
   static {
     RuntimeInfo runtimeInfo = new StandaloneRuntimeInfo(RuntimeModule.SDC_PROPERTY_PREFIX, new MetricRegistry(),
-                                              Arrays.asList(StageRunner.class.getClassLoader()));
+        Collections.singletonList(StageRunner.class.getClassLoader())
+    );
     try {
       RuntimeEL.loadRuntimeConfiguration(runtimeInfo);
     } catch (IOException ex) {
@@ -256,6 +257,11 @@ public abstract class StageRunner<S extends Stage> {
     DeliveryGuarantee deliveryGuarantee,
     String resourcesDir
   ) {
+
+    if(DataCollectorServices.instance().get(JsonMapper.SERVICE_KEY) == null) {
+      DataCollectorServices.instance().put(JsonMapper.SERVICE_KEY, new JsonMapperImpl());
+    }
+
     Utils.checkNotNull(stage, "stage");
     Utils.checkNotNull(configuration, "configuration");
     Utils.checkNotNull(outputLanes, "outputLanes");
@@ -309,7 +315,7 @@ public abstract class StageRunner<S extends Stage> {
     return info;
   }
 
-  public S.Context getContext() {
+  public Stage.Context getContext() {
     return context;
   }
 

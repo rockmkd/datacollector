@@ -36,11 +36,11 @@ import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 @StageDef(
     version = 1,
     label = "CoAP Server",
-    description = "CoAP Server",
-    icon="coap.png",
+    description = "Listens for requests on a CoAP endpoint",
+    icon="coap_multithreaded.png",
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/WebSocketServer.html#task_mzv_cvc_3z"
+    onlineHelpRefUrl = "index.html#Origins/CoAPServer.html#task_hsb_l3n_sz"
 )
 @ConfigGroups(Groups.class)
 @HideConfigs(value = {

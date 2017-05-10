@@ -665,6 +665,7 @@ angular.module('dataCollectorApp.common')
             duplicatePipelineRulesObject.dataRuleDefinitions = pipelineRulesObject.dataRuleDefinitions;
             duplicatePipelineRulesObject.driftRuleDefinitions = pipelineRulesObject.driftRuleDefinitions;
             duplicatePipelineRulesObject.emailIds = pipelineRulesObject.emailIds;
+            duplicatePipelineRulesObject.configuration = pipelineRulesObject.configuration;
 
             //Save the pipeline Rules
             return api.pipelineAgent.savePipelineRules(name, duplicatePipelineRulesObject);
@@ -1511,7 +1512,31 @@ angular.module('dataCollectorApp.common')
           data: subjectMapping
         });
       }
+    };
 
+    api.system = {
+      /**
+       * Get all support bundle generators
+       *
+       * @returns {*}
+       */
+      getSupportBundleGenerators: function () {
+        var url = apiBase + '/system/bundle/list';
+        return $http({
+          method: 'GET',
+          url: url
+        });
+      },
+
+      /**
+       * Get plain/text URL to download generated bundle file
+       *
+       * @returns {*}
+       */
+      getGenerateSupportBundleUrl: function (generators) {
+        var url = apiBase + '/system/bundle/generate?generators=';
+        return url + generators.join(',');
+      }
     };
 
     return api;

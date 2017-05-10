@@ -37,13 +37,14 @@ import java.util.List;
 import java.util.TimeZone;
 
 @StageDef(
-    version=1,
+    version = 2,
     label="Hive Metadata",
     description = "Generates Hive metadata and write information for HDFS",
     icon="metadata.png",
     outputStreams = HiveMetadataOutputStreams.class,
     privateClassLoader = true,
-    onlineHelpRefUrl = "index.html#Processors/HiveMetadata.html#task_hpg_pft_zv"
+    onlineHelpRefUrl = "index.html#Processors/HiveMetadata.html#task_hpg_pft_zv",
+    upgrader = HiveMetadataProcessorUpgrader.class
 )
 
 @ConfigGroups(Groups.class)
@@ -164,6 +165,16 @@ public class HiveMetadataDProcessor extends DProcessor {
   @ConfigDefBean
   public DecimalDefaultsConfig decimalDefaultsConfig;
 
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Data Format",
+      displayPosition = 150,
+      group = "DATA_FORMAT"
+  )
+  @ValueChooserModel(HMPDataFormatChooserValues.class)
+  public HMPDataFormat dataFormat = HMPDataFormat.AVRO;
+
   @Override
   protected Processor createProcessor() {
     return new HiveMetadataProcessor(
@@ -176,7 +187,8 @@ public class HiveMetadataDProcessor extends DProcessor {
         hiveConfigBean,
         timeDriver,
         decimalDefaultsConfig,
-        TimeZone.getTimeZone(timeZoneID)
+        TimeZone.getTimeZone(timeZoneID),
+        dataFormat
     );
   }
 

@@ -36,8 +36,8 @@ import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 @StageDef(
     version = 10,
     label = "HTTP Server",
-    description = "HTTP Server [Multi-Threaded Pipeline]",
-    icon="httpserver.png",
+    description = "Listens for requests on an HTTP endpoint",
+    icon="httpserver_multithreaded.png",
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
     onlineHelpRefUrl = "index.html#Origins/HTTPServer.html#task_pgw_b3b_4y",

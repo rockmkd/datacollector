@@ -22,8 +22,10 @@ package com.streamsets.pipeline.stage.origin.jdbc.table;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
+import com.streamsets.pipeline.sdk.DataCollectorServicesUtils;
 import com.streamsets.pipeline.stage.origin.jdbc.table.util.OffsetQueryUtil;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -60,6 +62,11 @@ public class TestInvalidStartOffset {
         )
     );
     return typesToCheck.toArray();
+  }
+
+  @BeforeClass
+  public static void setUpClass() {
+    DataCollectorServicesUtils.loadDefaultServices();
   }
 
   @Test

@@ -19,6 +19,7 @@
  */
 package com.streamsets.pipeline.stage.lib.hive;
 
+import com.google.common.base.Joiner;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
@@ -31,19 +32,19 @@ import com.streamsets.pipeline.lib.parser.shaded.com.google.code.regexp.Pattern;
 import com.streamsets.pipeline.stage.lib.hive.cache.HMSCache;
 import com.streamsets.pipeline.stage.lib.hive.cache.HMSCacheSupport;
 import com.streamsets.pipeline.stage.lib.hive.cache.HMSCacheType;
+import com.streamsets.pipeline.stage.lib.hive.cache.TBLPropertiesInfoCacheSupport;
 import com.streamsets.pipeline.stage.lib.hive.cache.TypeInfoCacheSupport;
 import com.streamsets.pipeline.stage.lib.hive.exceptions.HiveStageCheckedException;
 import com.streamsets.pipeline.stage.lib.hive.typesupport.HiveType;
 import com.streamsets.pipeline.stage.lib.hive.typesupport.HiveTypeInfo;
+import com.streamsets.pipeline.stage.processor.hive.HMPDataFormat;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.security.UserGroupInformation;
-import com.streamsets.pipeline.stage.processor.hive.HiveMetadataProcessor;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
-import com.google.common.base.Joiner;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,8 +61,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -70,6 +71,9 @@ public final class HiveMetastoreUtil {
   private static final Logger LOG = LoggerFactory.getLogger(HiveMetastoreUtil.class.getCanonicalName());
   private static final String PARTITION_PATH = "/%s=%s";
   private static final String AVRO_SCHEMA_EXT = ".avsc";
+
+  public static final String DATA_FORMAT = "dataFormat";
+  public static final String DEFAULT_DATA_FORMAT = HMPDataFormat.AVRO.getLabel();
 
   //Common Constants
   public static final String LOCATION_FIELD = "location";
@@ -95,8 +99,8 @@ public final class HiveMetastoreUtil {
 
   public static final String VERSION = "version";
   public static final String METADATA_RECORD_TYPE = "type";
-  public static final String SCHEMA_CHANGE_METADATA_RECORD_VERSION = "1";
-  public static final String PARTITION_ADDITION_METADATA_RECORD_VERSION = "1";
+  public static final String SCHEMA_CHANGE_METADATA_RECORD_VERSION = "2";
+  public static final String PARTITION_ADDITION_METADATA_RECORD_VERSION = "2";
 
   public static final String HIVE_OBJECT_ESCAPE =  "`";
   public static final String COLUMN_TYPE = HIVE_OBJECT_ESCAPE + "%s" + HIVE_OBJECT_ESCAPE + " %s";
@@ -115,6 +119,7 @@ public final class HiveMetastoreUtil {
   public static final String EXTRA_INFO = "extraInfo";
   public static final String AVRO_SCHEMA_FILE_FORMAT =  AVRO_SCHEMA +"_%s_%s_%s"+AVRO_SCHEMA_EXT;
   public static final String AVRO_SERDE = "org.apache.hadoop.hive.serde2.avro.AvroSerDe";
+  public static final String PARQUET_SERDE = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe";
 
 
   private static final SimpleDateFormat datetimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -371,6 +376,36 @@ public final class HiveMetastoreUtil {
   }
 
   /**
+   * Returns true if this is a TABLE metadata request (new or changed table).
+   *
+   * @param hmpDataFormat the target data format \in {avro, parquet}
+   * @param tblPropertiesInfo the table data format
+   * @param qualifiedTableName the qualified table name
+   * @throws HiveStageCheckedException HiveStageCheckedException if the target data format does not match with the table data format.
+   */
+  public static void validateTblPropertiesInfo(
+      HMPDataFormat hmpDataFormat,
+      TBLPropertiesInfoCacheSupport.TBLPropertiesInfo tblPropertiesInfo,
+      String qualifiedTableName
+  ) throws HiveStageCheckedException {
+    if (hmpDataFormat == HMPDataFormat.AVRO && !tblPropertiesInfo.getSerdeLibrary().equals(HiveMetastoreUtil.AVRO_SERDE)) {
+      throw new HiveStageCheckedException(
+          Errors.HIVE_32,
+          qualifiedTableName,
+          tblPropertiesInfo.getSerdeLibrary(),
+          hmpDataFormat.getLabel()
+      );
+    } else if (hmpDataFormat == HMPDataFormat.PARQUET && !tblPropertiesInfo.getSerdeLibrary().equals(HiveMetastoreUtil.PARQUET_SERDE)) {
+      throw new HiveStageCheckedException(
+          Errors.HIVE_32,
+          qualifiedTableName,
+          tblPropertiesInfo.getSerdeLibrary(),
+          hmpDataFormat.getLabel()
+      );
+    }
+  }
+
+  /**
    * Get Table Name from the metadata record.
    * @param metadataRecord the metadata record
    * @return Table Name
@@ -437,19 +472,37 @@ public final class HiveMetastoreUtil {
   }
 
   /**
+   * Get DataFormat from Metadata Record.
+   * @param metadataRecord the metadata record
+   * @return the label of dataFormat
+   */
+  public static String getDataFormat(Record metadataRecord) throws HiveStageCheckedException {
+    if (metadataRecord.get(SEP + VERSION).getValueAsInteger() == 1) {
+      return DEFAULT_DATA_FORMAT;
+    }
+
+    if (metadataRecord.has(SEP + DATA_FORMAT)) {
+      return metadataRecord.get(SEP + DATA_FORMAT).getValueAsString();
+    }
+    throw new HiveStageCheckedException(Errors.HIVE_17, DATA_FORMAT, metadataRecord);
+  }
+
+  /**
    * Fill in metadata to Record. This is for new partition creation.
    */
   public static Field newPartitionMetadataFieldBuilder(
       String database,
       String tableName,
       LinkedHashMap<String, String> partitionList,
-      String location) throws HiveStageCheckedException {
+      String location,
+      HMPDataFormat dataFormat) throws HiveStageCheckedException {
     LinkedHashMap<String, Field> metadata = new LinkedHashMap<>();
     metadata.put(VERSION, Field.create(PARTITION_ADDITION_METADATA_RECORD_VERSION));
     metadata.put(METADATA_RECORD_TYPE, Field.create(MetadataRecordType.PARTITION.name()));
     metadata.put(DATABASE_FIELD, Field.create(database));
     metadata.put(TABLE_FIELD, Field.create(tableName));
     metadata.put(LOCATION_FIELD, Field.create(location));
+    metadata.put(DATA_FORMAT, Field.create(dataFormat.name()));
 
     //fill in the partition list here
     metadata.put(
@@ -474,7 +527,8 @@ public final class HiveMetastoreUtil {
       LinkedHashMap<String, HiveTypeInfo> partitionTypeList,
       boolean internal,
       String location,
-      String avroSchema
+      String avroSchema,
+      HMPDataFormat dataFormat
   ) throws HiveStageCheckedException  {
     LinkedHashMap<String, Field> metadata = new LinkedHashMap<>();
     metadata.put(VERSION, Field.create(SCHEMA_CHANGE_METADATA_RECORD_VERSION));
@@ -482,6 +536,7 @@ public final class HiveMetastoreUtil {
     metadata.put(DATABASE_FIELD, Field.create(database));
     metadata.put(TABLE_FIELD, Field.create(tableName));
     metadata.put(LOCATION_FIELD, Field.create(location));
+    metadata.put(DATA_FORMAT, Field.create(dataFormat.name()));
 
     //fill in column type list here
     metadata.put(
@@ -611,6 +666,8 @@ public final class HiveMetastoreUtil {
           break;
         case TIME:
           currField = Field.create(Field.Type.STRING, currField.getValue() == null ? null : timeFormat.format(currField.getValueAsTime()));
+          break;
+        default:
           break;
       }
 

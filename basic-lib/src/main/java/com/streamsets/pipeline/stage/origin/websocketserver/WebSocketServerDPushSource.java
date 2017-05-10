@@ -35,8 +35,8 @@ import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 @StageDef(
     version = 10,
     label = "WebSocket Server",
-    description = "WebSocket Server [Multi-Threaded Pipeline]",
-    icon="websockets.png",
+    description = "Listens for requests on a WebSocket endpoint",
+    icon="websockets_multithreaded.png",
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
     onlineHelpRefUrl = "index.html#Origins/WebSocketServer.html#task_mzv_cvc_3z",

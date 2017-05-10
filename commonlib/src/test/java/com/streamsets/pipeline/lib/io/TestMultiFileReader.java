@@ -21,8 +21,10 @@ package com.streamsets.pipeline.lib.io;
 
 import com.streamsets.pipeline.config.FileRollMode;
 import com.streamsets.pipeline.config.PostProcessingOptions;
+import com.streamsets.pipeline.sdk.DataCollectorServicesUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
@@ -48,6 +50,11 @@ public class TestMultiFileReader {
   private static final Charset UTF8 = StandardCharsets.UTF_8;
   private File testDir1;
   private File testDir2;
+
+  @BeforeClass
+  public static void setUpClass() {
+    DataCollectorServicesUtils.loadDefaultServices();
+  }
 
   @Before
   public void setUp() {

@@ -36,6 +36,7 @@ import com.streamsets.pipeline.stage.PartitionConfigBuilder;
 import com.streamsets.pipeline.stage.lib.hive.HiveMetastoreUtil;
 import com.streamsets.pipeline.stage.lib.hive.typesupport.HiveType;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Calendar;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+@Ignore
 public class HiveMetadataProcessorIT extends BaseHiveIT {
 
   private ProcessorRunner getProcessorRunner(HiveMetadataProcessor processor) {
@@ -83,13 +85,13 @@ public class HiveMetadataProcessorIT extends BaseHiveIT {
 
     Record newTableRecord = output.getRecords().get("hive").get(0);
     Assert.assertNotNull(newTableRecord);
-    Assert.assertEquals(1, newTableRecord.get("/version").getValueAsInteger());
+    Assert.assertEquals(2, newTableRecord.get("/version").getValueAsInteger());
     Assert.assertEquals("tbl", newTableRecord.get("/table").getValueAsString());
     Assert.assertEquals("TABLE", newTableRecord.get("/type").getValueAsString());
 
     Record newPartitionRecord = output.getRecords().get("hive").get(1);
     Assert.assertNotNull(newPartitionRecord);
-    Assert.assertEquals(1, newPartitionRecord.get("/version").getValueAsInteger());
+    Assert.assertEquals(2, newPartitionRecord.get("/version").getValueAsInteger());
     Assert.assertEquals("tbl", newPartitionRecord.get("/table").getValueAsString());
     Assert.assertEquals("PARTITION", newPartitionRecord.get("/type").getValueAsString());
 
@@ -209,7 +211,7 @@ public class HiveMetadataProcessorIT extends BaseHiveIT {
   @Test
   public void testSubTimeZonepartitions() throws Exception {
     final TimeZone timeZone = TimeZone.getTimeZone("US/Pacific");
-    final TimeZone targetTimeZone = TimeZone.getTimeZone("US/Eatern");
+    final TimeZone targetTimeZone = TimeZone.getTimeZone("US/Eastern");
 
     HiveMetadataProcessor processor = new HiveMetadataProcessorBuilder()
         .partitions(new PartitionConfigBuilder()
@@ -403,7 +405,7 @@ public class HiveMetadataProcessorIT extends BaseHiveIT {
 
     Record newPartitionRecord = output.getRecords().get("hive").get(1);
     Assert.assertNotNull(newPartitionRecord);
-    Assert.assertEquals(1, newPartitionRecord.get("/version").getValueAsInteger());
+    Assert.assertEquals(2, newPartitionRecord.get("/version").getValueAsInteger());
     Assert.assertEquals("PARTITION", newPartitionRecord.get("/type").getValueAsString());
 
     String partitionValue = newPartitionRecord.get("/partitions[0]/value").getValueAsString();

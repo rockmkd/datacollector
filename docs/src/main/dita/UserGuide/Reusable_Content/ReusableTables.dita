@@ -17,6 +17,77 @@
  <title>Reusable Tables of Information</title>
  <shortdesc/>
  <conbody>
+  <draft-comment author="Loretta">table used by Rules/Alerts > Configuring a Webhook</draft-comment>
+  <p>
+   <table frame="all" rowsep="1" colsep="1" id="WebhookTable">
+    <tgroup cols="2">
+     <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+     <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+     <thead>
+      <row>
+       <entry>Webhook Property</entry>
+       <entry>Description</entry>
+      </row>
+     </thead>
+     <tbody>
+      <row>
+       <entry id="WH-Webhook-entry">Webhooks <xref href="../Pipeline_Configuration/Webhooks.dita">
+         <image href="../Graphics/icon_moreInfo.png" scale="10" id="image_cr2_33t_rz"
+        /></xref></entry>
+       <entry>Webhook to send when an alert triggers. Click the <uicontrol>Add</uicontrol> icon to
+        add additional webhooks.</entry>
+      </row>
+      <row id="WH-URL-row">
+       <entry>Webhook URL</entry>
+       <entry>URL to send the HTTP request.</entry>
+      </row>
+      <row id="WH-Header-row">
+       <entry>Headers</entry>
+       <entry>Optional HTTP request headers. </entry>
+      </row>
+      <row id="WH-HTTPMethod-row">
+       <entry>HTTP Method</entry>
+       <entry>HTTP method. Use one of the following methods: <ul id="ul_dr2_33t_rz">
+         <li>GET</li>
+         <li>PUT</li>
+         <li>POST</li>
+         <li>DELETE</li>
+         <li>HEAD</li>
+        </ul></entry>
+      </row>
+      <row>
+       <entry id="WH-Payload-entry">Payload <xref
+         href="../Pipeline_Configuration/Webhooks-RequestPayload.dita">
+         <image href="../Graphics/icon_moreInfo.png" scale="10" id="image_er2_33t_rz"
+        /></xref></entry>
+       <entry>Optional payload to include. Available for PUT, POST, and DELETE methods. <p>Use any
+         valid content type.</p><p>You can use webhook parameters in the payload to include
+         information about the triggering event, such as the alert name or condition. Enclose
+         webhook parameters in double curly brackets as follows:
+         <codeph>{{ALERT_NAME}}</codeph>.</p></entry>
+      </row>
+      <row id="WH-ContentType-row">
+       <entry>Content Type</entry>
+       <entry>Optional content type of the payload. Configure this property when the content type is
+        not declared in the request headers.</entry>
+      </row>
+      <row id="WH-AuthenticationType-row">
+       <entry>Authentication Type</entry>
+       <entry>Optional authentication type to include in the request. Use None, Basic, Digest, or
+         Universal.<p>Use Basic for Form authentication.</p></entry>
+      </row>
+      <row id="WH-UserName-row">
+       <entry>User Name </entry>
+       <entry>User name to include when using authentication. </entry>
+      </row>
+      <row id="WH-Password-row">
+       <entry>Password</entry>
+       <entry>Password to include when using authentication.</entry>
+      </row>
+     </tbody>
+    </tgroup>
+   </table>
+  </p>
   <p>
    <draft-comment author="Loretta">The following IgnoreControlChar-row is used in Configuring a -
     Directory, File Tail, Kafka Consumer, Kinesis Consumer, JSON Parser, Log
@@ -1738,6 +1809,123 @@
       <entry>Use Credentials</entry>
       <entry>Enables entering credentials on the Credentials tab. Use when the MQTT broker requires
        a user name and password.</entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+  <draft-comment author="alisontaylor">Rows in this table are used in MongoDB origin, MongoDB Oplog
+   origin, and MongoDB destination</draft-comment>
+  <table frame="all" rowsep="1" colsep="1" id="table_mh4_bxs_ns">
+   <tgroup cols="2">
+    <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+    <colspec colname="c2" colnum="2" colwidth="3*"/>
+    <thead>
+     <row>
+      <entry>MongoDB Property</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row id="row-MongoSingleMode">
+      <entry>Enable Single Mode</entry>
+      <entry>Select to connect to a single MongoDB server or node. If
+       multiple nodes are defined in the connection string, the
+       origin connects only to the first node. <p>Use this option
+        with care. If the origin cannot connect or the
+        connection fails, the pipeline stops. </p></entry>
+     </row>
+     <row id="row-MongoDatabase">
+      <entry>Database</entry>
+      <entry>Name of the MongoDB database.</entry>
+     </row>
+     <row id="row-MongoCollection">
+      <entry>Collection</entry>
+      <entry>Name of the MongoDB collection to use.</entry>
+     </row>
+     <row id="row-MongoCappedCollection">
+      <entry>Capped Collection</entry>
+      <entry>The collection is capped. Clear this option to read an
+       uncapped collection.</entry>
+     </row>
+     <row id="row-MongoInitialOffset">
+      <entry>Initial Offset</entry>
+      <entry>Initial offset to use to begin reading. When using an
+       Object ID field as the offset field, enter a timestamp with
+       the following format: <codeph>YYYY-MM-DD hh:mm:ss</codeph>.
+       When using a string field, enter the string to
+       use.<p>Default is: 2015-01-01 00:00:00</p></entry>
+     </row>
+     <row id="row-MongoOffsetField">
+      <entry>Offset Field Type</entry>
+      <entry>Data type of the offset field. Use Object ID for Object
+       ID fields. Use String for string offset fields. <p>Default
+        is Object ID.</p></entry>
+     </row>
+     <row id="row-MongoOffset">
+      <entry>Offset Field <xref
+       href="../Origins/MongoDB-OffsetField.dita">
+       <image href="../Graphics/icon_moreInfo.png" scale="10"
+        id="image_k2w_rsd_3t"/></xref>
+      </entry>
+      <entry>Field to use to track reads. Default is the _id field.
+       <p>You can use a nested offset field, such as o._id, or
+        any Object ID field or any string field. Results are not
+        guaranteed for anything but the _id field.</p></entry>
+     </row>
+     <row id="row-Mongo-BatchSize">
+      <entry>Batch Size (records)</entry>
+      <entry>Maximum number of records allowed in a batch.</entry>
+     </row>
+     <row id="row-MongoBatchWait">
+      <entry>Max Batch Wait Time <xref
+       href="../Origins/BatchSizeWaitTime.dita">
+       <image href="../Graphics/icon_moreInfo.png" scale="10"
+       /></xref>
+      </entry>
+      <entry id="entry-Mongo-BatchWaitTime">Amount of time the origin
+       will wait to fill a batch before sending an empty batch.
+      </entry>
+     </row>
+     <row id="row-MongoReadPreference">
+      <entry>Read Preference <xref
+       href="../Origins/MongoDB-ReadPreference.dita">
+       <image href="../Graphics/icon_moreInfo.png" scale="10"
+        id="image_o23_1rd_ww"/></xref>
+      </entry>
+      <entry id="entry-Mongo-ReadPref">Determines how the origin reads
+       data from different members of the MongoDB replica
+       set.</entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+  <draft-comment author="alisontaylor">Rows in this table are used in MongoDB origin, MongoDB Oplog
+   origin, and MongoDB destination</draft-comment>
+  <table frame="all" rowsep="1" colsep="1" id="table_bdl_csd_3t">
+   <tgroup cols="2">
+    <colspec colname="c1" colnum="1" colwidth="1.5*"/>
+    <colspec colname="c2" colnum="2" colwidth="3.5*"/>
+    <thead>
+     <row>
+      <entry>Credentials</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+    <tbody>
+     <row id="row-MongoAuthType">
+      <entry>Authentication Type</entry>
+      <entry>Authentication used by the MongoDB server:
+       Username/Password or LDAP.</entry>
+     </row>
+     <row id="row-MongoUsername">
+      <entry>Username</entry>
+      <entry>MongoDB or LDAP user name.</entry>
+     </row>
+     <row id="row-MongoPassword">
+      <entry>Password</entry>
+      <entry>MongoDB or LDAP password.<note
+       conref="ReusablePhrases.dita#concept_vhs_5tz_xp/Tip_Usernames"
+      /></entry>
      </row>
     </tbody>
    </tgroup>

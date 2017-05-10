@@ -365,6 +365,13 @@
       <version>1.0</version>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-net-commonlib</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -375,6 +382,7 @@
         <configuration>
           <compilerArgs>
             <arg>-XDignore.symbol.file</arg>
+            <arg>-Xdoclint:none</arg>
           </compilerArgs>
           <fork>true</fork>
         </configuration>

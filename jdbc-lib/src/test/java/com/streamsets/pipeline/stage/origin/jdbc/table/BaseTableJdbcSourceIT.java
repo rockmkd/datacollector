@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.sdk.DataCollectorServicesUtils;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
 import org.apache.commons.codec.binary.Hex;
@@ -107,7 +108,7 @@ public abstract class BaseTableJdbcSourceIT {
       try {
         pushSourceRunner.waitOnProduce();
       } catch (Exception e) {
-        Throwables.propagate(e);
+        throw Throwables.propagate(e);
       }
       List<List<Record>> records = ImmutableList.copyOf(batchRecords);
       Assert.assertEquals(numberOfBatches, records.size());
@@ -130,6 +131,8 @@ public abstract class BaseTableJdbcSourceIT {
 
   @BeforeClass
   public static void setup() throws SQLException {
+    DataCollectorServicesUtils.loadDefaultServices();
+
     connection = DriverManager.getConnection(JDBC_URL, USER_NAME, PASSWORD);
     try (Statement statement = connection.createStatement()) {
       //If not exists is skipped because some of the databases do not support that.
@@ -194,8 +197,9 @@ public abstract class BaseTableJdbcSourceIT {
         return UUID.randomUUID().toString();
       case DECIMAL:
         return new BigDecimal(BigInteger.valueOf(RANDOM.nextLong() % (long)Math.pow(10, 20)), 10);
+      default:
+        return null;
     }
-    return null;
   }
 
 
