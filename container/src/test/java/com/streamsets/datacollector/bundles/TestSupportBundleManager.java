@@ -22,9 +22,11 @@ package com.streamsets.datacollector.bundles;
 import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.bundles.content.SimpleGenerator;
 import com.streamsets.datacollector.execution.PipelineStateStore;
+import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.store.PipelineStoreTask;
+import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import org.apache.commons.io.IOUtils;
 import org.junit.BeforeClass;
@@ -52,7 +54,7 @@ public class TestSupportBundleManager {
 
   @BeforeClass
   public static void createManager() {
-
+    Configuration configuration = mock(Configuration.class);
     RuntimeInfo runtimeInfo = mock(RuntimeInfo.class);
     when(runtimeInfo.getId()).thenReturn("super-secret-id");
     when(runtimeInfo.isAclEnabled()).thenReturn(false);
@@ -60,11 +62,14 @@ public class TestSupportBundleManager {
     when(buildInfo.getVersion()).thenReturn("666");
     PipelineStoreTask pipelineStoreTask = mock(PipelineStoreTask.class);
     PipelineStateStore stateStore = mock(PipelineStateStore.class);
+    SnapshotStore snapshotStore = mock(SnapshotStore.class);
 
     manager = new SupportBundleManager(
       new SafeScheduledExecutorService(1, "supportBundleExecutor"),
+      configuration,
       pipelineStoreTask,
       stateStore,
+      snapshotStore,
       runtimeInfo,
       buildInfo
     );

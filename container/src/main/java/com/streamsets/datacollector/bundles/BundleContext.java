@@ -20,15 +20,22 @@
 package com.streamsets.datacollector.bundles;
 
 import com.streamsets.datacollector.execution.PipelineStateStore;
+import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.store.PipelineStoreTask;
+import com.streamsets.datacollector.util.Configuration;
 
 /**
  * Shared context describing the bundle that is actively being created.
  *
  */
 public interface BundleContext {
+
+  /**
+   * Fully provisioned SDC Configuration
+   */
+  public Configuration getConfiguration();
 
   /**
    * Returns BuildInfo structure for the data collector.
@@ -49,4 +56,9 @@ public interface BundleContext {
    * Returns pipeline state store for current data collector.
    */
   public PipelineStateStore getPipelineStateStore();
+
+  /**
+   * Returns snapshot store for current data collector.
+   */
+  public SnapshotStore getSnapshotStore();
 }

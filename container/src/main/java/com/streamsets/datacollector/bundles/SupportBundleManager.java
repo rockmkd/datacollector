@@ -19,12 +19,16 @@
  */
 package com.streamsets.datacollector.bundles;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.execution.PipelineStateStore;
+import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
@@ -34,11 +38,13 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.file.Files;
@@ -61,8 +67,6 @@ public class SupportBundleManager implements BundleContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(SupportBundleManager.class);
 
-  private static final String REDACTOR_CONFIG = "support-bundle-redactor.json";
-
   /**
    * Executor service for generating new bundles.
    *
@@ -70,8 +74,10 @@ public class SupportBundleManager implements BundleContext {
    */
   private final ExecutorService executor;
 
+  private final Configuration configuration;
   private final PipelineStoreTask pipelineStore;
   private final PipelineStateStore stateStore;
+  private final SnapshotStore snapshotStore;
   private final RuntimeInfo runtimeInfo;
   private final BuildInfo buildInfo;
 
@@ -88,14 +94,18 @@ public class SupportBundleManager implements BundleContext {
   @Inject
   public SupportBundleManager(
     @Named("supportBundleExecutor") SafeScheduledExecutorService executor,
+    Configuration configuration,
     PipelineStoreTask pipelineStore,
     PipelineStateStore stateStore,
+    SnapshotStore snapshotStore,
     RuntimeInfo runtimeInfo,
     BuildInfo buildInfo
   ) {
     this.executor = executor;
+    this.configuration = configuration;
     this.pipelineStore = pipelineStore;
     this.stateStore = stateStore;
+    this.snapshotStore = snapshotStore;
     this.runtimeInfo = runtimeInfo;
     this.buildInfo = buildInfo;
 
@@ -143,7 +153,7 @@ public class SupportBundleManager implements BundleContext {
 
     // Create shared instance of redactor
     try {
-      redactor = StringRedactor.createFromJsonFile(runtimeInfo.getConfigDir() + "/" + REDACTOR_CONFIG);
+      redactor = StringRedactor.createFromJsonFile(runtimeInfo.getConfigDir() + "/" + Constants.REDACTOR_CONFIG);
     } catch (IOException e) {
       LOG.error("Can't load redactor configuration, bundles will not be redacted", e);
       redactor = StringRedactor.createEmpty();
@@ -234,6 +244,11 @@ public class SupportBundleManager implements BundleContext {
   }
 
   @Override
+  public Configuration getConfiguration() {
+    return configuration;
+  }
+
+  @Override
   public BuildInfo getBuildInfo() {
     return buildInfo;
   }
@@ -251,6 +266,11 @@ public class SupportBundleManager implements BundleContext {
   @Override
   public PipelineStateStore getPipelineStateStore() {
     return stateStore;
+  }
+
+  @Override
+  public SnapshotStore getSnapshotStore() {
+    return snapshotStore;
   }
 
   private static class BundleWriterImpl implements BundleWriter {
@@ -279,24 +299,20 @@ public class SupportBundleManager implements BundleContext {
       zipOutputStream.closeEntry();
     }
 
-    public void writeInternal(String string, boolean ln) {
-      try {
-        zipOutputStream.write(redactor.redact(string).getBytes());
-        if(ln) {
-          zipOutputStream.write('\n');
-        }
-      } catch (IOException e) {
-        throw new RuntimeException("Can't write string out: " + string, e);
+    public void writeInternal(String string, boolean ln) throws IOException {
+      zipOutputStream.write(redactor.redact(string).getBytes());
+      if(ln) {
+        zipOutputStream.write('\n');
       }
     }
 
     @Override
-    public void write(String str) {
+    public void write(String str) throws IOException {
       writeInternal(str, false);
     }
 
     @Override
-    public void writeLn(String str) {
+    public void writeLn(String str) throws IOException {
       writeInternal(str, true);
     }
 
@@ -315,17 +331,27 @@ public class SupportBundleManager implements BundleContext {
     }
 
     @Override
+    public void write(String fileName, InputStream inputStream) throws IOException {
+      try(BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        copyReader(reader, fileName, 0);
+      }
+    }
+
+    @Override
     public void write(String dir, Path path) throws IOException {
+      write(dir, path, 0);
+    }
+
+    @Override
+    public void write(String dir, Path path, long startOffset) throws IOException {
       // We're not interested in serializing non-existing files
       if(!Files.exists(path)) {
         return;
       }
 
-      markStartOfFile(dir + "/" + path.getFileName());
-      try (Stream<String> stream = Files.lines(path)) {
-        stream.forEach(this::writeLn);
+      try (BufferedReader reader = Files.newBufferedReader(path)) {
+        copyReader(reader, dir + "/" + path.getFileName(), startOffset);
       }
-      markEndOfFile();
     }
 
     @Override
@@ -334,6 +360,46 @@ public class SupportBundleManager implements BundleContext {
       markStartOfFile(fileName);
       write(objectMapper.writeValueAsString(object));
       markEndOfFile();
+    }
+
+    @Override
+    public JsonGenerator createGenerator(String fileName) throws IOException {
+      markStartOfFile(fileName);
+      return new JsonFactory().createGenerator(new DelegateOutputStreamIgnoreClose(zipOutputStream));
+    }
+
+    private void copyReader(BufferedReader reader, String path, long startOffset) throws IOException {
+      markStartOfFile(path);
+
+      if(startOffset > 0) {
+        reader.skip(startOffset);
+      }
+
+      String line = null;
+      while ((line = reader.readLine()) != null) {
+        writeLn(line);
+      }
+
+      markEndOfFile();
+    }
+  }
+
+  private static class DelegateOutputStreamIgnoreClose extends OutputStream {
+
+    ZipOutputStream zipOutputStream;
+
+    public DelegateOutputStreamIgnoreClose(ZipOutputStream stream) {
+      this.zipOutputStream = stream;
+    }
+
+    @Override
+    public void write(int b) throws IOException {
+      zipOutputStream.write(b);
+    }
+
+    @Override
+    public void close() throws IOException {
+      // Nothing, we don't want the underlying stream to be closed
     }
   }
 }

@@ -20,9 +20,11 @@
 package com.streamsets.datacollector.bundles;
 
 import com.streamsets.datacollector.execution.PipelineStateStore;
+import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.store.PipelineStoreTask;
+import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import dagger.Module;
 import dagger.Provides;
@@ -41,15 +43,19 @@ public class SupportBundleModule {
   @Singleton
   public SupportBundleManager provideSupportBundleManager(
     @Named("supportBundleExecutor") SafeScheduledExecutorService executor,
+    Configuration configuration,
     PipelineStoreTask pipelineStoreTask,
     PipelineStateStore pipelineStateStore,
+    SnapshotStore snapshotStore,
     RuntimeInfo runtimeInfo,
     BuildInfo buildInfo
   ) {
     return new SupportBundleManager(
       executor,
+      configuration,
       pipelineStoreTask,
       pipelineStateStore,
+      snapshotStore,
       runtimeInfo,
       buildInfo
     );

@@ -22,6 +22,7 @@ package com.streamsets.datacollector.restapi;
 import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.bundles.SupportBundleManager;
 import com.streamsets.datacollector.execution.PipelineStateStore;
+import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.UserGroupManager;
@@ -173,11 +174,21 @@ public class TestAdminResource extends JerseyTest {
     @Override
     public SupportBundleManager provide() {
       SafeScheduledExecutorService service = mock(SafeScheduledExecutorService.class);
+      Configuration configuration = mock(Configuration.class);
       PipelineStoreTask pipelineStoreTask = mock(PipelineStoreTask.class);
       PipelineStateStore stateStore = mock(PipelineStateStore.class);
+      SnapshotStore snapshotStore = mock(SnapshotStore.class);
       RuntimeInfo runtimeInfo = mock(RuntimeInfo.class);
       BuildInfo buildInfo = mock(BuildInfo.class);
-      return new SupportBundleManager(service, pipelineStoreTask, stateStore, runtimeInfo, buildInfo);
+      return new SupportBundleManager(
+        service,
+        configuration,
+        pipelineStoreTask,
+        stateStore,
+        snapshotStore,
+        runtimeInfo,
+        buildInfo
+      );
     }
 
     @Override

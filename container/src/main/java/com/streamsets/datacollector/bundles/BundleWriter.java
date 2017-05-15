@@ -19,7 +19,10 @@
  */
 package com.streamsets.datacollector.bundles;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Properties;
 
@@ -46,13 +49,13 @@ public interface BundleWriter {
    * Write out string with platform default encoding.
    * @param str String to be written out
    */
-  public abstract void write(String str);
+  public abstract void write(String str) throws IOException;
 
   /**
    * Write out string with platform default encoding and end with new line character.
    * @param str String to be written out
    */
-  public abstract void writeLn(String str);
+  public abstract void writeLn(String str) throws IOException;
 
   /**
    * Write given properties file.
@@ -61,6 +64,16 @@ public interface BundleWriter {
    * @param properties Properties to be serialized
    */
   public abstract void write(String fileName, Properties properties) throws IOException;
+
+  /**
+   * Copy data from given input stream to the bundle.
+   *
+   * The stream is redacted line by line.
+   *
+   * @param fileName Path and file name for the file in the bundle
+   * @param inputStream Input stream to be copied over
+   */
+  public abstract void write(String fileName, InputStream inputStream) throws IOException;
 
   /**
    * Copy file at given path to given directory, the file will be redacted line by line.
@@ -72,6 +85,18 @@ public interface BundleWriter {
   public abstract void write(String bundleDirectory, Path path) throws IOException;
 
   /**
+   * Copy file at given path to given directory, the file will be redacted line by line.
+   *
+   * Start reading the given file from given offset (skipping beginning of the file). If the startOffset is negative or
+   * zero, then it's ignored and whole file is copied.
+   *
+   * @param bundleDirectory Directory inside bundle where the file should be stored (file name will be kept)
+   * @param path Path on local filesystem for the source file.
+   * @throws IOException
+   */
+  public abstract void write(String bundleDirectory, Path path, long startOffset) throws IOException;
+
+  /**
    * Write given object as JSON.
    *
    * @param fileName Path and name for target file in bundle
@@ -79,4 +104,13 @@ public interface BundleWriter {
    * @throws IOException
    */
   public abstract void writeJson(String fileName, Object object) throws IOException;
+
+  /**
+   * Generate JSON Generator to stream JSON structure without the need to have it in memory.
+   *
+   * This method will *not* redact data!
+   *
+   * @param fileName Name that should be used in the bundle
+   */
+  public abstract JsonGenerator createGenerator(String fileName) throws IOException;
 }
