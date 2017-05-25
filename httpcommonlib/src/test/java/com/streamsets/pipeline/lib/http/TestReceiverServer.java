@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
-import com.streamsets.pipeline.lib.tls.TlsConnectionType;
 import com.streamsets.pipeline.sdk.ContextInfoCreator;
 import com.streamsets.pipeline.stage.util.tls.TLSTestUtils;
 import com.streamsets.testing.NetworkUtils;
@@ -181,6 +180,15 @@ public class TestReceiverServer {
 
     final int port = NetworkUtils.getRandomPort();
     final HttpConfigs configs = new HttpConfigs("g", "p") {
+
+      private TlsConfigBean tlsConfigBean = new TlsConfigBean();
+
+      {
+        tlsConfigBean.keyStoreFilePath = keyStore.getAbsolutePath();
+        tlsConfigBean.keyStorePassword = keyStorePassword;
+        tlsConfigBean.tlsEnabled = true;
+      }
+
       @Override
       public int getPort() {
         return port;
@@ -203,7 +211,7 @@ public class TestReceiverServer {
 
       @Override
       public boolean isTlsEnabled() {
-        return true;
+        return tlsConfigBean.isEnabled();
       }
 
       @Override
@@ -213,9 +221,6 @@ public class TestReceiverServer {
 
       @Override
       public TlsConfigBean getTlsConfigBean() {
-        final TlsConfigBean tlsConfigBean = new TlsConfigBean(TlsConnectionType.SERVER);
-        tlsConfigBean.keyStoreFilePath = keyStore.getAbsolutePath();
-        tlsConfigBean.keyStorePassword = keyStorePassword;
         return tlsConfigBean;
       }
     };

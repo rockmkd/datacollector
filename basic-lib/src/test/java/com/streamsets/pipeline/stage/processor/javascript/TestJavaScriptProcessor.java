@@ -552,14 +552,26 @@ public class TestJavaScriptProcessor {
         "  records[i].value['initValue'] = state['initValue'];\n" +
         "  output.write(records[i])\n" +
         "}";
+    String destroyScript = "event = sdcFunctions.createEvent(\"event\", 1)\n" +
+      "sdcFunctions.toEvent(event)";
 
     Processor processor = new JavaScriptProcessor(
         ProcessingMode.BATCH,
         script,
         initScript,
-        ""
+        destroyScript
     );
     ScriptingProcessorTestUtil.verifyInitDestroy(JavaScriptProcessor.class, processor);
+  }
+
+  @Test
+  public void testConstants() throws Exception {
+    String script = "for(var i = 0; i < records.length; i++) {\n" +
+        "  records[i].value['company'] = sdcFunctions.pipelineConstants()['company'];\n" +
+        "  output.write(records[i]);\n" +
+        "}";
+    Processor processor = new JavaScriptProcessor(ProcessingMode.BATCH, script);
+    ScriptingProcessorTestUtil.verifyConstants(JavaScriptProcessor.class, processor);
   }
 
   private static final String WRITE_ERROR_SCRIPT = "for(var i = 0; i < records.length; i++) { error.write(records[i], 'oops'); }";

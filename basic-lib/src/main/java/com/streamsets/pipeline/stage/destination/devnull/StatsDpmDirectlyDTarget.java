@@ -17,12 +17,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.streamsets.pipeline.stage.destination.devnull;
 
-package com.streamsets.pipeline.lib.tls;
+import com.streamsets.pipeline.api.GenerateResourceBundle;
+import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.StatsAggregatorStage;
 
-public enum TlsConnectionType {
-  NEITHER,
-  CLIENT,
-  SERVER,
-  BOTH
+@StageDef(
+    version = 1,
+    label = "Write to DPM directly",
+    description = "Writes pipeline statistics to DPM directly without any aggregation",
+    icon="",
+    onlineHelpRefUrl = ""
+)
+@HideConfigs(preconditions = true, onErrorRecord = true)
+@StatsAggregatorStage
+@GenerateResourceBundle
+public class StatsDpmDirectlyDTarget extends NullDTarget {
 }

@@ -60,6 +60,7 @@ import com.streamsets.datacollector.runner.Pipeline;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.UserContext;
 import com.streamsets.datacollector.runner.production.OffsetFileUtil;
+import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.security.SecurityConfiguration;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.AclStoreTask;
@@ -306,7 +307,12 @@ public class ClusterRunner extends AbstractRunner {
   }
 
   @Override
-  public Map<String, String> getCommittedOffsets() throws PipelineException {
+  public SourceOffset getCommittedOffsets() throws PipelineException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void updateCommittedOffsets(SourceOffset sourceOffset) throws PipelineException {
     throw new UnsupportedOperationException();
   }
 
@@ -838,6 +844,7 @@ public class ClusterRunner extends AbstractRunner {
       // create pipeline and get the parallelism info from the source
       sourceInfo.put(ClusterModeConstants.NUM_EXECUTORS_KEY, String.valueOf(clusterSourceInfo.getParallelism()));
       sourceInfo.put(ClusterModeConstants.CLUSTER_PIPELINE_NAME, name);
+      sourceInfo.put(ClusterModeConstants.CLUSTER_PIPELINE_TITLE, pipelineConf.getTitle());
       sourceInfo.put(ClusterModeConstants.CLUSTER_PIPELINE_REV, rev);
       sourceInfo.put(ClusterModeConstants.CLUSTER_PIPELINE_USER, user);
       sourceInfo.put(ClusterModeConstants.CLUSTER_PIPELINE_REMOTE, String.valueOf(isRemotePipeline()));
@@ -859,7 +866,12 @@ public class ClusterRunner extends AbstractRunner {
       attributes.put(APPLICATION_STATE, applicationState.getMap());
       attributes.put(APPLICATION_STATE_START_TIME, System.currentTimeMillis());
       slaveCallbackManager.setClusterToken(applicationState.getSdcToken());
-      validateAndSetStateTransition(user, PipelineStatus.RUNNING, "Pipeline in cluster is running", attributes);
+      validateAndSetStateTransition(
+        user,
+        PipelineStatus.RUNNING,
+        Utils.format("Pipeline in cluster is running ({})", applicationState.getId()),
+        attributes
+      );
       scheduleRunnable(user, pipelineConf);
     } catch (IOException ex) {
       msg = "IO Error while trying to start the pipeline: " + ex;

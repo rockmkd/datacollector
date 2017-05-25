@@ -33,7 +33,6 @@ import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.lib.parser.net.syslog.SyslogFramingMode;
 import com.streamsets.pipeline.lib.parser.net.syslog.SyslogFramingModeChooserValues;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
-import com.streamsets.pipeline.lib.tls.TlsConnectionType;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 
 import java.util.List;
@@ -56,7 +55,7 @@ public class TCPServerSourceConfig {
   public DataParserFormatConfig dataFormatConfig = new DataParserFormatConfig();
 
   @ConfigDefBean(groups = "TLS")
-  public TlsConfigBean tlsConfigBean = new TlsConfigBean(TlsConnectionType.SERVER);
+  public TlsConfigBean tlsConfigBean = new TlsConfigBean();
 
   @ConfigDef(
       required = true,
@@ -72,25 +71,14 @@ public class TCPServerSourceConfig {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.BOOLEAN,
-      label = "Enable Multithreading",
-      description = "Use multiple receiver threads for each port. Only available on 64-bit Linux systems",
+      label = "Enable Native Transports (Epoll)",
+      description = "Enable epoll transports.  Multithreaded performance will be significantly higher with this" +
+          " option. Only available on 64-bit Linux systems",
       defaultValue = "false",
       group = "TCP",
       displayPosition = 5
   )
   public boolean enableEpoll;
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.BOOLEAN,
-      defaultValue = "false",
-      label = "Use TLS",
-      description = "Enable TLS on the TCP transport.  Must specify the X.509 certificate chain file, the private" +
-          " key file (in PKCS8 format), and a key encryption passphrase (if used for the key).",
-      displayPosition = 10,
-      group = "TCP"
-  )
-  public boolean tlsEnabled;
 
   @ConfigDef(
       required = true,
@@ -134,7 +122,7 @@ public class TCPServerSourceConfig {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.STRING,
-      label = "Non-transparent-framing separator",
+      label = "Non-transparent-framing Separator",
       description = "When using non-transparent-framing, this is the separator character that will appear between" +
           " separate syslog messages.  Specify using Java Unicode syntax (\"\\uxxxx\").  Defaults to line feed (000A).",
       defaultValue = "\\u000A",

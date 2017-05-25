@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,28 +19,14 @@
  */
 package com.streamsets.pipeline.spark;
 
-import com.streamsets.pipeline.BootstrapCluster;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.function.VoidFunction;
+import org.apache.spark.rdd.RDD;
 
-import java.io.Serializable;
 import java.util.Map;
 
-/**
- * This function executes in the driver.
- */
-public class MapRSparkDriverFunction<T1, T2>  implements VoidFunction<JavaPairRDD<T1, T2>>, Serializable {
+public interface KafkaOffsetManager {
 
-  public MapRSparkDriverFunction() {
-  }
+  void saveOffsets(RDD<?> rdd);
 
-  @Override
-  @SuppressWarnings("unchecked")
-  public void call(JavaPairRDD<T1, T2> byteArrayJavaRDD) throws Exception {
-    synchronized (BootstrapCluster.class) {
-      Map<Integer, Long> offsets = MaprStreamsOffsetUtil.getOffsets(byteArrayJavaRDD);
-      DriverFunctionImpl.processRDD(byteArrayJavaRDD, new MapRBootstrapSparkFunction());
-      MaprStreamsOffsetUtil.saveOffsets(offsets);
-    }
-  }
+  Map<?, Long> getOffsetForDStream(String topic, int numberOfPartitions);
+
 }

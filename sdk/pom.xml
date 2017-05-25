@@ -21,12 +21,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root</artifactId>
-    <version>2.6.0.0-SNAPSHOT</version>
+    <version>2.7.0.0-SNAPSHOT</version>
     <relativePath>../root</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-sdk</artifactId>
-  <version>2.6.0.0-SNAPSHOT</version>
+  <version>2.7.0.0-SNAPSHOT</version>
   <description>StreamSets Data Collector SDK</description>
   <name>StreamSets Data Collector SDK</name>
   <packaging>jar</packaging>
@@ -139,6 +139,10 @@
         <exclusion>
           <groupId>org.glassfish.hk2</groupId>
           <artifactId>hk2-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.amazonaws</groupId>
+          <artifactId>aws-java-sdk-s3</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

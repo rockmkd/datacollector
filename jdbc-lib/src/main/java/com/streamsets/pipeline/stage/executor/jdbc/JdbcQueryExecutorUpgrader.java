@@ -17,32 +17,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.streamsets.pipeline.spark;
+package com.streamsets.pipeline.stage.executor.jdbc;
 
-import com.streamsets.pipeline.BootstrapCluster;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.function.Function;
+import com.streamsets.pipeline.api.Config;
+import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.lib.jdbc.JdbcBaseUpgrader;
 
-import java.io.Serializable;
-import java.util.Map;
+import java.util.List;
 
-/**
- * This function executes in the driver.
- */
-public class SparkDriverFunction<T1, T2>  implements Function<JavaPairRDD<T1, T2>, Void>, Serializable {
-
-  public SparkDriverFunction() {
-  }
+/** {@inheritDoc} */
+public class JdbcQueryExecutorUpgrader extends JdbcBaseUpgrader{
 
   @Override
-  @SuppressWarnings("unchecked")
-  public Void call(JavaPairRDD<T1, T2> byteArrayJavaRDD) throws Exception {
-    synchronized (BootstrapCluster.class) {
-      Map<Integer, Long> offsets = KafkaOffsetUtil.getOffsets(byteArrayJavaRDD);
-      DriverFunctionImpl.processRDD(byteArrayJavaRDD, new BootstrapSparkFunction());
-      KafkaOffsetUtil.saveOffsets(offsets);
-      return null;
+  public List<Config> upgrade(String library, String stageName, String stageInstance, int fromVersion, int toVersion, List<Config> configs) throws StageException {
+    switch(fromVersion) {
+      case 1:
+        upgradeV1toV2(configs);
+        break;
+      default:
+        throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
     }
+    return configs;
   }
 
+  private void upgradeV1toV2(List<Config> configs) {
+    configs.add(new Config("config.batchCommit", false));
+  }
 }

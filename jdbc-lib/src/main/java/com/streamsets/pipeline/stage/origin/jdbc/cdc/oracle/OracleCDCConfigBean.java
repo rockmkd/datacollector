@@ -23,6 +23,7 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.Dependency;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.stage.origin.jdbc.cdc.CDCSourceConfigBean;
 
 public class OracleCDCConfigBean {
@@ -76,6 +77,32 @@ public class OracleCDCConfigBean {
   )
   public String startSCN;
   
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      label = "Maximum Transaction Length",
+      description = "Time window to look for changes within a transaction before commit (in seconds)",
+      displayPosition = 70,
+      group = "CDC",
+      elDefs = TimeEL.class,
+      defaultValue = "${1 * HOURS}"
+  )
+  public long txnWindow;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      label = "LogMiner Session Window",
+      description = "Time window of time a LogMiner session should be kept open. " +
+          "Must be greater than or equal to Maximum Transaction Length. " +
+          "Keeping this small will reduce memory usage on Oracle.",
+      displayPosition = 70,
+      group = "CDC",
+      elDefs = TimeEL.class,
+      defaultValue = "${2 * HOURS}"
+  )
+  public long logminerWindow;
+
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,

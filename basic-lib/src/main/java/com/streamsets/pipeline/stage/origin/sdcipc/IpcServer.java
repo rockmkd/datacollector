@@ -89,7 +89,7 @@ public class IpcServer {
     Server server = new Server(threadPool);
 
     ServerConnector connector;
-    if (configs.tlsEnabled) {
+    if (configs.tlsConfigBean.isEnabled()) {
       LOG.debug("Configuring over HTTPS");
       HttpConfiguration httpsConf = new HttpConfiguration();
       httpsConf.addCustomizer(new SecureRequestCustomizer());
@@ -100,6 +100,8 @@ public class IpcServer {
       sslContextFactory.setKeyStorePassword(tlsConfig.keyStorePassword);
       sslContextFactory.setKeyManagerPassword(tlsConfig.keyStorePassword);
       sslContextFactory.setSslContext(tlsConfig.getSslContext());
+      sslContextFactory.setIncludeProtocols(tlsConfig.getFinalProtocols());
+      sslContextFactory.setIncludeCipherSuites(tlsConfig.getFinalCipherSuites());
 
       connector = new ServerConnector(server, new SslConnectionFactory(sslContextFactory, "http/1.1"),
                                       new HttpConnectionFactory(httpsConf));
@@ -120,7 +122,7 @@ public class IpcServer {
 
     server.start();
 
-    LOG.info("Running, port '{}', TLS '{}'", configs.port, configs.tlsEnabled);
+    LOG.info("Running, port '{}', TLS '{}'", configs.port, configs.tlsConfigBean.isEnabled());
 
     httpServer = server;
   }
@@ -150,7 +152,7 @@ public class IpcServer {
   }
 
   public void stop() {
-    LOG.info("Shutting down, port '{}', TLS '{}'", configs.port, configs.tlsEnabled);
+    LOG.info("Shutting down, port '{}', TLS '{}'", configs.port, configs.tlsConfigBean.isEnabled());
     if (httpServer != null) {
       try {
         servlet.setShuttingDown();

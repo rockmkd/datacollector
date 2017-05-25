@@ -19,6 +19,8 @@
  */
 package com.streamsets.datacollector.bundles;
 
+import com.amazonaws.util.Base64;
+
 public final class Constants {
 
   // General
@@ -28,6 +30,26 @@ public final class Constants {
    */
   public static final String REDACTOR_CONFIG = "support-bundle-redactor.json";
 
+  /**
+   * Uploading support bundles directly
+   */
+  public static final String CUSTOMER_ID = "customer.id";
+  public static final String DEFAULT_CUSTOMER_ID = "";
+
+  public static final String UPLOAD_ENABLED = "bundle.upload.enabled";
+  public static final boolean DEFAULT_UPLOAD_ENABLED = true;
+
+  public static final String UPLOAD_BUCKET = "bundle.upload.bucket";
+  public static final String DEFAULT_UPLOAD_BUCKET = "customer-support-bundles";
+
+  public static final String UPLOAD_ACCESS = "bundle.upload.access";
+  public static final String DEFAULT_UPLOAD_ACCESS = new String(Base64.decode("QUtJQUpPMllYVUJRVDZWSURFWEE="));
+
+  public static final String UPLOAD_SECRET = "bundle.upload.secret";
+  public static final String DEFAULT_UPLOAD_SECRET = new String(Base64.decode("NnNmU2ZzTEIwWWtnbThXd0RZeWVWR1VvdWxobW9lay9DNDI4YWEwcg=="));
+
+  public static final String UPLOAD_BUFFER_SIZE = "bundle.upload.buffer_size";
+  public static final int DEFAULT_UPLOAD_BUFFER_SIZE = 5 * 1024 * 1024; // 5MB, amazon lower limit
 
   // Log Generator
 

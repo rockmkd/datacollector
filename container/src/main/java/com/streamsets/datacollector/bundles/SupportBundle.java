@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache Software Foundation (ASF) under one
@@ -17,29 +17,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.streamsets.datacollector.bundles;
 
-package com.streamsets.pipeline.stage.processor.common;
+import java.io.InputStream;
 
-import com.streamsets.pipeline.api.GenerateResourceBundle;
-import com.streamsets.pipeline.api.Label;
+public class SupportBundle {
 
-@GenerateResourceBundle
-public enum MultipleValuesBehavior implements Label {
-  FIRST_ONLY("First value only"),
-  ALL_AS_LIST("All values as a list"),
-  SPLIT_INTO_MULTIPLE_RECORDS("Split into multiple records"),
-  ;
+  /**
+   * Full key for StreamSets backend services (e.g. $date/$bundleName).
+   */
+  private final String bundleKey;
 
-  public static final MultipleValuesBehavior DEFAULT = FIRST_ONLY;
+  /**
+   * Bundle file name including suffix.
+   */
+  private final String bundleName;
 
-  private final String label;
+  /**
+   * Stream with bundle data.
+   */
+  private final InputStream inputStream;
 
-  MultipleValuesBehavior(String label) {
-    this.label = label;
+  public SupportBundle(
+    String bundleKey,
+    String bundleName,
+    InputStream inputStream
+  ) {
+    this.bundleKey = bundleKey;
+    this.bundleName = bundleName;
+    this.inputStream = inputStream;
   }
 
-  @Override
-  public String getLabel() {
-    return label;
+  public String getBundleKey() {
+    return bundleKey;
+  }
+
+  public String getBundleName() {
+    return bundleName;
+  }
+
+  public InputStream getInputStream() {
+    return inputStream;
   }
 }

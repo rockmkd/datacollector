@@ -1,5 +1,5 @@
-/**
- * Copyright 2016 StreamSets Inc.
+/*
+ * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -9,7 +9,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +17,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.streamsets.pipeline.spark;
+package com.streamsets.datacollector.client.model;
 
-import com.streamsets.pipeline.Utils;
+import java.util.Map;
 
-public class BootstrapSparkFunction extends AbstractBootstrapSparkFunction {
-  @Override
-  protected int getBatchSize() {
-    return Utils.getKafkaMaxBatchSize(getProperties());
+public class SourceOffsetJson {
+  private int version;
+  private Map<String, String> offsets;
+
+  public int getVersion() {
+    return version;
+  }
+
+  public void setVersion(int version) {
+    this.version = version;
+  }
+
+  public Map<String, String> getOffsets() {
+    return offsets;
+  }
+
+  public void setOffsets(Map<String, String> offsets) {
+    this.offsets = offsets;
   }
 }

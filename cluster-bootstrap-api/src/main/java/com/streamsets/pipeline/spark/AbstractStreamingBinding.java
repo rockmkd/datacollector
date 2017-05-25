@@ -19,6 +19,7 @@
  */
 package com.streamsets.pipeline.spark;
 
+import com.streamsets.datacollector.cluster.ClusterModeConstants;
 import com.streamsets.pipeline.BootstrapCluster;
 import com.streamsets.pipeline.ClusterBinding;
 import com.streamsets.pipeline.SdcClusterOffsetHelper;
@@ -29,7 +30,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.spark.SparkConf;
 import org.apache.spark.deploy.SparkHadoopUtil;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
-import org.apache.spark.streaming.api.java.JavaStreamingContextFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +43,6 @@ public abstract class AbstractStreamingBinding implements ClusterBinding {
   static final String CHECKPOINT_BASE_DIR = ".streamsets-spark-streaming";
   private final String RDD_CHECKPOINT_DIR = "rdd-checkpoints";
   static final String SDC_ID = "sdc.id";
-  static final String CLUSTER_PIPELINE_NAME = "cluster.pipeline.name";
   private static final Logger LOG = LoggerFactory.getLogger(AbstractStreamingBinding.class);
   private final boolean isRunningInMesos;
   private JavaStreamingContext ssc;
@@ -73,7 +72,7 @@ public abstract class AbstractStreamingBinding implements ClusterBinding {
         .sdcId(Utils.getPropertyNotNull(properties, SDC_ID))
         .topic(topic)
         .consumerGroup(consumerGroup)
-        .pipelineName(Utils.getPropertyNotNull(properties, CLUSTER_PIPELINE_NAME))
+        .pipelineName(Utils.getPropertyNotNull(properties, ClusterModeConstants.CLUSTER_PIPELINE_NAME))
         .build();
   }
 
@@ -82,7 +81,7 @@ public abstract class AbstractStreamingBinding implements ClusterBinding {
     for (Object key : properties.keySet()) {
       logMessage("Property => " + key + " => " + properties.getProperty(key.toString()), isRunningInMesos);
     }
-    final SparkConf conf = new SparkConf().setAppName("StreamSets Data Collector - Streaming Mode");
+    final SparkConf conf = new SparkConf().setAppName("StreamSets Data Collector: " + properties.getProperty(ClusterModeConstants.CLUSTER_PIPELINE_TITLE));
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
     final String topic = getTopic();
     final String consumerGroup = getConsumerGroup();
@@ -131,21 +130,13 @@ public abstract class AbstractStreamingBinding implements ClusterBinding {
         isRunningInMesos
     );
 
-    //Upgrade path from spark check pointing to sdc check pointing
-    if (!offsetHelper.isSDCCheckPointing() && hdfs.listStatus(checkPointPath).length > 0) {
-      LOG.info("Initializing with existing spark checkpoint at: {}", checkPointPath);
-      ssc = JavaStreamingContext.getOrCreate(checkPointPath.toString(), hadoopConf, javaStreamingContextFactory, true);
-    } else {
-      LOG.info("Using SDC checkpoint mechanism at: {}", checkPointPath);
-      ssc = javaStreamingContextFactory.create();
-      Path rddCheckpointDir = new Path(checkPointPath, RDD_CHECKPOINT_DIR);
-      if (hdfs.exists(rddCheckpointDir)) {
-        hdfs.delete(rddCheckpointDir, true);
-      }
-      hdfs.mkdirs(rddCheckpointDir);
-      ssc.checkpoint(rddCheckpointDir.toString());
-
+    ssc = javaStreamingContextFactory.create();
+    Path rddCheckpointDir = new Path(checkPointPath, RDD_CHECKPOINT_DIR);
+    if (hdfs.exists(rddCheckpointDir)) {
+      hdfs.delete(rddCheckpointDir, true);
     }
+    hdfs.mkdirs(rddCheckpointDir);
+    ssc.checkpoint(rddCheckpointDir.toString());
 
     // mesos tries to stop the context internally, so don't do it here - deadlock bug in spark
     if (!isRunningInMesos) {

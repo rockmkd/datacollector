@@ -457,14 +457,25 @@ public class TestJythonProcessor {
     String script = "for record in records:\n" +
         "  record.value['initValue'] = state['initValue']\n" +
         "  output.write(record)\n";
+    String destroyScript = "event = sdcFunctions.createEvent(\"event\", 1)\n" +
+      "sdcFunctions.toEvent(event)";
 
     Processor processor = new JythonProcessor(
         ProcessingMode.BATCH,
         script,
         initScript,
-        ""
+        destroyScript
     );
     ScriptingProcessorTestUtil.verifyInitDestroy(JythonProcessor.class, processor);
+  }
+
+  @Test
+  public void testConstants() throws Exception {
+    String script = "for record in records:\n" +
+        "  record.value['company'] = sdcFunctions.pipelineConstants()['company']\n" +
+        "  output.write(record)";
+    Processor processor = new JythonProcessor(ProcessingMode.BATCH, script);
+    ScriptingProcessorTestUtil.verifyConstants(JythonProcessor.class, processor);
   }
 
   private static final String WRITE_ERROR_SCRIPT = "for record in records:\n  error.write(record, 'oops')\n";

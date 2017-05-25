@@ -29,7 +29,6 @@ import org.apache.spark.streaming.Duration;
 import org.apache.spark.streaming.api.java.JavaInputDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
-import org.apache.spark.streaming.api.java.JavaStreamingContextFactory;
 import org.apache.spark.streaming.kafka.v09.KafkaUtils;
 import scala.Tuple2;
 import scala.reflect.ClassTag;
@@ -152,7 +151,7 @@ public class MapRStreamingBinding extends AbstractStreamingBinding {
                 byte[].class,
                 Tuple2.class,
                 props,
-                MaprStreamsOffsetUtil.getOffsetForDStream(topic, numberOfPartitions),
+                MaprStreamsOffsetManagerImpl.get().getOffsetForDStream(topic, numberOfPartitions),
                 MESSAGE_HANDLER_FUNCTION
             );
         ClassTag<byte[]> byteClassTag = scala.reflect.ClassTag$.MODULE$.apply(byte[].class);
@@ -162,8 +161,7 @@ public class MapRStreamingBinding extends AbstractStreamingBinding {
             KafkaUtils.createDirectStream(result, byte[].class, byte[].class,
                 props, new HashSet<>(Arrays.asList(topic.split(","))));
       }
-      // This is not using foreach(Function<R, Void> foreachFunc) as its deprecated
-      dStream.foreachRDD(new MapRSparkDriverFunction());
+      Driver$.MODULE$.foreach(dStream.dstream(), MaprStreamsOffsetManagerImpl.get());
       return result;
     }
   }
