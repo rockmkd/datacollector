@@ -21,17 +21,11 @@
 package com.streamsets.pipeline.kafka.impl;
 
 import com.streamsets.pipeline.api.Source;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Properties;
 
-public class KafkaConsumer10 extends KafkaConsumer09{
-  private static final Logger LOG = LoggerFactory.getLogger(KafkaConsumer10.class);
+public class KafkaConsumer10 extends KafkaConsumer09 {
   public KafkaConsumer10(
       String bootStrapServers,
       String topic,
@@ -42,13 +36,8 @@ public class KafkaConsumer10 extends KafkaConsumer09{
     super(bootStrapServers, topic, consumerGroup, kafkaConsumerConfigs, context);
   }
 
-  protected void createConsumer() {
-    Properties kafkaConsumerProperties = new Properties();
-    configureKafkaProperties(kafkaConsumerProperties);
-    LOG.debug("Creating Kafka Consumer with properties {}" , kafkaConsumerProperties.toString());
-    kafkaConsumer = new KafkaConsumer<>(kafkaConsumerProperties);
-    Collection<String> collection = Collections.singletonList(topic);
-    kafkaConsumer.subscribe(collection);
+  @Override
+  protected void subscribeConsumer() {
+    kafkaConsumer.subscribe(Collections.singletonList(topic), this);
   }
-
 }

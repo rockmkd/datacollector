@@ -17,6 +17,48 @@
  <title>Reusable Tables of Information</title>
  <shortdesc/>
  <conbody>
+  <draft-comment author="Loretta">Data Collector configs > The info in these tables used in
+   Configuring Data Collector and Shell Impersonation &amp; Security</draft-comment>
+  <p>
+   <table frame="all" rowsep="1" colsep="1" id="table_nvx_45v_vz">
+    <tgroup cols="2">
+     <colspec colname="c1" colnum="1" colwidth="1.0*"/>
+     <colspec colname="c2" colnum="2" colwidth="1.0*"/>
+     <thead>
+      <row>
+       <entry/>
+       <entry/>
+      </row>
+     </thead>
+     <tbody>
+      <row>
+       <entry/>
+       <entry/>
+      </row>
+      <row>
+       <entry>
+        <p><ph>stage.conf_com.streamsets.pipeline.stage.executor.shell.impersonation_mode</ph></p>
+       </entry>
+       <entry><ph>Enforces the use of the current logged in user to execute scripts. </ph></entry>
+      </row>
+      <row>
+       <entry><ph>stage.conf_com.streamsets.pipeline.stage.executor.shell.shell</ph></entry>
+       <entry><ph>Defines the relative or absolute path to the command line interpreter to use to
+         execute scripts. </ph><p>Default is <codeph>sh</codeph>, typically a symlink. </p></entry>
+      </row>
+      <row>
+       <entry><ph>stage.conf_com.streamsets.pipeline.stage.executor.shell.sudo</ph></entry>
+       <entry><ph>Defines the relative or absolute path to the sudo to use when executing scripts.
+         Use to control the commands that can be executed in scripts.</ph></entry>
+      </row>
+      <row>
+       <entry/>
+       <entry/>
+      </row>
+     </tbody>
+    </tgroup>
+   </table>
+  </p>
   <draft-comment author="Loretta">table used by Rules/Alerts > Configuring a Webhook</draft-comment>
   <p>
    <table frame="all" rowsep="1" colsep="1" id="WebhookTable">
@@ -1020,12 +1062,12 @@
       </row>
       <row id="row-AutoCommit">
        <entry>Auto Commit</entry>
-       <entry>Determines whether auto-commit mode is enabled or disabled for the
-         connection.<p>Disabled by default.</p></entry>
+       <entry>Determines if auto-commit mode is enabled. In auto-commit mode, the database commits
+        the data for each record. <p>Default is disabled.</p></entry>
       </row>
       <row id="row-EnReadOnly">
        <entry>Enforce Read-only Connection</entry>
-       <entry>Creates read-only connections to avoid any type of write. <p>Enabled by default.
+       <entry>Creates read-only connections to avoid any type of write. <p>Default is enabled.
          Disabling this property is not recommended. </p></entry>
       </row>
       <row id="row-TransactionIsolation">
@@ -1531,8 +1573,8 @@
        perform all tasks listed below, as well as start and stop <ph
         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>, view <ph
         conref="../Reusable_Content/ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/>
-       configuration, JVM metrics, and log information. Install libraries using the Package
-       Manager.</entry>
+       configuration, JVM metrics, and log information. Install libraries using the Package Manager.
+       Generate support bundles.</entry>
      </row>
      <row>
       <entry>manager</entry>
