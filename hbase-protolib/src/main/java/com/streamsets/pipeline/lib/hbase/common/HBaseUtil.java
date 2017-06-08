@@ -56,6 +56,7 @@ import java.io.StringWriter;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -344,7 +345,7 @@ public final class HBaseUtil {
   }
 
   public static HBaseColumn getColumn(String column) {
-    byte[][] parts = KeyValue.parseColumn(Bytes.toBytes(column));
+    byte[][] parts = KeyValue.parseColumn(column.getBytes(Charset.forName("ISO-8859-1")));
     byte[] cf;
     byte[] qualifier;
     if (parts.length == 2) {
