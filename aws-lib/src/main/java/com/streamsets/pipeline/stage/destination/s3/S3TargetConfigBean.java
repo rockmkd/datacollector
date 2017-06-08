@@ -32,7 +32,6 @@ import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
 import com.streamsets.pipeline.stage.destination.lib.DataGeneratorFormatConfig;
 import com.streamsets.pipeline.stage.lib.aws.ProxyConfig;
 import com.streamsets.pipeline.stage.lib.aws.TransferManagerConfig;
-import com.streamsets.pipeline.stage.origin.s3.S3Config;
 
 import java.util.List;
 
@@ -44,7 +43,7 @@ public class S3TargetConfigBean {
   public static final String S3_TM_CONFIG_PREFIX = S3_TARGET_CONFIG_BEAN_PREFIX + "tmConfig.";
 
   @ConfigDefBean(groups = "S3")
-  public S3Config s3Config;
+  public S3ConnectionTargetConfig s3Config;
 
   @ConfigDefBean(groups = "SSE")
   public S3TargetSSEConfigBean sseConfig;
@@ -146,24 +145,6 @@ public class S3TargetConfigBean {
     // Don't use amazon s3 client for file transfer error retries (Setting maxErrorRetries to 0)
     // (SDC will retry the file transfer based on AT_LEAST_ONCE/AT_MOST_ONCE SEMANTICS)
     s3Config.init(context, S3_CONFIG_PREFIX, proxyConfig, issues, (dataFormat == DataFormat.WHOLE_FILE)? 0 : -1);
-
-    if(s3Config.bucket == null || s3Config.bucket.isEmpty()) {
-      issues.add(
-          context.createConfigIssue(
-              Groups.S3.name(),
-              S3_CONFIG_PREFIX + "bucket",
-              Errors.S3_01
-          )
-      );
-    } else if (!s3Config.getS3Client().doesBucketExist(s3Config.bucket)) {
-      issues.add(
-          context.createConfigIssue(
-              Groups.S3.name(),
-              S3_CONFIG_PREFIX + "bucket",
-              Errors.S3_02, s3Config.bucket
-          )
-      );
-    }
 
     //File prefix should not be empty for non whole file format.
     if (dataFormat != DataFormat.WHOLE_FILE && (fileNamePrefix == null || fileNamePrefix.isEmpty())) {

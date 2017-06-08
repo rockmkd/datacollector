@@ -50,7 +50,6 @@ import com.streamsets.pipeline.stage.lib.aws.AWSConfig;
 import com.streamsets.pipeline.stage.lib.aws.AWSRegions;
 import com.streamsets.pipeline.stage.lib.aws.ProxyConfig;
 import com.streamsets.pipeline.stage.lib.aws.TransferManagerConfig;
-import com.streamsets.pipeline.stage.origin.s3.S3Config;
 import com.streamsets.pipeline.stage.origin.s3.S3FileRef;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -202,6 +201,7 @@ public class TestAmazonS3TargetForWholeFile extends AmazonS3TestSuite {
     List<Record> records = new ArrayList<>();
     for (String fileName : Arrays.asList(FILE_NAME_1, FILE_NAME_2)) {
       Record record = RecordCreator.create();
+      record.getHeader().setAttribute("bucket", TARGET_BUCKET_NAME);
       record.set(
           FileRefUtil.getWholeFileRecordRootField(
               new LocalFileRef.Builder()
@@ -242,6 +242,7 @@ public class TestAmazonS3TargetForWholeFile extends AmazonS3TestSuite {
       S3ObjectSummary s3ObjectSummary = s3ObjectSummaryIterator.next();
       Map<String, Object> metadata = getS3Metadata(s3client.getObject(SOURCE_BUCKET_NAME, s3ObjectSummary.getKey()));
       Record record = RecordCreator.create();
+      record.getHeader().setAttribute("bucket", TARGET_BUCKET_NAME);
       record.set(
           FileRefUtil.getWholeFileRecordRootField(
               new S3FileRef.Builder()
@@ -270,10 +271,10 @@ public class TestAmazonS3TargetForWholeFile extends AmazonS3TestSuite {
   }
 
   private AmazonS3Target createS3targetWithWholeFile() {
-    S3Config s3Config = new S3Config();
+    S3ConnectionTargetConfig s3Config = new S3ConnectionTargetConfig();
     s3Config.region = AWSRegions.OTHER;
     s3Config.endpoint = "http://localhost:" + port;
-    s3Config.bucket = TARGET_BUCKET_NAME;
+    s3Config.bucketTemplate = "${record:attribute('bucket')}";
     s3Config.awsConfig = new AWSConfig();
     s3Config.awsConfig.awsAccessKeyId = "foo";
     s3Config.awsConfig.awsSecretAccessKey = "bar";

@@ -1080,6 +1080,14 @@ web-0011.log</codeblock></dd>
             <draft-comment author="Loretta">Event Record topics for JDBC Multitable and
                   Salesforce.</draft-comment>
             <p id="p-ERec-NoMoreData">The no-more-data event record includes no record fields.</p>
+            <p>
+                  <draft-comment author="Loretta">Origins: used in First File to Process for
+                  </draft-comment>
+            </p>
+            <p/>
+            <p>
+                  <draft-comment author="Loretta">multithreaded stuff below. </draft-comment>
+            </p>
             <draft-comment author="Loretta">Used in Pipeline Concepts &amp; Design > Single &amp;
                   Multithreaded Pipes, and Multithreaded > Overview. And in Multithreaded Processing
                   topics in origin sections.</draft-comment>
@@ -1392,38 +1400,47 @@ web-0011.log</codeblock></dd>
                                     handling. Includes a <codeph>write(Record, message)</codeph>
                                     method.</dd>
                         </dlentry>
-                        <dlentry>
-                              <dt>sdcFunctions</dt>
-                              <dd>An object that runs functions that evaluate or modify data.
-                                    Includes the following methods: </dd>
-                              <dd>
-                                    <ul id="ul_th2_3lr_mx">
-                                          <li><codeph>getFieldNull(Record, 'field path')</codeph> -
-                                                Method that checks if a field is assigned a constant
-                                                such as NULL_INTEGER or NULL_STRING.</li>
-                                          <li><codeph>createRecord(String, 'recordId')</codeph> -
-                                                Method that creates a new record with the specified
-                                                fields and values. The recordId uniquely identifies
-                                                the record. It should include enough information to
-                                                track down the record source.</li>
-                                          <li><codeph>createMap(boolean listMap)</codeph> - Method
-                                                that creates a map for use as a field in a record.
-                                                Pass true to create a list-map field, or false to
-                                                create a map field.</li>
-                                          <li><codeph>createEvent(String type, int version)</codeph>
-                                                - Method that creates a new event record with the
-                                                specified event type and version. Be sure to enable
-                                                event generation in the stage before implementing
-                                                event methods. </li>
-                                          <li><codeph>toEvent(Record)</codeph> - Method that sends
-                                                an event record to the Event output stream. Be sure
-                                                to enable event generation in the stage before
-                                                implementing event methods. </li>
-                                    </ul>
-                              </dd>
-                        </dlentry>
                   </dl>
             </p>
+            <draft-comment author="alisontaylor">- Groovy, JavaScript, Jython Processor sdcFunction
+                  scripting object. Groovy uses all of the methods. JavaScript ad Jython use all but
+                  the last method.</draft-comment>
+            <dl>
+                  <dlentry>
+                        <dt>sdcFunctions</dt>
+                        <dd>An object that runs functions that evaluate or modify data. Includes the
+                              following methods: </dd>
+                        <dd>
+                              <ul id="ul_th2_3lr_mx">
+                                    <li id="li_getFieldNull"><codeph>getFieldNull(Record, 'field path')</codeph> - Method
+                                          that checks if a field is assigned a constant such as
+                                          NULL_INTEGER or NULL_STRING.</li>
+                                    <li id="li_createRecord"><codeph>createRecord(String, 'recordId')</codeph> - Method
+                                          that creates a new record with the specified fields and
+                                          values. The recordId uniquely identifies the record. It
+                                          should include enough information to track down the record
+                                          source.</li>
+                                    <li id="li_createMap"><codeph>createMap(boolean listMap)</codeph> - Method that
+                                          creates a map for use as a field in a record. Pass true to
+                                          create a list-map field, or false to create a map
+                                          field.</li>
+                                    <li id="li_createEvent"><codeph>createEvent(String type, int version)</codeph> -
+                                          Method that creates a new event record with the specified
+                                          event type and version. Be sure to enable event generation
+                                          in the stage before implementing event methods. </li>
+                                    <li id="li_toEvent"><codeph>toEvent(Record)</codeph> - Method that sends an
+                                          event record to the Event output stream. Be sure to enable
+                                          event generation in the stage before implementing event
+                                          methods. </li>
+                                    <li id="li_pipelineParams"><codeph>pipelineParameters()</codeph>
+                                          - Method that returns a map of all <xref
+                                                href="../Pipeline_Configuration/RuntimeParameters.dita#concept_rjh_ntz_qr"
+                                                >runtime parameters</xref> defined for the
+                                          pipeline.</li>
+                              </ul>
+                        </dd>
+                  </dlentry>
+            </dl>
             <draft-comment author="alisontaylor">Groovy, JavaScript, Jython Evaluators use this text
                   in Accessing Whole Files topic</draft-comment>
             <p id="Script-WholeFile">The processor can access the fileref field in a whole file
@@ -2686,6 +2703,38 @@ ${YY()}_${MM()}_${DD()}</codeblock>
                               starting the queries for the next event record. Depending on the speed
                               of the pipeline and the complexity of the queries, the wait for query
                               completion can slow pipeline performance.</ph></note>
+            </p>
+            <p>
+                  <draft-comment author="Loretta">Spark executor, Spark Evaluator, Cluster mode -
+                        supported Spark version!</draft-comment>
+            </p>
+            <p><ph id="ph-SparkVersions">Spark versions 1.3 through 2.1</ph></p>
+            <p>
+                  <draft-comment author="Loretta">Phrases below used in Spark executor, Spark
+                        evaluator > Spark versions &amp; stage libraries topics</draft-comment>
+            </p>
+            <p><ph id="Spark-AppVersion-Stagelib">the Spark version used in the selected stage
+                        library matches the Spark version used to build the application.</ph></p>
+            <p><ph id="Spark-Stagelib-Cluster">in a cluster streaming pipeline, the Spark version in
+                        the selected stage library must also match the Spark version used by the
+                        cluster.</ph>
+            </p>
+            <p><ph id="spark-clusterExample">For example, if your cluster uses Spark 1.6, use a
+                        stage library that includes Spark 1.6.</ph>
+            </p>
+            <p><ph id="Spark-xrefs">available in several CDH and MapR stage libraries. To verify the
+                        Spark version that a stage library includes, see the CDH or MapR
+                        documentation. For more information about the stage libraries that include
+                        the Spark Evaluator, see <xref
+                              href="../Installation/AvailableStageLibraries.dita#concept_evs_xkm_s5"
+                        />.</ph></p>
+            <p>
+                  <draft-comment author="Loretta">Used by Spark Evaluator > Installing the
+                        Application and Config > Install External Libraries.</draft-comment>
+            </p>
+            <p><ph id="ph-SparkLibraries">streamsets-datacollector-api,
+                        streamsets-datacollector-spark-api, and spark-core libraries</ph></p>
+            <p>
                   <draft-comment author="Loretta">YARN prerequisites - Conref the first two
                         DLentries - and adopt the 3rd as needed.</draft-comment>
             </p>
