@@ -281,7 +281,48 @@ public class HBaseTargetIT {
     Assert.assertEquals("", Bytes.toString(r.getValue(Bytes.toBytes(familyName), Bytes.toBytes("a"))));
     assertEquals("value_b", Bytes.toString(r.getValue(Bytes.toBytes(familyName), Bytes.toBytes("b"))));
   }
-
+  
+  @Test
+  public void testDynamicQualifier() throws Exception {
+    String rowKeyFieldPath = "/row_key";
+    String qualifierFieldPath = "/qualifier";
+    String rowKey = "rowKey1";
+    
+    TargetRunner targetRunner = buildRunner(
+        new ArrayList<HBaseFieldMappingConfig>(),
+        StorageType.TEXT,
+        OnRecordError.DISCARD,
+        "",
+        true,
+        rowKeyFieldPath,
+        false,
+        false,
+        true,
+        qualifierFieldPath,
+        "${time:now()}"
+    );
+    byte[] qualifier =  new byte[]{-1,-2, 92, 39, 91, -10, 92, 39 };
+    
+    Record record = RecordCreator.create();
+    LinkedHashMap<String, Field> map = new LinkedHashMap<>();
+    map.put(rowKeyFieldPath.substring(1), Field.create(rowKey));
+    map.put("cf:qualifier", Field.create(new byte[]{-1,-2,-4,-5,-6,1,2,4,91,92,39}));
+    map.put("qualifier", Field.create(qualifier));
+    
+    Field mapField = Field.createListMap(map);
+    record.set(mapField);
+    List<Record> singleRecord = ImmutableList.of(record);
+    targetRunner.runInit();
+    targetRunner.runWrite(singleRecord);
+    targetRunner.runDestroy();
+    HTable htable = new HTable(conf, tableName);
+    Get g = new Get(Bytes.toBytes(rowKey));
+    Result r = htable.get(g);
+    Assert.assertArrayEquals(new byte[]{-1,-2,-4,-5,-6,1,2,4,91,92,39}, r.getValue(Bytes.toBytes("cf"), qualifier));
+//    assertEquals("value_b", Bytes.toString(r.getValue(Bytes.toBytes("cf1"), qualifier)));
+  }
+  
+  
   @Test(timeout = 600000)
   public void testOnlyImplicitFieldMapping() throws Exception {
     String rowKeyFieldPath = "/row_key";
@@ -305,7 +346,7 @@ public class HBaseTargetIT {
     assertEquals("value_a", Bytes.toString(r.getValue(Bytes.toBytes(familyName), Bytes.toBytes("a"))));
     assertEquals("value_b", Bytes.toString(r.getValue(Bytes.toBytes(familyName), Bytes.toBytes("b"))));
   }
-
+  
   @Test(timeout = 60000)
   public void testFieldMappings() throws Exception {
     String rowKeyFieldPath = "/row_key";
@@ -875,7 +916,7 @@ public class HBaseTargetIT {
             new HBaseFieldMappingConfig("cf:d", "[4]", StorageType.TEXT));
 
     TargetRunner targetRunner =
-        buildRunner(fieldMappings, StorageType.TEXT, OnRecordError.TO_ERROR, "", false, "[0]", false, false,
+        buildRunner(fieldMappings, StorageType.TEXT, OnRecordError.TO_ERROR, "", false, "[0]", false, false, false, "",
             "${record:value('[4]')}");
 
     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
@@ -946,7 +987,7 @@ public class HBaseTargetIT {
             new HBaseFieldMappingConfig("cf:c", "[3]", StorageType.TEXT));
 
     TargetRunner targetRunner =
-        buildRunner(fieldMappings, StorageType.TEXT, OnRecordError.TO_ERROR, "", false, "[0]", false, false, "");
+        buildRunner(fieldMappings, StorageType.TEXT, OnRecordError.TO_ERROR, "", false, "[0]", false, false);
 
     Record record1 = RecordCreator.create();
     List<Field> fields1 = new ArrayList<>();
@@ -989,7 +1030,7 @@ public class HBaseTargetIT {
             new HBaseFieldMappingConfig("cf:c", "[3]", StorageType.TEXT));
 
     TargetRunner targetRunner =
-        buildRunner(fieldMappings, StorageType.TEXT, OnRecordError.TO_ERROR, "", false, "[0]", false, false,
+        buildRunner(fieldMappings, StorageType.TEXT, OnRecordError.TO_ERROR, "", false, "[0]", false, false, false, "",
             "${time:now()}");
 
     Record record1 = RecordCreator.create();
@@ -1071,6 +1112,8 @@ public class HBaseTargetIT {
           implicitFieldMapping,
           ignoreMissingFieldPath,
           ignoreInvalidColumn,
+          dynamicQualifier,
+          dynamicQualifierFieldPath,
           timeDriver
       ) {
         @Override
@@ -1142,12 +1185,13 @@ public class HBaseTargetIT {
                                    StorageType storageType, OnRecordError onRecordError, String hbaseUser, boolean implicitFieldMapping,
                                    String hbaseRowKey, boolean ignoreMissingFieldPath, boolean ignoreInvalidColumn) {
     return buildRunner(fieldMappings, storageType, onRecordError, hbaseUser, implicitFieldMapping, hbaseRowKey,
-        ignoreMissingFieldPath, ignoreInvalidColumn, "${time:now()}");
+        ignoreMissingFieldPath, ignoreInvalidColumn, false, "", "${time:now()}");
   }
 
   private TargetRunner buildRunner(List<HBaseFieldMappingConfig> fieldMappings,
       StorageType storageType, OnRecordError onRecordError, String hbaseUser, boolean implicitFieldMapping,
-      String hbaseRowKey, boolean ignoreMissingFieldPath, boolean ignoreInvalidColumn, String timeDriver) {
+      String hbaseRowKey, boolean ignoreMissingFieldPath, boolean ignoreInvalidColumn,
+                                   boolean dynamicQualifier, String dynamicQualifierFieldPath, String timeDriver) {
 
     HBaseDTarget dTarget = new HBaseDTarget();
     configure(dTarget);
@@ -1159,6 +1203,8 @@ public class HBaseTargetIT {
     dTarget.ignoreMissingFieldPath = ignoreMissingFieldPath;
     dTarget.ignoreInvalidColumn = ignoreInvalidColumn;
     dTarget.timeDriver = timeDriver;
+    dTarget.dynamicQualifier = dynamicQualifier;
+    dTarget.dynamicQualifierFieldPath = dynamicQualifierFieldPath;
     Target target = dTarget.createTarget();
 
     TargetRunner targetRunner =
@@ -1254,6 +1300,8 @@ public class HBaseTargetIT {
         false,
         false,
         false,
+        false,
+        "",
         "${time:now()}"
     );
   }

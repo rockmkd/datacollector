@@ -77,6 +77,8 @@ public class HBaseTarget extends BaseTarget {
   private final boolean implicitFieldMapping;
   private final boolean ignoreMissingField;
   private final boolean ignoreInvalidColumn;
+  private final boolean dynamicQualifier;
+  private final String dynamicQualifierFieldPath;
   private final String timeDriver;
   private final HBaseConnectionConfig conf;
   private Configuration hbaseConf;
@@ -92,6 +94,8 @@ public class HBaseTarget extends BaseTarget {
     boolean implicitFieldMapping,
     boolean ignoreMissingField,
     boolean ignoreInvalidColumn,
+    boolean dynamicQualifier,
+    String  dynamicQualifierFieldPath,
     String timeDriver
   ) {
     this.conf = conf;
@@ -105,6 +109,8 @@ public class HBaseTarget extends BaseTarget {
     this.implicitFieldMapping = implicitFieldMapping;
     this.ignoreMissingField = ignoreMissingField;
     this.ignoreInvalidColumn = ignoreInvalidColumn;
+    this.dynamicQualifier = dynamicQualifier;
+    this.dynamicQualifierFieldPath = dynamicQualifierFieldPath;
     this.timeDriver = timeDriver;
   }
 
@@ -296,7 +302,10 @@ public class HBaseTarget extends BaseTarget {
     validateRootLevelType(record);
     Date recordTime = getRecordTime(record);
     for (String fieldPath : record.getEscapedFieldPaths()) {
-      if (!fieldPath.isEmpty() && !fieldPath.equals(this.hbaseRowKey) && !explicitFields.contains(fieldPath)) {
+      if (!fieldPath.isEmpty()
+          && !fieldPath.equals(this.hbaseRowKey)
+          && !explicitFields.contains(fieldPath)
+          && !fieldPath.equals(this.dynamicQualifierFieldPath)) {
         String fieldPathColumn = fieldPath;
         if (fieldPath.charAt(0) == '/') {
           fieldPathColumn = fieldPath.substring(1);
@@ -304,7 +313,8 @@ public class HBaseTarget extends BaseTarget {
         HBaseColumn hbaseColumn = HBaseUtil.getColumn(fieldPathColumn.replace("'", ""));
         if (hbaseColumn != null) {
           byte[] value = getBytesForValue(record, fieldPath, null);
-          addCell(p, hbaseColumn.getCf(), hbaseColumn.getQualifier(), recordTime, value);
+          byte[] qualifier = dynamicQualifier ? record.get(dynamicQualifierFieldPath).getValueAsByteArray() : hbaseColumn.getQualifier();
+          addCell(p, hbaseColumn.getCf(), qualifier, recordTime, value);
         } else if (ignoreInvalidColumn) {
           String errorMessage = Utils.format(
               Errors.HBASE_28.getMessage(),

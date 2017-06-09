@@ -101,7 +101,7 @@ public class HBaseDTarget extends DTarget {
     displayPosition = 90,
     group = "HBASE")
   public boolean implicitFieldMapping;
-
+  
   @ConfigDef(required = false,
     type = ConfigDef.Type.BOOLEAN,
     defaultValue = "true",
@@ -113,7 +113,29 @@ public class HBaseDTarget extends DTarget {
     displayPosition = 100,
     group = "HBASE")
   public boolean ignoreInvalidColumn;
-
+  
+  @ConfigDef(required = false,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Dynamic qualifier",
+      description = "If set, it is considered that qualifier is dynamically made; ",
+      dependsOn = "implicitFieldMapping",
+      triggeredByValue = "true",
+      displayPosition = 110,
+      group = "HBASE")
+  public boolean dynamicQualifier;
+  
+  @ConfigDef(required = true,
+      type = ConfigDef.Type.STRING,
+      defaultValue = "/qualifier",
+      label = "qualifier field path",
+      description = "field path contains qualifier value",
+      dependsOn = "dynamicQualifier",
+      triggeredByValue = "true",
+      displayPosition = 110,
+      group = "HBASE")
+  public String dynamicQualifierFieldPath;
+  
   @ConfigDef(
       required = false,
       type = ConfigDef.Type.STRING,
@@ -139,6 +161,8 @@ public class HBaseDTarget extends DTarget {
         implicitFieldMapping,
         ignoreMissingFieldPath,
         ignoreInvalidColumn,
+        dynamicQualifier,
+        dynamicQualifierFieldPath,
         timeDriver
     ));
   }
