@@ -39,6 +39,12 @@
             <p><ph id="version">2.6.0.0</ph></p>
             <p><ph id="version_DirName">2600</ph></p>
             <p>
+                  <draft-comment author="Loretta">Data Collector max buffer size for records,
+                        overridden by the parser.limit SDC property. used in Configuring SDC and
+                        origins > Max Record Size.</draft-comment>
+            </p>
+            <p><ph id="ph-DefaultMaxRecordSize">1048576 bytes</ph></p>
+            <p>
                   <draft-comment author="Loretta">The following ph is used by the registration DPM
                         topics. </draft-comment>
             </p>
@@ -78,6 +84,18 @@
             <draft-comment author="alisontaylor">The following number is used in Installation
                   Requirements and Configuring the Open File Limit</draft-comment>
             <p><ph id="ph-MinFileDescriptors">32768</ph></p>
+            <p>
+                  <draft-comment author="Loretta">Note &amp; ph used in manual &amp; package manager
+                        steps for Install External Libraries</draft-comment>
+            </p>
+            <p><note id="note-extLib-Allstagelibs">If you use multiple stage libraries for a
+                        particular stage, and you want to use an external library with all stage
+                        libraries, you must install the external library for each stage library.
+                        </note><ph id="ph-SparkExample">For example, say you want to use an external
+                        library with the Spark Evaluator processor, but you use two versions of the
+                        processor - each from a different stage library. To make the external
+                        library available to both processor versions, you must upload the external
+                        library to both stage libraries.</ph></p>
             <p>
                   <draft-comment author="Loretta">Used in stage overviews that use the shared TLS
                         properties.</draft-comment>
@@ -320,6 +338,14 @@
             <p>
                   <draft-comment author="Loretta">ORIGIN DATA FORMATS</draft-comment>
             </p>
+            <p>
+                  <draft-comment author="Loretta">Used in Max &lt;record size> Data Format property
+                        descriptions in reusable steps. </draft-comment>
+            </p>
+            <p><ph id="ph-MaxRecordSize">This property can be limited by the <ph
+                              conref="ReusablePhrases.dita#concept_vhs_5tz_xp/pName-long"/> parser
+                        buffer size. For more information, see <xref
+                              href="../Origins/MaxRecordSize.dita#concept_svg_2zl_d1b"/>.</ph></p>
             <p>
                   <draft-comment author="Loretta">AVRO - Used by Kafka Consumer </draft-comment>
                   <dl>
