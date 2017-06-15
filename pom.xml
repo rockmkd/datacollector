@@ -34,6 +34,12 @@
     <url>http://www.streamsets.com</url>
   </organization>
 
+  <distributionManagement>
+    <repository>
+      <id>releases</id>
+      <url>https://nexus.kabang.io:2443/repository/thirdparty/</url>
+    </repository>
+  </distributionManagement>
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
@@ -687,6 +693,17 @@
   </profiles>
 
   <repositories>
+    <repository>
+      <id>kakaobank</id>
+      <url>https://nexus.kabang.io:2443/repository/public/</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+        <updatePolicy>always</updatePolicy>
+      </snapshots>
+    </repository>
     <repository>
       <id>cdh.repo</id>
       <url>https://repository.cloudera.com/content/groups/cloudera-repos</url>
