@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +15,7 @@
  */
 package com.streamsets.datacollector.runner;
 
+import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.creation.PipelineBean;
 import com.streamsets.datacollector.creation.StageBean;
@@ -30,6 +27,8 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.concurrent.Callable;
 
 public class TestStageRuntime {
@@ -39,6 +38,9 @@ public class TestStageRuntime {
     PipelineBean pipelineBean = Mockito.mock(PipelineBean.class);
     StageBean stageBean = Mockito.mock(StageBean.class);
     Mockito.when(stageBean.getSystemConfigs()).thenReturn(new StageConfigBean());
+    StageConfiguration conf = Mockito.mock(StageConfiguration.class);
+    Mockito.when(conf.getUiInfo()).thenReturn(Collections.emptyMap());
+    Mockito.when(stageBean.getConfiguration()).thenReturn(conf);
     StageDefinition def = Mockito.mock(StageDefinition.class);
     Mockito.when(stageBean.getDefinition()).thenReturn(def);
     StageContext context = Mockito.mock(StageContext.class);
@@ -96,6 +98,9 @@ public class TestStageRuntime {
   public void testReleaseClassLoader() throws Exception {
     PipelineBean pipelineBean = Mockito.mock(PipelineBean.class);
     StageBean stageBean = Mockito.mock(StageBean.class);
+    StageConfiguration conf = Mockito.mock(StageConfiguration.class);
+    Mockito.when(conf.getUiInfo()).thenReturn(Collections.emptyMap());
+    Mockito.when(stageBean.getConfiguration()).thenReturn(conf);
     Mockito.when(stageBean.getStage()).thenReturn(Mockito.mock(Stage.class));
     StageDefinition def = Mockito.mock(StageDefinition.class);
     Mockito.when(stageBean.getDefinition()).thenReturn(def);

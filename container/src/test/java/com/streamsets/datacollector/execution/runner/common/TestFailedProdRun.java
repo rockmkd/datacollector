@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -20,6 +16,7 @@
 package com.streamsets.datacollector.execution.runner.common;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.ErrorListener;
 import com.streamsets.pipeline.api.Field;
@@ -86,8 +83,16 @@ public class TestFailedProdRun {
     runner.setOffsetTracker(tracker);
     PipelineConfiguration pipelineConfiguration = MockStages.createPipelineConfigurationSourceProcessorTarget();
     pipelineConfiguration.getStages().remove(2);
-    ProductionPipeline pipeline = new ProductionPipelineBuilder(PIPELINE_NAME, REVISION, conf, runtimeInfo,
-      MockStages.createStageLibrary(), runner, null).build(MockStages.userContext(), pipelineConfiguration);
+    ProductionPipeline pipeline = new ProductionPipelineBuilder(
+      PIPELINE_NAME,
+      REVISION,
+      conf,
+      runtimeInfo,
+      MockStages.createStageLibrary(),
+      runner,
+      null,
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(MockStages.userContext(), pipelineConfiguration);
 
 
   }
@@ -134,8 +139,16 @@ public class TestFailedProdRun {
     runner.setObserveRequests(productionObserveRequests);
     runner.setOffsetTracker(tracker);
     PipelineConfiguration pipelineConfiguration = MockStages.createPipelineConfigurationSourceProcessorTarget();
-    ProductionPipeline pipeline = new ProductionPipelineBuilder(PIPELINE_NAME, REVISION, conf, runtimeInfo,
-      MockStages.createStageLibrary(), runner, null).build(MockStages.userContext(), pipelineConfiguration);
+    ProductionPipeline pipeline = new ProductionPipelineBuilder(
+      PIPELINE_NAME,
+      REVISION,
+      conf,
+      runtimeInfo,
+      MockStages.createStageLibrary(),
+      runner,
+      null,
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(MockStages.userContext(), pipelineConfiguration);
     try {
       pipeline.registerStatusListener(new TestProductionPipeline.MyStateListener());
       pipeline.run();

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -56,11 +52,25 @@ public class CassandraTargetUpgrader implements StageUpgrader {
         // fall through
       case 3:
         newConfigs = upgradeV3ToV4(configs);
+        if (toVersion == 4) {
+          break;
+        }
+        // fall through
+      case 4:
+        newConfigs = upgradeV4ToV5(newConfigs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
     }
     return newConfigs;
+  }
+
+  private List<Config> upgradeV4ToV5(List<Config> configs) {
+    configs.add(new Config("conf.authProviderOption", AuthProviderOption.NONE));
+    return configs
+        .stream()
+        .filter(c -> !"conf.useCredentials".equals(c.getName()))
+        .collect(Collectors.toList());
   }
 
   private void upgradeV1ToV2(List<Config> configs) {

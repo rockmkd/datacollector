@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -380,6 +376,7 @@ public class AvroTypeUtil {
         Map<String, Field> valueAsMap = field.getValueAsMap();
         GenericRecord genericRecord = new GenericData.Record(schema);
         for (Schema.Field f : schema.getFields()) {
+          String key = schema.getFullName() + SCHEMA_PATH_SEPARATOR + f.name();
           // If the record does not contain a field corresponding to the schema field, look up the default value from
           // the schema.
           // If no default value was specified for the field and record does not contain it, then throw exception.
@@ -390,19 +387,30 @@ public class AvroTypeUtil {
             for(Map.Entry<String, JsonNode> entry : f.getJsonProps().entrySet()) {
               fieldSchema.addProp(entry.getKey(), entry.getValue());
             }
-
-            genericRecord.put(
-                f.name(),
-                sdcRecordToAvro(
-                    record,
-                    valueAsMap.get(f.name()),
-                    avroFieldPath + FORWARD_SLASH + f.name(),
-                    fieldSchema,
-                    defaultValueMap
-                )
+            Object v = sdcRecordToAvro(
+                record,
+                valueAsMap.get(f.name()),
+                avroFieldPath + FORWARD_SLASH + f.name(),
+                fieldSchema,
+                defaultValueMap
             );
+            // If value in record is null and there is no default value specified, send to error.
+            if(v == null) {
+              if (!defaultValueMap.containsKey(key)) {
+                // DatumWriter can handle writing null value for the Union and Null types
+                if (!(fieldSchema.getType() == Schema.Type.UNION || fieldSchema.getType() == Schema.Type.NULL)) {
+                  throw new DataGeneratorException(
+                      Errors.AVRO_GENERATOR_01,
+                      record.getHeader().getSourceId(),
+                      key
+                  );
+                }
+              } else {
+                v = defaultValueMap.get(key);
+              }
+            }
+            genericRecord.put(f.name(), v);
           } else {
-            String key = schema.getFullName() + SCHEMA_PATH_SEPARATOR + f.name();
             if(!defaultValueMap.containsKey(key)) {
                 throw new DataGeneratorException(
                   Errors.AVRO_GENERATOR_00,

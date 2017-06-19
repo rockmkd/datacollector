@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -30,6 +26,8 @@ import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.creation.PipelineStageBeans;
 import com.streamsets.datacollector.creation.StageBean;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.memory.MemoryUsageCollectorResourceBundle;
 import com.streamsets.datacollector.runner.production.BadRecordsHandler;
 import com.streamsets.datacollector.runner.production.StatsAggregationHandler;
@@ -85,6 +83,7 @@ public class Pipeline {
   private final UserContext userContext;
   private final List<Map<String, Object>> runnerSharedMaps;
   private final Map<String, Object> runtimeParameters;
+  private final LineagePublisherTask lineagePublisherTask;
 
   private Pipeline(
       String name,
@@ -104,7 +103,8 @@ public class Pipeline {
       List<Stage.Info> stageInfos,
       UserContext userContext,
       List<Map<String, Object>> runnerSharedMaps,
-      Map<String, Object> runtimeParameters
+      Map<String, Object> runtimeParameters,
+      LineagePublisherTask lineagePublisherTask
   ) {
     this.pipelineBean = pipelineBean;
     this.name = name;
@@ -126,6 +126,7 @@ public class Pipeline {
     this.runnerSharedMaps = runnerSharedMaps;
     this.userContext = userContext;
     this.runtimeParameters = runtimeParameters;
+    this.lineagePublisherTask = lineagePublisherTask;
   }
 
   PipelineConfigBean getPipelineConfig() {
@@ -272,7 +273,8 @@ public class Pipeline {
               observer,
               memoryUsageCollectorResourceBundle,
               scheduledExecutor,
-              runnerSharedMaps
+              runnerSharedMaps,
+              lineagePublisherTask
             ));
           }
         } catch (PipelineRuntimeException e) {
@@ -379,6 +381,7 @@ public class Pipeline {
     private final String rev;
     private final UserContext userContext;
     private final PipelineConfiguration pipelineConf;
+    private final LineagePublisherTask lineagePublisherTask;
     private Observer observer;
     private final ResourceControlledScheduledExecutor scheduledExecutor =
         new ResourceControlledScheduledExecutor(0.01f); // consume 1% of a cpu calculating stage memory consumption
@@ -393,7 +396,8 @@ public class Pipeline {
         String pipelineName,
         String rev,
         UserContext userContext,
-        PipelineConfiguration pipelineConf
+        PipelineConfiguration pipelineConf,
+        LineagePublisherTask lineagePublisherTask
     ) {
       this.stageLib = stageLib;
       this.name = name;
@@ -403,6 +407,7 @@ public class Pipeline {
       this.configuration = configuration;
       this.pipelineConf = pipelineConf;
       this.errors = Collections.emptyList();
+      this.lineagePublisherTask = lineagePublisherTask;
     }
 
     public Builder setObserver(Observer observer) {
@@ -443,7 +448,8 @@ public class Pipeline {
           userContext,
           configuration,
           0,
-          new ConcurrentHashMap<>()
+          new ConcurrentHashMap<>(),
+          lineagePublisherTask
         );
 
         SourcePipe originPipe = createOriginPipe(originRuntime, runner);
@@ -469,7 +475,8 @@ public class Pipeline {
           observer,
           memoryUsageCollectorResourceBundle,
           scheduledExecutor,
-          runnerSharedMaps
+          runnerSharedMaps,
+          lineagePublisherTask
         ));
 
         // Error stage handling
@@ -485,7 +492,8 @@ public class Pipeline {
           userContext,
           configuration,
           0,
-          new ConcurrentHashMap<>()
+          new ConcurrentHashMap<>(),
+          lineagePublisherTask
         );
         BadRecordsHandler badRecordsHandler = new BadRecordsHandler(errorStage);
 
@@ -504,7 +512,8 @@ public class Pipeline {
             userContext,
             configuration,
             0,
-            new ConcurrentHashMap<>()
+            new ConcurrentHashMap<>(),
+            lineagePublisherTask
           );
 
           statsAggregationHandler = new StatsAggregationHandler(statsAggregator);
@@ -529,7 +538,8 @@ public class Pipeline {
             stageInfos,
             userContext,
             runnerSharedMaps,
-            runtimeParameters
+            runtimeParameters,
+            lineagePublisherTask
           );
         } catch (Exception e) {
           String msg = "Can't instantiate pipeline: " + e;
@@ -577,7 +587,8 @@ public class Pipeline {
     Observer observer,
     MemoryUsageCollectorResourceBundle memoryUsageCollectorResourceBundle,
     ResourceControlledScheduledExecutor scheduledExecutor,
-    List<Map<String, Object>> sharedRunnerMaps
+    List<Map<String, Object>> sharedRunnerMaps,
+    LineagePublisherTask lineagePublisherTask
   ) throws PipelineRuntimeException {
     Preconditions.checkArgument(beans.size() == sharedRunnerMaps.size(),
       Utils.format("New runner have different number of states then original one! ({} != {})", beans.size(), sharedRunnerMaps.size()));
@@ -601,7 +612,8 @@ public class Pipeline {
         userContext,
         configuration,
         runnerId,
-        sharedRunnerMap
+        sharedRunnerMap,
+        lineagePublisherTask
       ));
     }
 
@@ -711,7 +723,8 @@ public class Pipeline {
     UserContext userContext,
     Configuration configuration,
     int runnerId,
-    Map<String, Object> runnerSharedMap
+    Map<String, Object> runnerSharedMap,
+    LineagePublisherTask lineagePublisherTask
   ) {
     // Create StageRuntime itself
     StageRuntime stageRuntime = new StageRuntime(pipelineBean, stageBean);
@@ -739,7 +752,8 @@ public class Pipeline {
         pipelineRunner.getRuntimeInfo(),
         new EmailSender(configuration),
         configuration,
-        runnerSharedMap
+        runnerSharedMap,
+        new LineagePublisherDelegator.TaskDelegator(lineagePublisherTask)
       )
     );
 

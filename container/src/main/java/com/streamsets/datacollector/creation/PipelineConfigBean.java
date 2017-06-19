@@ -1,13 +1,9 @@
-/*
- * Copyright 2015 StreamSets Inc.
+/**
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -184,15 +180,28 @@ public class PipelineConfigBean implements Stage {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.NUMBER,
+      label = "Worker Count",
+      description = "Number of workers. 0 to start as many workers as Kafka partitions for topic.",
+      defaultValue = "0",
+      min = 0,
+      displayPosition = 100,
+      group = "CLUSTER",
+      dependsOn = "executionMode",
+      triggeredByValue = {"CLUSTER_YARN_STREAMING"}
+  )
+  public long workerCount;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
       label = "Worker Memory (MB)",
       defaultValue = "1024",
-      displayPosition = 100,
+      displayPosition = 150,
       group = "CLUSTER",
       dependsOn = "executionMode",
       triggeredByValue = {"CLUSTER_BATCH", "CLUSTER_YARN_STREAMING"}
   )
-  public long clusterSlaveMemory;
-
+  public int clusterSlaveMemory;
 
   @ConfigDef(
     required = true,

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -36,6 +32,7 @@ import com.streamsets.datacollector.el.ELEvaluator;
 import com.streamsets.datacollector.el.ELVariables;
 import com.streamsets.datacollector.email.EmailException;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.record.EventRecordImpl;
@@ -73,6 +70,7 @@ import com.streamsets.pipeline.api.ext.Sampler;
 import com.streamsets.pipeline.api.ext.json.Mode;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
 import com.streamsets.pipeline.lib.sampling.RecordSampler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,6 +122,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
   private final EmailSender emailSender;
   private final Sampler sampler;
   private final Map<String, Object> sharedRunnerMap;
+  private final LineagePublisherDelegator lineagePublisherDelegator;
   private PipelineFinisherDelegate pipelineFinisherDelegate;
 
   //for SDK
@@ -140,7 +139,8 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
       DeliveryGuarantee deliveryGuarantee,
       String resourcesDir,
       EmailSender emailSender,
-      Configuration configuration
+      Configuration configuration,
+      LineagePublisherDelegator lineagePublisherDelegator
   ) {
     this.pipelineName = "myPipeline";
     this.sdcId = "mySDC";
@@ -159,6 +159,11 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
 
       @Override
       public String getInstanceName() {
+        return instanceName;
+      }
+
+      @Override
+      public String getLabel() {
         return instanceName;
       }
     };
@@ -185,6 +190,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
     // sample all records while testing
     this.configuration = configuration.getSubSetConfiguration(STAGE_CONF_PREFIX);
     this.sampler = new RecordSampler(this, stageType == StageType.SOURCE, 0, 0);
+    this.lineagePublisherDelegator = lineagePublisherDelegator;
   }
 
   public StageContext(
@@ -203,7 +209,8 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
       RuntimeInfo runtimeInfo,
       EmailSender emailSender,
       Configuration configuration,
-      Map<String, Object> sharedRunnerMap
+      Map<String, Object> sharedRunnerMap,
+      LineagePublisherDelegator lineagePublisherDelegator
   ) {
     this.pipelineName = pipelineName;
     this.rev = rev;
@@ -229,6 +236,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
     int populationSize = configuration.get(SDC_RECORD_SAMPLING_POPULATION_SIZE, 10000);
     this.sampler = new RecordSampler(this, stageType == StageType.SOURCE, sampleSize, populationSize);
     this.sharedRunnerMap = sharedRunnerMap;
+    this.lineagePublisherDelegator = lineagePublisherDelegator;
   }
 
   private Map<String, Class<?>[]> getConfigToElDefMap(StageRuntime stageRuntime) {
@@ -546,7 +554,7 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
       recordImpl.getHeader().setSourceRecord(recordImpl);
       recordImpl.setInitialRecord(false);
     }
-    recordImpl.getHeader().setError(stageInfo.getInstanceName(), errorMessage);
+    recordImpl.getHeader().setError(stageInfo.getInstanceName(), stageInfo.getLabel(), errorMessage);
     errorSink.addRecord(stageInfo.getInstanceName(), recordImpl);
   }
 
@@ -585,6 +593,11 @@ public class StageContext implements Source.Context, PushSource.Context, Target.
   @Override
   public EventRecord createEventRecord(String type, int version, String recordSourceId) {
     return new EventRecordImpl(type, version, stageInfo.getInstanceName(), recordSourceId, null, null);
+  }
+
+  @Override
+  public void publishLineageEvent(LineageEvent event) {
+    lineagePublisherDelegator.publishLineageEvent(event);
   }
 
   @Override

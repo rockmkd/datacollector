@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -802,7 +798,8 @@ public class ClusterProviderImpl implements ClusterProvider {
     errors.clear();
     PipelineConfigBean config = PipelineBeanCreator.get().create(pipelineConfiguration, errors);
     Utils.checkArgument(config != null, Utils.formatL("Invalid pipeline configuration: {}", errors));
-    String numExecutors = sourceInfo.get(ClusterModeConstants.NUM_EXECUTORS_KEY);
+    String numExecutors = config.workerCount == 0 ?
+        sourceInfo.get(ClusterModeConstants.NUM_EXECUTORS_KEY) : String.valueOf(config.workerCount);
     List<String> args;
     File hostingDir = null;
     if (executionMode == ExecutionMode.CLUSTER_BATCH) {

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,6 +17,7 @@ package com.streamsets.pipeline.sdk;
 
 import com.streamsets.datacollector.config.StageType;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
 import com.streamsets.datacollector.runner.StageContext;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
@@ -54,6 +51,11 @@ public class ContextInfoCreator {
 
       @Override
       public String getInstanceName() {
+        return instanceName;
+      }
+
+      @Override
+      public String getLabel() {
         return instanceName;
       }
     };
@@ -91,7 +93,8 @@ public class ContextInfoCreator {
         DeliveryGuarantee.AT_LEAST_ONCE,
         resourcesDir,
         new EmailSender(new Configuration()),
-        new Configuration()
+        new Configuration(),
+        new LineagePublisherDelegator.NoopDelegator()
     );
   }
 

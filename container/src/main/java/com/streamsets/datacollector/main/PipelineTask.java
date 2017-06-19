@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -24,6 +20,7 @@ import com.streamsets.datacollector.event.handler.EventHandlerTask;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.http.DataCollectorWebServerTask;
 import com.streamsets.datacollector.http.WebServerTask;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.task.CompositeTask;
@@ -36,16 +33,26 @@ public class PipelineTask extends CompositeTask {
   private final PipelineStoreTask pipelineStoreTask;
   private final StageLibraryTask stageLibraryTask;
   private final WebServerTask webServerTask;
+  private final LineagePublisherTask lineagePublisherTask;
 
   @Inject
-  public PipelineTask(StageLibraryTask library, PipelineStoreTask store, Manager manager,
-      DataCollectorWebServerTask webServerTask, EventHandlerTask eventHandlerTask) {
-    super("pipelineNode", ImmutableList.of(library, store, webServerTask , manager, eventHandlerTask),
+  public PipelineTask(
+    StageLibraryTask library,
+    PipelineStoreTask store,
+    Manager manager,
+    DataCollectorWebServerTask webServerTask,
+    EventHandlerTask eventHandlerTask,
+    LineagePublisherTask lineagePublisherTask
+  ) {
+    super(
+      "pipelineNode",
+      ImmutableList.of(library, lineagePublisherTask, store, webServerTask , manager, eventHandlerTask),
       true);
     this.webServerTask = webServerTask;
     this.stageLibraryTask = library;
     this.pipelineStoreTask = store;
     this.manager = manager;
+    this.lineagePublisherTask = lineagePublisherTask;
   }
 
   public Manager getManager() {
@@ -59,5 +66,8 @@ public class PipelineTask extends CompositeTask {
   }
   public WebServerTask getWebServerTask() {
     return webServerTask;
+  }
+  public LineagePublisherTask getLineagePublisherTask() {
+    return lineagePublisherTask;
   }
 }

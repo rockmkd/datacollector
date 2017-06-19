@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -26,6 +22,7 @@ import com.streamsets.datacollector.config.StageType;
 import com.streamsets.datacollector.el.RuntimeEL;
 import com.streamsets.datacollector.email.EmailSender;
 import com.streamsets.datacollector.json.JsonMapperImpl;
+import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
@@ -46,6 +43,7 @@ import com.streamsets.pipeline.api.ext.DataCollectorServices;
 import com.streamsets.pipeline.api.ext.json.JsonMapper;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,6 +79,7 @@ public abstract class StageRunner<S extends Stage> {
   private final S stage;
   private final Stage.Info info;
   private final StageContext context;
+  private final List<LineageEvent> lineageEvents;
   private Status status;
 
   private static Stage getStage(Class<? extends Stage> klass) {
@@ -284,6 +283,7 @@ public abstract class StageRunner<S extends Stage> {
     }
     Configuration sdcConfiguration = new Configuration();
     stageSdcConf.forEach((k, v) -> sdcConfiguration.set("stage.conf_" + k, v));
+    this.lineageEvents = new ArrayList<>();
 
     context = new StageContext(
         instanceName,
@@ -298,7 +298,8 @@ public abstract class StageRunner<S extends Stage> {
         deliveryGuarantee,
         resourcesDir,
         new EmailSender(new Configuration()),
-        sdcConfiguration
+        sdcConfiguration,
+        new LineagePublisherDelegator.ListDelegator(this.lineageEvents)
     );
     status = Status.CREATED;
   }
@@ -381,6 +382,14 @@ public abstract class StageRunner<S extends Stage> {
 
   public void clearEvents() {
     context.getEventSink().clear();
+  }
+
+  public List<LineageEvent> getLineageEvents() {
+    return ImmutableList.copyOf(this.lineageEvents);
+  }
+
+  public void clearLineageEvents() {
+    this.lineageEvents.clear();
   }
 
   public static class Output {

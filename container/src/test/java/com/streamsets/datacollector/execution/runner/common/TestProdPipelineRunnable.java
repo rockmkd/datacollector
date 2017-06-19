@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -31,6 +27,7 @@ import com.streamsets.datacollector.execution.runner.common.TestProductionPipeli
 import com.streamsets.datacollector.execution.runner.standalone.StandaloneRunner;
 import com.streamsets.datacollector.execution.snapshot.common.SnapshotInfoImpl;
 import com.streamsets.datacollector.execution.snapshot.file.FileSnapshotStore;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.runner.MockStages;
@@ -178,8 +175,16 @@ public class TestProdPipelineRunnable {
     runner.setObserveRequests(productionObserveRequests);
     runner.setOffsetTracker(tracker);
 
-    ProductionPipeline pipeline = new ProductionPipelineBuilder(TestUtil.MY_PIPELINE, "0", conf, runtimeInfo,
-      MockStages.createStageLibrary(), runner, null).build(MockStages.userContext(), MockStages.createPipelineConfigurationSourceProcessorTarget());
+    ProductionPipeline pipeline = new ProductionPipelineBuilder(
+      TestUtil.MY_PIPELINE,
+      "0",
+      conf,
+      runtimeInfo,
+      MockStages.createStageLibrary(),
+      runner,
+      null,
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(MockStages.userContext(), MockStages.createPipelineConfigurationSourceProcessorTarget());
 
     pipelineStateStore.saveState("admin", TestUtil.MY_PIPELINE, "0", PipelineStatus.STOPPED, null, null, null, null, 0, 0);
 

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,17 +17,8 @@ package com.streamsets.datacollector.runner;
 
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
-import com.streamsets.datacollector.runner.BatchImpl;
-import com.streamsets.datacollector.runner.BatchMakerImpl;
-import com.streamsets.datacollector.runner.ErrorSink;
-import com.streamsets.datacollector.runner.FullPipeBatch;
-import com.streamsets.datacollector.runner.Pipe;
-import com.streamsets.datacollector.runner.PipeBatch;
-import com.streamsets.datacollector.runner.PipeContext;
-import com.streamsets.datacollector.runner.Pipeline;
-import com.streamsets.datacollector.runner.PipelineRunner;
-import com.streamsets.datacollector.runner.StagePipe;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.BatchMaker;
@@ -85,9 +72,16 @@ public class TestStagePipe {
     PipelineRunner pipelineRunner = Mockito.mock(PipelineRunner.class);
     Mockito.when(pipelineRunner.getMetrics()).thenReturn(new MetricRegistry());
     Mockito.when(pipelineRunner.getRuntimeInfo()).thenReturn(Mockito.mock(RuntimeInfo.class));
-    Pipeline pipeline = new Pipeline.Builder(MockStages.createStageLibrary(), new Configuration(), "name", "name", "0", MockStages.userContext(),
-                                             MockStages.createPipelineConfigurationSourceProcessorTarget())
-        .build(pipelineRunner);
+    Pipeline pipeline = new Pipeline.Builder(
+      MockStages.createStageLibrary(),
+      new Configuration(),
+      "name",
+      "name",
+      "0",
+      MockStages.userContext(),
+      MockStages.createPipelineConfigurationSourceProcessorTarget(),
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(pipelineRunner);
     StagePipe pipe = (StagePipe) pipeline.getSourcePipe();
     BatchMakerImpl batchMaker = Mockito.mock(BatchMakerImpl.class);
     Mockito.when(batchMaker.getLanes()).thenReturn(ImmutableList.of("s"));
@@ -142,9 +136,16 @@ public class TestStagePipe {
     PipelineRunner pipelineRunner = Mockito.mock(PipelineRunner.class);
     Mockito.when(pipelineRunner.getMetrics()).thenReturn(new MetricRegistry());
     Mockito.when(pipelineRunner.getRuntimeInfo()).thenReturn(Mockito.mock(RuntimeInfo.class));
-    Pipeline pipeline = new Pipeline.Builder(MockStages.createStageLibrary(), new Configuration(), "name", "name", "0", MockStages.userContext(),
-                                             MockStages.createPipelineConfigurationSourceProcessorTarget())
-        .build(pipelineRunner);
+    Pipeline pipeline = new Pipeline.Builder(
+      MockStages.createStageLibrary(),
+      new Configuration(),
+      "name",
+      "name",
+      "0",
+      MockStages.userContext(),
+      MockStages.createPipelineConfigurationSourceProcessorTarget(),
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(pipelineRunner);
     StagePipe pipe = (StagePipe) pipeline.getRunners().get(0).get(3);
     BatchMakerImpl batchMaker = Mockito.mock(BatchMakerImpl.class);
     Mockito.when(batchMaker.getLanes()).thenReturn(ImmutableList.of("p"));
@@ -199,9 +200,16 @@ public class TestStagePipe {
     PipelineRunner pipelineRunner = Mockito.mock(PipelineRunner.class);
     Mockito.when(pipelineRunner.getMetrics()).thenReturn(new MetricRegistry());
     Mockito.when(pipelineRunner.getRuntimeInfo()).thenReturn(Mockito.mock(RuntimeInfo.class));
-    Pipeline pipeline = new Pipeline.Builder(MockStages.createStageLibrary(), new Configuration(), "name", "name", "0", MockStages.userContext(),
-                                             MockStages.createPipelineConfigurationSourceProcessorTarget())
-        .build(pipelineRunner);
+    Pipeline pipeline = new Pipeline.Builder(
+      MockStages.createStageLibrary(),
+      new Configuration(),
+      "name",
+      "name",
+      "0",
+      MockStages.userContext(),
+      MockStages.createPipelineConfigurationSourceProcessorTarget(),
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(pipelineRunner);
     StagePipe pipe = (StagePipe) pipeline.getRunners().get(0).get(7);
     BatchMakerImpl batchMaker = Mockito.mock(BatchMakerImpl.class);
     Mockito.when(batchMaker.getLanes()).thenReturn(ImmutableList.of("t"));
@@ -256,9 +264,16 @@ public class TestStagePipe {
     PipelineRunner pipelineRunner = Mockito.mock(PipelineRunner.class);
     Mockito.when(pipelineRunner.getMetrics()).thenReturn(new MetricRegistry());
     Mockito.when(pipelineRunner.getRuntimeInfo()).thenReturn(Mockito.mock(RuntimeInfo.class));
-    Pipeline pipeline = new Pipeline.Builder(MockStages.createStageLibrary(), new Configuration(), "name", "name", "0", MockStages.userContext(),
-                                             MockStages.createPipelineConfigurationSourceTargetWithEventsProcessed())
-        .build(pipelineRunner);
+    Pipeline pipeline = new Pipeline.Builder(
+      MockStages.createStageLibrary(),
+      new Configuration(),
+      "name",
+      "name",
+      "0",
+      MockStages.userContext(),
+      MockStages.createPipelineConfigurationSourceTargetWithEventsProcessed(),
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(pipelineRunner);
     final int index = 3;
     Assert.assertEquals("executorName", pipeline.getRunners().get(0).get(index).getStage().getDefinition().getName());
     Assert.assertTrue(pipeline.getRunners().get(0).get(index) instanceof StagePipe);

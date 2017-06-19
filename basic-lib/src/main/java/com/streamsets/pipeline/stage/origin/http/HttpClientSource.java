@@ -1,13 +1,9 @@
-/*
- * Copyright 2015 StreamSets Inc.
+/**
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -17,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.streamsets.pipeline.stage.origin.http;
 
 import com.google.common.hash.HashFunction;
@@ -445,6 +440,7 @@ public class HttpClientSource extends BaseSource {
     boolean keepRequesting = !getContext().isStopped();
     boolean gotNewToken = false;
     while (keepRequesting) {
+      long startTime = System.currentTimeMillis();
       try {
         if (conf.requestBody != null && !conf.requestBody.isEmpty() && conf.httpMethod != HttpMethod.GET) {
           final String requestBody = bodyEval.eval(bodyVars, conf.requestBody, String.class);
@@ -455,6 +451,7 @@ public class HttpClientSource extends BaseSource {
         } else {
           response = invocationBuilder.method(conf.httpMethod.getLabel());
         }
+        LOG.debug("Retrieved response in {} ms", System.currentTimeMillis() - startTime);
 
         lastRequestTimedOut = false;
         final int status = response.getStatus();
@@ -480,6 +477,7 @@ public class HttpClientSource extends BaseSource {
         }
         lastStatus = status;
       } catch (ProcessingException e) {
+        LOG.debug("Request failed after {} ms", System.currentTimeMillis() - startTime);
         if (e.getCause() != null && e.getCause() instanceof TimeoutException) {
           LOG.warn(
             String.format(
@@ -546,13 +544,13 @@ public class HttpClientSource extends BaseSource {
       case RETRY_IMMEDIATELY:
         break;
       case RETRY_EXPONENTIAL_BACKOFF:
-        backoffIntervalExponential =
-            firstOccurence ? backoff : backoffIntervalExponential * 2;
+        backoffIntervalExponential = firstOccurence ? backoff : backoffIntervalExponential * 2;
+        LOG.debug("Applying back off for {} ms", backoffIntervalExponential);
         uninterrupted = ThreadUtil.sleep(backoffIntervalExponential);
         break;
       case RETRY_LINEAR_BACKOFF:
-        backoffIntervalLinear =
-            firstOccurence ? backoff : backoffIntervalLinear + backoff;
+        backoffIntervalLinear = firstOccurence ? backoff : backoffIntervalLinear + backoff;
+        LOG.debug("Applying back off for {} ms", backoffIntervalLinear);
         uninterrupted = ThreadUtil.sleep(backoffIntervalLinear);
         break;
     }

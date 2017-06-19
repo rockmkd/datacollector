@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -83,6 +79,7 @@ public class TestRecordEL {
 
     Record.Header header = Mockito.mock(Record.Header.class);
     Mockito.when(header.getErrorStage()).thenReturn("stage");
+    Mockito.when(header.getErrorStageLabel()).thenReturn("label");
     Mockito.when(header.getErrorCode()).thenReturn("code");
     Mockito.when(header.getErrorMessage()).thenReturn("message");
     Mockito.when(header.getErrorDataCollectorId()).thenReturn("collector");
@@ -94,6 +91,7 @@ public class TestRecordEL {
     RecordEL.setRecordInContext(variables, record);
 
     Assert.assertEquals("stage", eval.eval(variables, "${record:errorStage()}", String.class));
+    Assert.assertEquals("label", eval.eval(variables, "${record:errorStageLabel()}", String.class));
     Assert.assertEquals("code", eval.eval(variables, "${record:errorCode()}", String.class));
     Assert.assertEquals("message", eval.eval(variables, "${record:errorMessage()}", String.class));
     Assert.assertEquals("collector", eval.eval(variables, "${record:errorCollectorId()}", String.class));

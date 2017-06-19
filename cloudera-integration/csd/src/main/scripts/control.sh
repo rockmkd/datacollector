@@ -1,23 +1,18 @@
 #!/bin/bash
 #
+# Copyright 2017 StreamSets Inc.
 #
-# Licensed under the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 
 # For better debugging
@@ -96,7 +91,7 @@ function prepend_file_content {
   work_file=$1
   prepend_file=$2
 
-  echo "Prepending content from $prepend_file to $work_file"
+  log "Prepending content from $prepend_file to $work_file"
   cat $prepend_file $work_file > work.tmp
   mv work.tmp $work_file
 }
@@ -120,6 +115,19 @@ function create_config_symlinks {
   fi
 }
 
+# Make sure that proper redaction configuration is available
+# Logic is as such - if user configured it in CM, use it as it is, otherwise load
+# default file from the parcel itself.
+function support_bundle_redaction_configuration {
+  REDACT_CONF="$CONF_DIR/support-bundle-redactor.json"
+  if [ -s $REDACT_CONF ] ; then
+    log "Found non-empty support-bundle-redactor.json configuration, using it."
+  else
+    log "Using default parcel file for support-bundle-redactor.json"
+    cp $SDC_DIST/etc/support-bundle-redactor.json $REDACT_CONF
+  fi
+}
+
 # Start SDC (exec into it)
 function start {
   log "Starting StreamSets Data Collector"
@@ -138,6 +146,7 @@ function start {
   create_config_symlinks
 
   # Load default configuration from the parcel
+  support_bundle_redaction_configuration
   prepend_file_content $CONF_DIR/sdc-security.policy $SDC_DIST/etc/sdc-security.policy
   prepend_file_content $CONF_DIR/sdc-env.sh $SDC_DIST/libexec/sdc-env.sh
 
@@ -273,7 +282,7 @@ function dpm_verify_config {
 # Register auth token for this SDC instance in DPM
 function dpm {
   if [[ -f "$DPM_TOKEN_FILE" ]]; then
-    echo "DPM token already exists, skipping for now."
+    log "DPM token already exists, skipping for now."
     return
   fi
 
@@ -309,9 +318,9 @@ if [ -f $SDC_PROPERTIES ]; then
 
   # Propagate system white and black lists
   if ! grep -q "system.stagelibs.*list" $SDC_PROPERTIES; then
-    echo "System white nor black list found in configuration"
+    log "System white nor black list found in configuration"
     if [ -f ${SDC_PROP_FILE} ]; then
-      echo "Propagating default white and black list from parcel"
+      log "Propagating default white and black list from parcel"
       line_nums=$(grep -n "system.stagelibs.*list" ${SDC_PROP_FILE} | cut -f1 -d:)
       list_start=$(echo ${line_nums} | cut -f1 -d' ')  # line number of where whitelist starts
       list_end=$(echo ${line_nums} | cut -f2 -d' ')    # line number of where blacklist starts
@@ -322,10 +331,10 @@ if [ -f $SDC_PROPERTIES ]; then
           list_end=$((list_end+1))
           blacklist=$(sed "${list_end}q;d" ${SDC_PROP_FILE})
       done
-      echo "Copying lines from ${list_start} to ${list_end} in $SDC_PROP_FILE to $SDC_PROPERTIES"
+      log "Copying lines from ${list_start} to ${list_end} in $SDC_PROP_FILE to $SDC_PROPERTIES"
       sed -n "${list_start},${list_end}p" ${SDC_PROP_FILE} >> $SDC_PROPERTIES
     else
-      echo "Parcel doesn't contain default configuration file, skipping white/black list propagation"
+      log "Parcel doesn't contain default configuration file, skipping white/black list propagation"
     fi
   fi
 

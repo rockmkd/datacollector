@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -35,6 +31,7 @@ import com.streamsets.datacollector.execution.RawPreview;
 import com.streamsets.datacollector.execution.preview.common.PreviewError;
 import com.streamsets.datacollector.execution.preview.common.PreviewOutputImpl;
 import com.streamsets.datacollector.execution.preview.common.RawPreviewImpl;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.SourceOffsetTracker;
@@ -88,6 +85,7 @@ public class SyncPreviewer implements Previewer {
   @Inject StageLibraryTask stageLibrary;
   @Inject PipelineStoreTask pipelineStore;
   @Inject RuntimeInfo runtimeInfo;
+  @Inject LineagePublisherTask lineagePublisherTask;
   private volatile PreviewStatus previewStatus;
   private volatile PreviewOutput previewOutput;
   private volatile PreviewPipeline previewPipeline;
@@ -293,8 +291,15 @@ public class SyncPreviewer implements Previewer {
     SourceOffsetTracker tracker = new PreviewSourceOffsetTracker(Collections.<String, String>emptyMap());
     PreviewPipelineRunner runner = new PreviewPipelineRunner(name, rev, runtimeInfo, tracker, batchSize, batches,
       skipTargets);
-    return new PreviewPipelineBuilder(stageLibrary, configuration, name, rev, pipelineConf, endStageInstanceName)
-      .build(userContext, runner);
+    return new PreviewPipelineBuilder(
+      stageLibrary,
+      configuration,
+      name,
+      rev,
+      pipelineConf,
+      endStageInstanceName,
+      lineagePublisherTask
+    ).build(userContext, runner);
   }
 
   private RawSourcePreviewer createRawSourcePreviewer(

@@ -1,13 +1,9 @@
 /**
- * Copyright 2016 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -52,9 +48,14 @@ public class BatchContextImpl implements BatchContext {
   private long startTime;
 
   /**
-   * Stage name of the source to properly route event and error records.
+   * Internal and unique stage name of the source to properly route event and error records.
    */
   private String originStageName;
+
+  /**
+   * User stage label of the source to properly route event and error records.
+   */
+  private String originStageLabel;
 
   public BatchContextImpl(FullPipeBatch pipeBatch) {
     this.pipeBatch = pipeBatch;
@@ -94,7 +95,7 @@ public class BatchContextImpl implements BatchContext {
       recordImpl.getHeader().setSourceRecord(recordImpl);
       recordImpl.setInitialRecord(false);
     }
-    recordImpl.getHeader().setError(originStageName, errorMessage);
+    recordImpl.getHeader().setError(originStageName, originStageLabel, errorMessage);
     pipeBatch.getErrorSink().addRecord(originStageName, recordImpl);
   }
 
@@ -117,8 +118,9 @@ public class BatchContextImpl implements BatchContext {
     this.batchMaker = batchMaker;
   }
 
-  public void setOriginStageName(String name) {
-    this.originStageName = name;
+  public void setOriginStageName(String originStage, String originStageLabel) {
+    this.originStageName = originStage;
+    this.originStageLabel = originStageLabel;
   }
 
   public FullPipeBatch getPipeBatch() {

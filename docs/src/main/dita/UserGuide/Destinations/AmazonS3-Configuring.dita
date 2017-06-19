@@ -1,16 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
 
-      http://www.apache.org/licenses/LICENSE-2.0
+    Copyright 2017 StreamSets Inc.
 
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
 -->
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA General Task//EN" "generalTask.dtd">
 <task id="task_pxb_j3r_rt">
@@ -109,8 +113,15 @@
                                     <entry/>
                                 </row>
                                 <row>
-                                    <entry>Bucket</entry>
-                                    <entry>Bucket to use when writing objects.</entry>
+                                    <entry>Bucket <xref href="AmazonS3-Bucket.dita">
+                                            <image href="../Graphics/icon_moreInfo.png" scale="10"
+                                                id="image_sk5_yzp_f1b"/>
+                                        </xref></entry>
+                                    <entry>Bucket to use when writing records.<p>Enter a bucket name
+                                            or define an expression that evaluates to bucket names.
+                                            </p><p>When using datetime variables in the expression,
+                                            be sure to configure the time basis for the
+                                        stage.</p></entry>
                                 </row>
                                 <row>
                                     <entry>Common Prefix</entry>
@@ -129,7 +140,9 @@
                                     <entry>Optional partition prefix to specify the partition to
                                         use. <p>Use a specific partition prefix or define an
                                             expression that evaluates to a partition prefix.
-                                        </p></entry>
+                                            </p><p>When using datetime variables in the expression,
+                                            be sure to configure the time basis for the
+                                        stage.</p></entry>
                                 </row>
                                 <row>
                                     <entry>Time Basis <xref href="AmazonS3-TimeBasis.dita">
@@ -137,19 +150,19 @@
                                                 id="image_d73_kf8_wv"/>
                                         </xref></entry>
                                     <entry>
-                                        <p>Time basis to use for writing to a time-based partition
-                                            prefix. Use one of the following expressions:<ul
-                                                id="ul_wbn_qdt_r5">
+                                        <p>Time basis to use for writing to a time-based bucket or
+                                            partition prefix. Use one of the following
+                                                expressions:<ul id="ul_wbn_qdt_r5">
                                                 <li><codeph>${time:now()}</codeph> - Uses the
-                                                  processing time as the time basis.  </li>
+                                                  processing time as the time basis. </li>
                                                 <li>An expression that calls a field and resolves to
                                                   a datetime value, such as
                                                   <codeph>${record:value(&lt;date field
                                                   path>)}</codeph>. Uses the time associated with
                                                   the record as the time basis. </li>
                                             </ul></p>
-                                        <p>When the Partition Prefix definition has no time
-                                            component, you can ignore this property. </p>
+                                        <p>When the Bucket and Partition Prefix properties have no
+                                            time component, you can ignore this property. </p>
                                         <p>Default is <codeph>${time:now()}</codeph>.</p>
                                     </entry>
                                 </row>

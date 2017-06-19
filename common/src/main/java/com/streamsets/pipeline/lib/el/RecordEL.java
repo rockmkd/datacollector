@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -165,8 +161,19 @@ public class RecordEL {
   }
 
   private enum HeaderProperty {
-    ID, STAGE_CREATOR, STAGES_PATH, ERROR_STAGE, ERROR_CODE, ERROR_MESSAGE, ERROR_DATA_COLLECTOR_ID,
-    ERROR_PIPELINE_NAME, ERROR_TIME, EVENT_TYPE, EVENT_VERSION, EVENT_CREATION,
+    ID,
+    STAGE_CREATOR,
+    STAGES_PATH,
+    ERROR_STAGE,
+    ERROR_STAGE_LABEL,
+    ERROR_CODE,
+    ERROR_MESSAGE,
+    ERROR_DATA_COLLECTOR_ID,
+    ERROR_PIPELINE_NAME,
+    ERROR_TIME,
+    EVENT_TYPE,
+    EVENT_VERSION,
+    EVENT_CREATION,
   }
 
   @SuppressWarnings("unchecked")
@@ -186,6 +193,9 @@ public class RecordEL {
           break;
         case ERROR_STAGE:
           value = record.getHeader().getErrorStage();
+          break;
+        case ERROR_STAGE_LABEL:
+          value = record.getHeader().getErrorStageLabel();
           break;
         case ERROR_CODE:
           value = record.getHeader().getErrorCode();
@@ -246,6 +256,14 @@ public class RecordEL {
     description = "Returns the error stage for the record in context")
   public static String getErrorStage() {
     return getFromHeader(HeaderProperty.ERROR_STAGE);
+  }
+
+  @ElFunction(
+    prefix = RECORD_EL_PREFIX,
+    name = "errorStageLabel",
+    description = "Returns the error stage label for the record in context")
+  public static String getErrorStageLabel() {
+    return getFromHeader(HeaderProperty.ERROR_STAGE_LABEL);
   }
 
   @ElFunction(

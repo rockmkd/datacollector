@@ -1,13 +1,9 @@
 /**
- * Copyright 2016 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -71,7 +67,7 @@ public class HttpProcessorConfig {
       required = false,
       type = ConfigDef.Type.STRING,
       label = "Header Attribute Prefix",
-      description = "A prefix to to the response header name to add in the record header.",
+      description = "A prefix to add to record header attributes in the response",
       displayPosition = 30,
       group = "HTTP",
       dependsOn = "headerOutputLocation",

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -36,6 +32,7 @@ import com.streamsets.datacollector.execution.runner.provider.StandaloneAndClust
 import com.streamsets.datacollector.execution.runner.standalone.StandaloneRunner;
 import com.streamsets.datacollector.execution.snapshot.file.FileSnapshotStore;
 import com.streamsets.datacollector.execution.store.FilePipelineStateStore;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
@@ -93,10 +90,19 @@ public class TestStandalonePipelineManager {
   private Manager pipelineManager;
   private PipelineStateStore pipelineStateStore;
 
-  @Module(injects = {StandaloneAndClusterPipelineManager.class, PipelineStoreTask.class, PipelineStateStore.class,
-    StandaloneRunner.class, EventListenerManager.class, LockCache.class, RuntimeInfo.class},  includes = LockCacheModule
-      .class,
-    library = true)
+  @Module(
+    injects = {
+      StandaloneAndClusterPipelineManager.class,
+      PipelineStoreTask.class,
+      PipelineStateStore.class,
+      StandaloneRunner.class,
+      EventListenerManager.class,
+      LockCache.class,
+      RuntimeInfo.class
+    },
+    includes = LockCacheModule.class,
+    library = true
+  )
   public static class TestPipelineManagerModule {
     private static Logger LOG = LoggerFactory.getLogger(TestPipelineManagerModule.class);
     private final long expiry;
@@ -214,6 +220,11 @@ public class TestStandalonePipelineManager {
     @Provides @Singleton
     public EventListenerManager provideEventListenerManager() {
       return new EventListenerManager();
+    }
+
+    @Provides @Singleton
+    public LineagePublisherTask provideLineagePublisherTask() {
+      return Mockito.mock(LineagePublisherTask.class);
     }
 
   }

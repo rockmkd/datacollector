@@ -1,13 +1,9 @@
 /**
- * Copyright 2016 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -22,6 +18,7 @@ package com.streamsets.datacollector.main;
 import com.streamsets.datacollector.event.handler.EventHandlerTask;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.http.SlaveWebServerTask;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 
@@ -30,8 +27,21 @@ import javax.inject.Inject;
 public class SlavePipelineTask extends PipelineTask {
 
   @Inject
-  public SlavePipelineTask(StageLibraryTask library, PipelineStoreTask store, Manager manager,
-      SlaveWebServerTask slaveWebServerTask, EventHandlerTask eventHandlerTask) {
-    super(library, store, manager, slaveWebServerTask, eventHandlerTask);
+  public SlavePipelineTask(
+    StageLibraryTask library,
+    PipelineStoreTask store,
+    Manager manager,
+    SlaveWebServerTask slaveWebServerTask,
+    EventHandlerTask eventHandlerTask,
+    LineagePublisherTask lineagePublisherTask
+  ) {
+    super(
+      library,
+      store,
+      manager,
+      slaveWebServerTask,
+      eventHandlerTask,
+      lineagePublisherTask
+    );
   }
 }

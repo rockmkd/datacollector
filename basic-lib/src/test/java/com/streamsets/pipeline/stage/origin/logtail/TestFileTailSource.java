@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -146,10 +142,18 @@ public class TestFileTailSource {
       Assert.assertEquals(fileInfo.fileFullPath, record.getHeader().getAttribute(HeaderAttributeConstants.FILE));
       Assert.assertEquals("logFile.txt", record.getHeader().getAttribute(HeaderAttributeConstants.FILE_NAME));
       Assert.assertEquals("0", record.getHeader().getAttribute(HeaderAttributeConstants.OFFSET));
+      Assert.assertEquals(
+        String.valueOf(Files.getLastModifiedTime(Paths.get(fileInfo.fileFullPath)).toMillis()),
+        record.getHeader().getAttribute(HeaderAttributeConstants.LAST_MODIFIED_TIME)
+      );
       record = output.getRecords().get("lane").get(1);
       Assert.assertEquals(fileInfo.fileFullPath, record.getHeader().getAttribute(HeaderAttributeConstants.FILE));
       Assert.assertEquals("logFile.txt", record.getHeader().getAttribute(HeaderAttributeConstants.FILE_NAME));
       Assert.assertEquals("6", record.getHeader().getAttribute(HeaderAttributeConstants.OFFSET));
+      Assert.assertEquals(
+        String.valueOf(Files.getLastModifiedTime(Paths.get(fileInfo.fileFullPath)).toMillis()),
+        record.getHeader().getAttribute(HeaderAttributeConstants.LAST_MODIFIED_TIME)
+      );
       Assert.assertEquals("LAST", record.get("/text").getValueAsString());
       record = output.getRecords().get("lane").get(2);
       Assert.assertEquals("HELLO", record.get("/text").getValueAsString());

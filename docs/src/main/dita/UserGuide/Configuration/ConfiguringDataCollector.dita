@@ -1,16 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
 
-      http://www.apache.org/licenses/LICENSE-2.0
+    Copyright 2017 StreamSets Inc.
 
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
 -->
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA General Task//EN" "generalTask.dtd">
 <task id="task_lxk_kjw_1r">
@@ -555,6 +559,19 @@
                                         affected stages, see <xref
                                             href="HadoopImpersonationMode.dita#concept_pmr_sy5_nz"
                                         />.</p></entry>
+                            </row>
+                            <row>
+                                <entry>stage.conf_hadoop.always.lowercase.user <xref
+                                        href="HadoopImpersonationMode-Lowercase.dita"
+                                            ><image href="../Graphics/icon_moreInfo.png" scale="10"
+                                            id="image_t4c_hby_f1b"/>
+                                    </xref></entry>
+                                <entry>Converts the user name to lowercase before passing it to
+                                    Hadoop. <p>Use to lowercase user names from case insensitive
+                                        systems, such as a case-insensitive LDAP installation,
+                                        before passing the user names to Hadoop systems.</p><p>To
+                                        use this property, uncomment the property and set it to
+                                        true.</p></entry>
                             </row>
                             <row>
                                 <entry>

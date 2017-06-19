@@ -38,6 +38,7 @@
       "runMode" : "all"
     }
   ],
+  "rolesWithExternalLinks" : ["DATACOLLECTOR"],
   "roles": [
     {
       "name": "DATACOLLECTOR",
@@ -277,6 +278,10 @@
           {
             "filename": "sdc-env.sh",
             "sourceFilename": "aux/sdc-env.sh"
+          },
+          {
+            "filename": "support-bundle-redactor.json",
+            "sourceFilename": "aux/support-bundle-redactor.json"
           },
           {
             "filename": "ldap-login.conf"
@@ -939,8 +944,8 @@
           "name": "dpm.user",
           "type": "string",
           "default": "",
-          "label": "DPM Username",
-          "description": "Username of organization admin that have privileges to register new SDCs.",
+          "label": "DPM User ID",
+          "description": "User ID of organization admin that have privileges to register new SDCs.",
           "required": "false"
         },
         {

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -38,6 +34,7 @@ import com.streamsets.datacollector.execution.runner.common.ProductionPipelineRu
 import com.streamsets.datacollector.execution.runner.common.RulesConfigLoader;
 import com.streamsets.datacollector.execution.runner.common.ThreadHealthReporter;
 import com.streamsets.datacollector.execution.snapshot.file.FileSnapshotStore;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.metrics.MetricsModule;
 import com.streamsets.datacollector.runner.Observer;
@@ -162,13 +159,26 @@ public class PipelineProviderModule {
   }
 
   @Provides @Singleton
-  public ProductionPipelineBuilder provideProductionPipelineBuilder(@Named("name") String name,
-                                                                    @Named("rev") String rev,
-                                                                    Configuration configuration,
-                                                                    RuntimeInfo runtimeInfo, StageLibraryTask stageLib,
-                                                                    PipelineRunner runner, Observer observer) {
-    return new ProductionPipelineBuilder(name, rev, configuration, runtimeInfo, stageLib,
-      (ProductionPipelineRunner)runner, observer);
+  public ProductionPipelineBuilder provideProductionPipelineBuilder(
+    @Named("name") String name,
+    @Named("rev") String rev,
+    Configuration configuration,
+    RuntimeInfo runtimeInfo,
+    StageLibraryTask stageLib,
+    PipelineRunner runner,
+    Observer observer,
+    LineagePublisherTask lineagePublisherTask
+  ) {
+    return new ProductionPipelineBuilder(
+      name,
+      rev,
+      configuration,
+      runtimeInfo,
+      stageLib,
+      (ProductionPipelineRunner)runner,
+      observer,
+      lineagePublisherTask
+    );
   }
 
   @Provides @Singleton

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -125,9 +121,15 @@ public class TestAmazonS3Target {
     Assert.assertTrue(objectListing.getObjectSummaries().isEmpty());
 
     targetRunner.runWrite(logRecords);
-    targetRunner.runDestroy();
 
     TestUtil.assertStringRecords(s3client, BUCKET_NAME, prefix);
+
+    List<Record> events = targetRunner.getEventRecords();
+    Assert.assertNotNull(events);
+    Assert.assertEquals(1, events.size());
+    Assert.assertEquals(9, events.get(0).get("/recordCount").getValueAsLong());
+
+    targetRunner.runDestroy();
   }
 
   @Test

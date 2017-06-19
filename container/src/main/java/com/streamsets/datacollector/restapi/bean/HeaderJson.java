@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -42,16 +38,32 @@ public class HeaderJson {
       @JsonProperty("rawMimeType") String rawMimeType,
       @JsonProperty("errorDataCollectorId") String errorDataCollectorId,
       @JsonProperty("errorPipelineName") String errorPipelineName,
-      @JsonProperty("errorStage") String errorStageInstance,
+      @JsonProperty("errorStage") String errorStage,
+      @JsonProperty("errorStageLabel") String errorStageLabel,
       @JsonProperty("errorCode") String errorCode,
       @JsonProperty("errorMessage") String errorMessage,
       @JsonProperty("errorTimestamp") long errorTimestamp,
       @JsonProperty("errorStackTrace") String errorStackTrace,
       @JsonProperty("values") Map<String, Object> map
   ) {
-    this.header = new HeaderImpl(stageCreator, sourceId, stagesPath, trackingId, previousTrackingId, raw, rawMimeType,
-        errorDataCollectorId, errorPipelineName, errorStageInstance, errorCode, errorMessage, errorTimestamp,
-        errorStackTrace, map);
+    this.header = new HeaderImpl(
+      stageCreator,
+      sourceId,
+      stagesPath,
+      trackingId,
+      previousTrackingId,
+      raw,
+      rawMimeType,
+      errorDataCollectorId,
+      errorPipelineName,
+      errorStage,
+      errorStageLabel,
+      errorCode,
+      errorMessage,
+      errorTimestamp,
+      errorStackTrace,
+      map
+    );
   }
 
   public HeaderJson(HeaderImpl header) {
@@ -82,6 +94,8 @@ public class HeaderJson {
   public String getErrorMessage() {return header.getErrorMessage();}
 
   public String getErrorStage() {return header.getErrorStage();}
+
+  public String getErrorStageLabel() {return header.getErrorStageLabel();}
 
   public long getErrorTimestamp() {return header.getErrorTimestamp();}
 

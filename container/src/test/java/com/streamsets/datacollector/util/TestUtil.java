@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -52,6 +48,7 @@ import com.streamsets.datacollector.execution.runner.standalone.StandaloneRunner
 import com.streamsets.datacollector.execution.snapshot.file.FileSnapshotStore;
 import com.streamsets.datacollector.execution.store.CachePipelineStateStore;
 import com.streamsets.datacollector.execution.store.FilePipelineStateStore;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
@@ -294,6 +291,21 @@ public class TestUtil {
     }
   }
 
+  /*************** Lineage ***************/
+  @Module(
+    injects = {
+      LineagePublisherTask.class
+    },
+    library = true
+  )
+  public static class TestLineageModule {
+    @Provides
+    @Singleton
+    public LineagePublisherTask provideLineagePublisher() {
+      return Mockito.mock(LineagePublisherTask.class);
+    }
+  }
+
   /*************** PipelineStore ***************/
   // TODO - Rename TestPipelineStoreModule after multi pipeline support
   @Module(
@@ -516,12 +528,27 @@ public class TestUtil {
 
   /*************** PipelineProvider ***************/
 
-  @Module(injects = {EmailSender.class, AlertManager.class, Observer.class, RulesConfigLoader.class,
-    ThreadHealthReporter.class, DataObserverRunnable.class, RulesConfigLoaderRunnable.class,
-    MetricObserverRunnable.class, SourceOffsetTracker.class, PipelineRunner.class,
-    com.streamsets.datacollector.execution.runner.common.ProductionPipelineBuilder.class},
-    library = true, includes = {TestRuntimeModule.class, TestPipelineStoreModuleNew.class,
-    TestSnapshotStoreModule.class})
+  @Module(
+    injects = {
+      EmailSender.class,
+      AlertManager.class,
+      Observer.class,
+      RulesConfigLoader.class,
+      ThreadHealthReporter.class,
+      DataObserverRunnable.class,
+      RulesConfigLoaderRunnable.class,
+      MetricObserverRunnable.class,
+      SourceOffsetTracker.class,
+      PipelineRunner.class,
+      com.streamsets.datacollector.execution.runner.common.ProductionPipelineBuilder.class
+    },
+    library = true,
+    includes = {
+      TestRuntimeModule.class,
+      TestPipelineStoreModuleNew.class,
+      TestSnapshotStoreModule.class,
+      TestLineageModule.class
+    })
   public static class TestPipelineProviderModule {
 
     private String name;
@@ -620,8 +647,16 @@ public class TestUtil {
                                                                       @Named("rev") String rev,
                                                                       RuntimeInfo runtimeInfo, StageLibraryTask stageLib,
                                                                       PipelineRunner runner, Observer observer) {
-      return new com.streamsets.datacollector.execution.runner.common.ProductionPipelineBuilder(name, rev,
-        new Configuration(), runtimeInfo, stageLib, (ProductionPipelineRunner)runner, observer);
+      return new com.streamsets.datacollector.execution.runner.common.ProductionPipelineBuilder(
+        name,
+        rev,
+        new Configuration(),
+        runtimeInfo,
+        stageLib,
+        (ProductionPipelineRunner)runner,
+        observer,
+        Mockito.mock(LineagePublisherTask.class)
+      );
     }
   }
 
@@ -662,8 +697,20 @@ public class TestUtil {
 
   /*************** PipelineManager ***************/
 
-  @Module(injects = {StandaloneAndClusterPipelineManager.class, StandaloneRunner.class}, library = true,
-    includes = {TestPipelineStoreModuleNew.class, TestExecutorModule.class, TestSnapshotStoreModule.class, TestAclStoreModule.class})
+  @Module(
+    injects = {
+      StandaloneAndClusterPipelineManager.class,
+      StandaloneRunner.class
+    },
+    library = true,
+    includes = {
+      TestPipelineStoreModuleNew.class,
+      TestExecutorModule.class,
+      TestSnapshotStoreModule.class,
+      TestAclStoreModule.class,
+      TestLineageModule.class
+    }
+  )
   public static class TestPipelineManagerModule {
 
     public TestPipelineManagerModule() {

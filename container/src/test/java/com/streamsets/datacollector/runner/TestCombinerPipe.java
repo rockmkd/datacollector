@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,6 +15,7 @@
  */
 package com.streamsets.datacollector.runner;
 
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.runner.CombinerPipe;
 import com.streamsets.datacollector.runner.FullPipeBatch;
@@ -37,8 +34,16 @@ public class TestCombinerPipe {
   public void testCombinerPipe() throws Exception {
     PipelineRunner pipelineRunner = Mockito.mock(PipelineRunner.class);
     Mockito.when(pipelineRunner.getRuntimeInfo()).thenReturn(Mockito.mock(RuntimeInfo.class));
-    Pipeline pipeline = new Pipeline.Builder(MockStages.createStageLibrary(), new Configuration(), "name", "myPipeline",
-      "0", MockStages.userContext(), MockStages.createPipelineConfigurationSourceTarget()).build(pipelineRunner);
+    Pipeline pipeline = new Pipeline.Builder(
+      MockStages.createStageLibrary(),
+      new Configuration(),
+      "name",
+      "myPipeline",
+      "0",
+      MockStages.userContext(),
+      MockStages.createPipelineConfigurationSourceTarget(),
+      Mockito.mock(LineagePublisherTask.class)
+    ).build(pipelineRunner);
     CombinerPipe pipe = (CombinerPipe) pipeline.getRunners().get(0).get(2);
     PipeBatch pipeBatch = Mockito.mock(FullPipeBatch.class);
     pipe.process(pipeBatch);

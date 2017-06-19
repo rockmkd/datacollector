@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -130,8 +126,9 @@ public class MapRStreamsTargetConfig {
     type = ConfigDef.Type.STRING,
     defaultValue = "${0}",
     label = "Partition Expression",
-    description = "Determines the partition key to use with default stream partitioner class in case of 'Default " +
-      "Partition Strategy'. In case of 'Expression Partition Strategy' it determines the partition number",
+    description = "When using the default partition strategy, enter an expression to evaluate the partition key " +
+        "from record, which will be used with hash function to determine the topic's partition. " +
+        "When using Expression, enter an expression that determines the partition number. ",
     displayPosition = 40,
     group = "#0",
     dependsOn = "partitionStrategy",

@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -21,6 +17,7 @@ package com.streamsets.datacollector.runner.preview;
 
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.StageConfiguration;
+import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.runner.Pipeline;
 import com.streamsets.datacollector.runner.PipelineRunner;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
@@ -60,6 +57,7 @@ public class PreviewPipelineBuilder {
   private final String rev;
   private PipelineConfiguration pipelineConf;
   private final String endStageInstanceName;
+  private final LineagePublisherTask lineagePublisherTask;
 
   /**
    * Constructor
@@ -70,14 +68,22 @@ public class PreviewPipelineBuilder {
    * @param endStageInstanceName Optional parameter, if passed builder will generate a partial pipeline and
    *                             endStage is exclusive
    */
-  public PreviewPipelineBuilder(StageLibraryTask stageLib, Configuration configuration, String name, String rev,
-                                PipelineConfiguration pipelineConf, String endStageInstanceName) {
+  public PreviewPipelineBuilder(
+    StageLibraryTask stageLib,
+    Configuration configuration,
+    String name,
+    String rev,
+    PipelineConfiguration pipelineConf,
+    String endStageInstanceName,
+    LineagePublisherTask lineagePublisherTask
+  ) {
     this.stageLib = new PreviewStageLibraryTask(stageLib);
     this.configuration = configuration;
     this.name = name;
     this.rev = rev;
     this.pipelineConf = pipelineConf;
     this.endStageInstanceName = endStageInstanceName;
+    this.lineagePublisherTask = lineagePublisherTask;
   }
 
   public PreviewPipeline build(UserContext userContext, PipelineRunner runner) throws PipelineRuntimeException, StageException {
@@ -133,7 +139,8 @@ public class PreviewPipelineBuilder {
        name,
        rev,
        userContext,
-       pipelineConf
+       pipelineConf,
+       lineagePublisherTask
      );
      Pipeline pipeline = builder.build(runner);
      if (pipeline != null) {

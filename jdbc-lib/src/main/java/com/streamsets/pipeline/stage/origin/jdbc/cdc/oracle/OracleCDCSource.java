@@ -1,16 +1,12 @@
 /**
- * Copyright 2015 StreamSets Inc.
- * <p>
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Copyright 2017 StreamSets Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -60,8 +56,8 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
@@ -174,7 +170,6 @@ public class OracleCDCSource extends BaseSource {
   private static final String NLS_NUMERIC_FORMAT = "ALTER SESSION SET NLS_NUMERIC_CHARACTERS = \'.,\'";
   private static final String NLS_TIMESTAMP_FORMAT =
       "ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH24:MI:SS.FF'";
-  private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
   private final Pattern toDatePattern = Pattern.compile("TO_DATE\\('(.*)',.*");
   // If a date is set into a timestamp column (or a date field is widened to a timestamp,
   // a timestamp ending with "." is returned (like 2016-04-15 00:00:00.), so we should also ignore the trailing ".".
@@ -300,7 +295,7 @@ public class OracleCDCSource extends BaseSource {
           }
           LOG.debug(STARTING_COMMIT_SCN_ROWS_SKIPPED, startCommitSCN, rowsToSkip);
         } else {
-          if (configBean.startValue == StartValues.DATE) {
+          if (configBean.startValue != StartValues.SCN) {
             startDate = LocalDateTime.parse(configBean.startDate, dtFormatter).minusSeconds(configBean.txnWindow);
             String dateChangesString = Utils.format(baseLogEntriesSql,
                 "((COMMIT_TIMESTAMP >= TO_DATE('" + configBean.startDate + "', 'DD-MM-YYYY HH24:MI:SS')) " +
@@ -733,19 +728,20 @@ public class OracleCDCSource extends BaseSource {
                 getContext().createConfigIssue(CDC.name(), "oracleCDCConfigBean.startSCN", JDBC_47, scn.toPlainString()));
           }
           break;
+        case LATEST:
+          // If LATEST is used, use now() as the startDate and proceed as if a startDate was specified
+          configBean.startDate = LocalDateTime.now().format(dtFormatter);
+          // fall-through
         case DATE:
           try {
-            Date startDate = getDate(configBean.startDate);
-            if (startDate.after(new Date(System.currentTimeMillis()))) {
+            LocalDateTime startDate = getDate(configBean.startDate);
+            if (startDate.isAfter(LocalDateTime.now())) {
               issues.add(getContext().createConfigIssue(CDC.name(), "oracleCDCConfigBean.startDate", JDBC_48));
             }
           } catch (ParseException ex) {
             LOG.error("Invalid date", ex);
             issues.add(getContext().createConfigIssue(CDC.name(), "oracleCDCConfigBean.startDate", JDBC_49));
           }
-          break;
-        case LATEST:
-          configBean.startSCN = scn.toPlainString();
           break;
         default:
           throw new IllegalStateException("Unknown start value!");
@@ -1174,7 +1170,8 @@ public class OracleCDCSource extends BaseSource {
       }
       // We did not find TO_TIMESTAMP, so try TO_DATE
       Optional<String> dt = matchDateTimeString(toDatePattern.matcher(columnValue));
-      return Field.create(Field.Type.DATE, dt.isPresent() ? getDate(dt.get()) : null);
+      return Field.create(Field.Type.DATE, dt.isPresent() ?
+          Date.from(getDate(dt.get()).atZone(ZoneId.systemDefault()).toInstant()) : null);
     }
   }
 
@@ -1185,8 +1182,8 @@ public class OracleCDCSource extends BaseSource {
     return Optional.of(m.group(1));
   }
 
-  private Date getDate(String s) throws ParseException {
-    return dateFormat.parse(s);
+  private LocalDateTime getDate(String s) throws ParseException {
+    return LocalDateTime.parse(s, dtFormatter);
   }
 
   private void alterSession() throws SQLException {

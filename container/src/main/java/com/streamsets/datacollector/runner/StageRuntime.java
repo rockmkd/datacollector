@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -44,6 +40,7 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
 public class StageRuntime implements PushSourceContextDelegate {
@@ -77,6 +74,7 @@ public class StageRuntime implements PushSourceContextDelegate {
     this.def = stageBean.getDefinition();
     this.stageBean = stageBean;
     this.conf = stageBean.getConfiguration();
+    String label = Optional.ofNullable(conf.getUiInfo().get("label")).orElse("").toString();
     info = new Stage.Info() {
       @Override
       public String getName() {
@@ -91,6 +89,11 @@ public class StageRuntime implements PushSourceContextDelegate {
       @Override
       public String getInstanceName() {
         return conf.getInstanceName();
+      }
+
+      @Override
+      public String getLabel() {
+        return label;
       }
 
       @Override

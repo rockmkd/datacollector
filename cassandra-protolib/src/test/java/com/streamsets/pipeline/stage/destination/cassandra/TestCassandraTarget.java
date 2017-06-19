@@ -1,13 +1,9 @@
 /**
- * Copyright 2015 StreamSets Inc.
+ * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -137,7 +133,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -170,7 +166,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -234,7 +230,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -286,7 +282,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -339,7 +335,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -393,7 +389,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -446,7 +442,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -505,7 +501,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = "tableName";
@@ -534,7 +530,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
@@ -583,7 +579,7 @@ public class TestCassandraTarget {
     conf.contactPoints.add("localhost");
     conf.port = CASSANDRA_NATIVE_PORT;
     conf.protocolVersion = ProtocolVersion.V4;
-    conf.useCredentials = false;
+    conf.authProviderOption = AuthProviderOption.NONE;
     conf.compression = CassandraCompressionCodec.NONE;
     conf.columnNames = fieldMappings;
     conf.qualifiedTableName = tableName;
