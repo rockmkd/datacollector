@@ -71,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -88,8 +89,7 @@ public class ClusterHDFSSourceIT {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     minidfsDir = new File("target/minidfs-" + UUID.randomUUID()).getAbsoluteFile();
-    minidfsDir.mkdirs();
-    Assert.assertTrue(minidfsDir.exists());
+    assertTrue(minidfsDir.mkdirs());
     System.setProperty(MiniDFSCluster.PROP_TEST_BUILD_DATA, minidfsDir.getPath());
     Configuration conf = new HdfsConfiguration();
     conf.set("dfs.namenode.fs-limits.min-block-size", String.valueOf(32));
@@ -100,8 +100,7 @@ public class ClusterHDFSSourceIT {
     fs.mkdirs(dir);
     writeFile(fs, new Path(dir + "/forAllTests/" + "path"), 1000);
     dummyEtc = new File(minidfsDir, "dummy-etc");
-    dummyEtc.mkdirs();
-    Assert.assertTrue(dummyEtc.exists());
+    assertTrue(dummyEtc.mkdirs());
     Configuration dummyConf = new Configuration(false);
     for (String file : new String[]{"core", "hdfs", "mapred", "yarn"}) {
       File siteXml = new File(dummyEtc, file + "-site.xml");
@@ -433,6 +432,73 @@ public class ClusterHDFSSourceIT {
     Mockito.verify(source, Mockito.times(1)).readInPreview(Mockito.any(FileStatus.class), Mockito.any(List.class));
   }
 
+  @Test(timeout = 30000)
+  public void testReadFileInSubdirectoryInPreview() throws Exception {
+    /* Directory structure
+       dummy/subdirectory/sample.txt
+    */
+    String dirLocation = dir.toUri().getPath() + "/dummy/dummy2";
+    Path filePath = new Path(dirLocation + "/sample.txt");
+    writeTextToFileAndGetFileStatus(filePath, "this is a sample text file");
+
+    ClusterHdfsConfigBean conf = new ClusterHdfsConfigBean();
+    conf.hdfsUri = miniDFS.getURI().toString();
+    conf.hdfsDirLocations = Collections.singletonList(dirLocation);
+    conf.hdfsConfigs = new HashMap<>();
+    conf.hdfsKerberos = false;
+    conf.hdfsConfDir = hadoopConfDir;
+    conf.recursive = false;
+    conf.produceSingleRecordPerMessage = false;
+    conf.dataFormat = DataFormat.TEXT;
+    conf.dataFormatConfig.textMaxLineLen = 1024;
+
+    ClusterHdfsSource source = Mockito.spy(createSource(conf));
+    SourceRunner sourceRunner = new SourceRunner.Builder(
+        ClusterHdfsDSource.class,
+        source
+    ).setPreview(true).addOutputLane("lane").setExecutionMode(ExecutionMode.CLUSTER_BATCH).setResourcesDir
+        (resourcesDir).build();
+
+    sourceRunner.runInit();
+    // readInPreview should be called once
+    Mockito.verify(source, Mockito.times(1)).readInPreview(Mockito.any(FileStatus.class), Mockito.any(List.class));
+  }
+
+  @Test(timeout = 30000)
+  public void testReadFileRecursiveInPreview() throws Exception {
+    /* Directory structure. Since text files are small, both files should be read
+       /dummy/subdirectory/sample.txt
+       /dummy/subdirectory/subdirectory2/sample2.txt
+    */
+    String dirLocation = dir.toUri().getPath() + "/dummy/subdirectory";
+    Path filePath = new Path(dirLocation + "/sample.txt");
+
+    String text = "this is a sample text file";
+    writeTextToFileAndGetFileStatus(filePath, text);
+    writeTextToFileAndGetFileStatus(new Path(dirLocation + "/subdirectory2/sample2.txt"), text);
+
+    ClusterHdfsConfigBean conf = new ClusterHdfsConfigBean();
+    conf.hdfsUri = miniDFS.getURI().toString();
+    conf.hdfsDirLocations = Collections.singletonList(dirLocation);
+    conf.hdfsConfigs = new HashMap<>();
+    conf.hdfsKerberos = false;
+    conf.hdfsConfDir = hadoopConfDir;
+    conf.recursive = false;
+    conf.produceSingleRecordPerMessage = false;
+    conf.dataFormat = DataFormat.TEXT;
+    conf.dataFormatConfig.textMaxLineLen = 1024;
+
+    ClusterHdfsSource source = Mockito.spy(createSource(conf));
+    SourceRunner sourceRunner = new SourceRunner.Builder(
+        ClusterHdfsDSource.class,
+        source
+    ).setPreview(true).addOutputLane("lane").setExecutionMode(ExecutionMode.CLUSTER_BATCH).setResourcesDir
+        (resourcesDir).build();
+
+    sourceRunner.runInit();
+    // readInPreview should be called twice for both text files
+    Mockito.verify(source, Mockito.times(2)).readInPreview(Mockito.any(FileStatus.class), Mockito.any(List.class));
+  }
 
   @Test(timeout = 30000)
   public void testProduceCustomDelimiterByPreview() throws Exception {
@@ -597,6 +663,81 @@ public class ClusterHDFSSourceIT {
         sourceRunner.runDestroy();
       }
     } finally {
+      th.interrupt();
+    }
+  }
+
+  @Test
+  public void testDelimitedWithRecoverableException() throws Exception {
+    ClusterHdfsConfigBean conf = new ClusterHdfsConfigBean();
+    conf.hdfsUri = miniDFS.getURI().toString();
+    conf.hdfsDirLocations = Collections.singletonList(dir.toUri().getPath());
+    conf.hdfsConfigs = new HashMap<>();
+    conf.hdfsKerberos = false;
+    conf.hdfsConfDir = hadoopConfDir;
+    conf.recursive = false;
+    conf.produceSingleRecordPerMessage = false;
+    conf.dataFormat = DataFormat.DELIMITED;
+    conf.dataFormatConfig.csvFileFormat = CsvMode.CSV;
+    conf.dataFormatConfig.csvHeader = CsvHeader.WITH_HEADER;
+    conf.dataFormatConfig.csvMaxObjectLen = 4096;
+    conf.dataFormatConfig.csvRecordType = CsvRecordType.LIST_MAP;
+    conf.dataFormatConfig.csvSkipStartLines = 0;
+
+    SourceRunner runner = new SourceRunner.Builder(ClusterHdfsDSource.class, createSource(conf))
+        .addOutputLane("lane")
+        .setExecutionMode(ExecutionMode.CLUSTER_BATCH)
+        .setResourcesDir(resourcesDir)
+        .setOnRecordError(OnRecordError.TO_ERROR)
+        .build();
+
+    List<Map.Entry> list = ImmutableList.of(
+        new Pair("a,b,c", null),
+        new Pair("path::1::1", "1,2,3"),
+        new Pair("path::1::2", "4,5,6,7"),
+        new Pair("path::1::2", "8,9,10")
+    );
+
+    runner.runInit();
+
+    Thread th = createThreadForAddingBatch(runner, list);
+
+    try {
+      StageRunner.Output output = runner.runProduce(null, 10);
+
+      List<Record> outputRecords = output.getRecords().get("lane");
+      List<Record> errorRecords = runner.getErrorRecords();
+      Assert.assertEquals(1, errorRecords.size());
+      Assert.assertEquals(2, outputRecords.size());
+
+      //Checking output records
+      Record record1 = outputRecords.get(0);
+      Assert.assertEquals(1, record1.get("/a").getValueAsInteger());
+      Assert.assertEquals(2, record1.get("/b").getValueAsInteger());
+      Assert.assertEquals(3, record1.get("/c").getValueAsInteger());
+
+      Record record2 = outputRecords.get(1);
+      Assert.assertEquals(8, record2.get("/a").getValueAsInteger());
+      Assert.assertEquals(9, record2.get("/b").getValueAsInteger());
+      Assert.assertEquals(10, record2.get("/c").getValueAsInteger());
+
+      //Check error record
+      Record record = errorRecords.get(0);
+      List<Field> columns = record.get("/columns").getValueAsList();
+      List<Field> headers = record.get("/headers").getValueAsList();
+      Assert.assertEquals(4, columns.size());
+      Assert.assertEquals(3, headers.size());
+      Assert.assertArrayEquals(
+          ImmutableList.of("a", "b", "c").toArray(),
+          headers.stream().map(Field::getValueAsString).collect(Collectors.toList()).toArray()
+      );
+
+      Assert.assertArrayEquals(
+          ImmutableList.of(4,5,6,7).toArray(),
+          columns.stream().map(Field::getValueAsInteger).collect(Collectors.toList()).toArray()
+      );
+    } finally {
+      runner.runDestroy();
       th.interrupt();
     }
   }

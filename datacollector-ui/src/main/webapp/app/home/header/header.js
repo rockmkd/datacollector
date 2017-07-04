@@ -139,6 +139,7 @@ angular
           $scope.$storage.minimizeDetailPane = false;
           $scope.$storage.readNotifications = [];
           $rootScope.common.pipelineMetrics = {};
+          $rootScope.common.errors = [];
           api.pipelineAgent.startPipeline($scope.activeConfigInfo.pipelineId, 0).
             then(
             function (res) {
@@ -192,6 +193,7 @@ angular
           });
 
           modalInstance.result.then(function(res) {
+            $rootScope.common.errors = [];
             $scope.clearTabSelectionCache();
             $scope.selectPipelineConfig();
 
@@ -427,6 +429,23 @@ angular
                   updatedPipelineConfig.metadata['dpm.pipeline.version']
                 });
               }
+            });
+      },
+
+      revertDPMPipelineChanges: function (pipelineInfo, metadata) {
+        $scope.trackEvent(pipelineConstant.BUTTON_CATEGORY, pipelineConstant.CLICK_ACTION, 'Revert Changes', 1);
+
+        pipelineService.revertChangesCommand(pipelineInfo, metadata)
+          .then(
+            function(metadata) {
+              $scope.clearUndoRedoArchive();
+              $route.reload();
+
+              $timeout(function() {
+                $rootScope.common.successList.push({
+                  message: 'Successfully reverted pipeline changes'
+                });
+              });
             });
       }
     });

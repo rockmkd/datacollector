@@ -362,9 +362,18 @@ public class JdbcUtil {
       ResultSet rs,
       int columnIndex,
       int maxClobSize,
-      int maxBlobSize
-  ) throws SQLException, IOException {
-    return resultToField(md, rs, columnIndex, maxClobSize, maxBlobSize, DataType.USE_COLUMN_TYPE);
+      int maxBlobSize,
+      UnknownTypeAction unknownTypeAction
+  ) throws SQLException, IOException, StageException {
+    return resultToField(
+      md,
+      rs,
+      columnIndex,
+      maxClobSize,
+      maxBlobSize,
+      DataType.USE_COLUMN_TYPE,
+      unknownTypeAction
+    );
   }
 
   public static Field resultToField(
@@ -373,8 +382,9 @@ public class JdbcUtil {
       int columnIndex,
       int maxClobSize,
       int maxBlobSize,
-      DataType userSpecifiedType
-  ) throws SQLException, IOException {
+      DataType userSpecifiedType,
+      UnknownTypeAction unknownTypeAction
+  ) throws SQLException, IOException, StageException {
       Field field;
       if (userSpecifiedType != DataType.USE_COLUMN_TYPE) {
         // If user specifies the data type, overwrite the column type returned by database.
@@ -462,7 +472,18 @@ public class JdbcUtil {
           case Types.OTHER:
           case Types.REF:
           default:
-            return null;
+            if(unknownTypeAction == null) {
+              return null;
+            }
+            switch (unknownTypeAction) {
+              case STOP_PIPELINE:
+                throw new StageException(JdbcErrors.JDBC_37, md.getColumnType(columnIndex), md.getColumnLabel(columnIndex));
+              case CONVERT_TO_STRING:
+                field = Field.create(Field.Type.STRING, rs.getObject(columnIndex).toString());
+                break;
+              default:
+                throw new IllegalStateException("Unknown action: " + unknownTypeAction);
+            }
         }
       }
 
@@ -473,9 +494,17 @@ public class JdbcUtil {
       ResultSet rs,
       int maxClobSize,
       int maxBlobSize,
-      ErrorRecordHandler errorRecordHandler
+      ErrorRecordHandler errorRecordHandler,
+      UnknownTypeAction unknownTypeAction
   ) throws SQLException, StageException {
-    return resultSetToFields(rs, maxClobSize, maxBlobSize, Collections.<String, DataType>emptyMap(), errorRecordHandler);
+    return resultSetToFields(
+      rs,
+      maxClobSize,
+      maxBlobSize,
+      Collections.emptyMap(),
+      errorRecordHandler,
+      unknownTypeAction
+    );
   }
 
   public static LinkedHashMap<String, Field> resultSetToFields(
@@ -483,7 +512,8 @@ public class JdbcUtil {
       int maxClobSize,
       int maxBlobSize,
       Map<String, DataType> columnsToTypes,
-      ErrorRecordHandler errorRecordHandler
+      ErrorRecordHandler errorRecordHandler,
+      UnknownTypeAction unknownTypeAction
   ) throws SQLException, StageException {
     ResultSetMetaData md = rs.getMetaData();
     LinkedHashMap<String, Field> fields = new LinkedHashMap<>(md.getColumnCount());
@@ -491,13 +521,15 @@ public class JdbcUtil {
     for (int i = 1; i <= md.getColumnCount(); i++) {
       try {
         DataType dataType = columnsToTypes.get(md.getColumnName(i));
-        Field field = resultToField(md, rs, i, maxClobSize, maxBlobSize,
-            dataType == null ? DataType.USE_COLUMN_TYPE : dataType);
-
-        if (field == null) {
-          throw new StageException(JdbcErrors.JDBC_37, md.getColumnType(i), md.getColumnLabel(i));
-        }
-
+        Field field = resultToField(
+          md,
+          rs,
+          i,
+          maxClobSize,
+          maxBlobSize,
+          dataType == null ? DataType.USE_COLUMN_TYPE : dataType,
+          unknownTypeAction
+        );
         fields.put(md.getColumnLabel(i), field);
       } catch (SQLException e) {
         errorRecordHandler.onError(JdbcErrors.JDBC_13, e.getMessage(), e);
@@ -688,7 +720,8 @@ public class JdbcUtil {
       List<String> primaryKeyParams,
       SortedMap<String, String> columns,
       int numRecords,
-      boolean caseSensitive
+      boolean caseSensitive,
+      boolean multiRow
   ) throws OnRecordErrorException {
     String query;
     String valuePlaceholder;
@@ -714,12 +747,20 @@ public class JdbcUtil {
         case OperationType.DELETE_CODE:
           valuePlaceholder = String.format("(%s)", joiner.join(primaryKeyParams));
           valuePlaceholders = org.apache.commons.lang3.StringUtils.repeat(valuePlaceholder, ", ", numRecords);
-          query = String.format(
-              "DELETE FROM %s WHERE (%s) IN (%s)",
-              tableName,
-              joiner.join(primaryKeys),
-              valuePlaceholders
-          );
+          if (multiRow) {
+            query = String.format(
+                "DELETE FROM %s WHERE (%s) IN (%s)",
+                tableName,
+                joiner.join(primaryKeys),
+                valuePlaceholders
+            );
+          } else {
+            query = String.format(
+                "DELETE FROM %s WHERE %s = ?",
+                tableName,
+                joinerWhereClause.join(primaryKeys)
+            );
+          }
           break;
         case OperationType.UPDATE_CODE:
           query = String.format(
@@ -749,12 +790,20 @@ public class JdbcUtil {
         case OperationType.DELETE_CODE:
           valuePlaceholder = String.format("(%s)", joiner.join(primaryKeyParams));
           valuePlaceholders = org.apache.commons.lang3.StringUtils.repeat(valuePlaceholder, ", ", numRecords);
-          query = String.format(
-              "DELETE FROM %s WHERE (\"%s\") IN (%s)",
-              tableName,
-              joinerWithQuote.join(primaryKeys),
-              valuePlaceholders
-          );
+          if (multiRow) {
+            query = String.format(
+                "DELETE FROM %s WHERE (\"%s\") IN (%s)",
+                tableName,
+                joinerWithQuote.join(primaryKeys),
+                valuePlaceholders
+            );
+          } else {
+            query = String.format(
+                "DELETE FROM %s WHERE \"%s\" = ?",
+                tableName,
+                joinerWhereClauseWitheQuote.join(primaryKeys)
+            );
+          }
           break;
         case OperationType.UPDATE_CODE:
           query = String.format(

@@ -16,8 +16,9 @@
 package com.streamsets.pipeline.stage.destination.elasticsearch;
 
 import com.streamsets.pipeline.api.Config;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.StageUpgrader;
-import com.streamsets.pipeline.stage.config.elasticsearch.ElasticsearchConfig;
+import com.streamsets.pipeline.config.upgrade.UpgraderTestUtils;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -25,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class TestElasticSearchDTargetUpgrader {
 
@@ -61,4 +61,14 @@ public class TestElasticSearchDTargetUpgrader {
     return configs;
   }
 
+  @Test
+  public void testV7ToV8() throws StageException {
+    StageUpgrader upgrader = new ElasticsearchDTargetUpgrader();
+    List<Config> configs = createConfigs();
+    List<Config> newConfigs = upgrader.upgrade("library", "stageName", "stageInstance", 2, 8, configs);
+    UpgraderTestUtils.assertAllExist(newConfigs,
+        "elasticSearchConfig.parentIdTemplate",
+        "elasticSearchConfig.routingTemplate"
+    );
+  }
 }

@@ -23,6 +23,10 @@ import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
+import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
@@ -58,6 +62,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.streamsets.pipeline.stage.lib.kinesis.KinesisUtil.KINESIS_CONFIG_BEAN;
 import static com.streamsets.pipeline.stage.lib.kinesis.KinesisUtil.ONE_MB;
@@ -77,6 +82,7 @@ public class KinesisSource extends BasePushSource {
   private AmazonCloudWatch cloudWatchClient;
   private IMetricsFactory metricsFactory = null;
   private Worker worker;
+  private AtomicBoolean resetOffsetAttempted;
 
   public KinesisSource(KinesisConsumerConfigBean conf) {
     this.conf = conf;
@@ -132,6 +138,8 @@ public class KinesisSource extends BasePushSource {
       dynamoDBClient.setRegion(region);
       cloudWatchClient.setRegion(region);
     }
+
+    resetOffsetAttempted = new AtomicBoolean(false);
 
     return issues;
   }
@@ -245,6 +253,7 @@ public class KinesisSource extends BasePushSource {
       return;
     }
 
+    resetOffsets(lastOffsets);
     executor = Executors.newFixedThreadPool(getNumberOfThreads());
     IRecordProcessorFactory recordProcessorFactory = new StreamSetsRecordProcessorFactory(
         getContext(),
@@ -278,6 +287,41 @@ public class KinesisSource extends BasePushSource {
       });
     } catch (InterruptedException | ExecutionException e) {
       throw Throwables.propagate(e);
+    }
+  }
+
+  private void resetOffsets(Map<String, String> lastOffsets) throws StageException {
+    if (lastOffsets.isEmpty() && !resetOffsetAttempted.getAndSet(true)) {
+      DynamoDB dynamoDB = new DynamoDB(dynamoDBClient);
+      Table offsetTable = dynamoDB.getTable(conf.applicationName);
+
+      if (!tableExists(conf.applicationName)) {
+        return;
+      }
+
+      try {
+        offsetTable.delete();
+        offsetTable.waitForDelete();
+        LOG.info("Deleted DynamoDB table for application '{}' since reset offset was invoked.", conf.applicationName);
+      } catch (AmazonDynamoDBException e) {
+        LOG.error(Errors.KINESIS_11.getMessage(), conf.applicationName, e);
+        throw new StageException(Errors.KINESIS_11, conf.applicationName, e);
+      } catch (InterruptedException e) {
+        LOG.error("Interrupted while waiting for table '{}' deletion", conf.applicationName, e);
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  private boolean tableExists(String tableName) {
+    try {
+      dynamoDBClient.describeTable(tableName);
+      return true;
+    } catch (ResourceNotFoundException e) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Table'{}' did not exist.", tableName, e);
+      }
+      return false;
     }
   }
 }

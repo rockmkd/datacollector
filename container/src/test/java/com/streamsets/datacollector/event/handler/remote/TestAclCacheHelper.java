@@ -116,7 +116,9 @@ public class TestAclCacheHelper {
         "1",
         UUID.randomUUID(),
         true,
-        null
+        null,
+        "2.5",
+        "x"
     );
     Mockito.when(pipelineStoreTask.getInfo(newResource)).thenReturn(pipelineInfo);
     gotAcl = aclCacheHelper.getAcl(newResource);
@@ -151,7 +153,9 @@ public class TestAclCacheHelper {
         "1",
         UUID.randomUUID(),
         true,
-        null
+        null,
+        "2.5",
+        "x"
     );
     Mockito.when(pipelineStoreTask.getInfo(resource1)).thenReturn(pipelineInfo);
     Assert.assertNotNull(aclCacheHelper.getAcl(resource1));
@@ -166,7 +170,9 @@ public class TestAclCacheHelper {
         "1",
         UUID.randomUUID(),
         true,
-        null
+        null,
+        "2.5",
+        "x"
     );
     Mockito.when(pipelineStoreTask.getInfo(resource2)).thenReturn(pipelineInfo2);
     Assert.assertNotNull(aclCacheHelper.getAcl(resource2));

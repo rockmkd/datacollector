@@ -48,6 +48,11 @@
                         origins > Max Record Size.</draft-comment>
             </p>
             <p><ph id="ph-DefaultMaxRecordSize">1048576 bytes</ph></p>
+            <p><draft-comment author="alisontaylor">The following p is used in the registering and
+                  unregistering from DPM topics.</draft-comment></p>
+            <p id="p-DPMUserNameFormat">
+                  <codeblock>&lt;ID>@&lt;organization ID></codeblock>
+            </p>
             <p>
                   <draft-comment author="Loretta">The following ph is used by the registration DPM
                         topics. </draft-comment>
@@ -1048,7 +1053,7 @@ web-0011.log</codeblock></dd>
             </p>
             <p><ph id="PipeFinish-Use">You can use the Pipeline Finisher in any logical way, such as
                         stopping a pipeline upon receiving a no-more-data event from the JDBC Query
-                        Consumer, JDBC Multitable Consumer, or Salesforce origins.</ph>
+                        Consumer origin.</ph>
             </p>
             <p><ph id="Spark-Use">You can use the executor in any logical way, such as running Spark
                         applications after the Hadoop FS, MapR FS, or Amazon S3 destination closes
@@ -2888,7 +2893,8 @@ ${YY()}_${MM()}_${DD()}</codeblock>
             <p><ph id="Dest-CRUDoverview">can use CRUD operations defined in the sdc.operation.type
                         record header attribute to write data. You can define a default operation
                         for records without the header attribute or value. You can also configure
-                        how to handle records with unsupported operations. </ph>.</p>
+                        whether to use multi-row operations for inserts and deletes, and how to
+                        handle records with unsupported operations.</ph></p>
             <p><ph id="Dest-ChangeLog">When processing data from a CDC-enabled origin, you can
                         specify the origin change log to aid record processing. </ph></p>
             <p><ph id="CDC-xref">For information about <ph conref="#concept_vhs_5tz_xp/pName-long"/>

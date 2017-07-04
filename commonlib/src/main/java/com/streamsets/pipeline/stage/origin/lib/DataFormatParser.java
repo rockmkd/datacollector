@@ -27,6 +27,7 @@ import com.streamsets.pipeline.lib.parser.DataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.parser.DataParserFactory;
 import com.streamsets.pipeline.lib.parser.DataParserFactoryBuilder;
+import com.streamsets.pipeline.lib.parser.RecoverableDataParserException;
 import com.streamsets.pipeline.lib.parser.log.LogDataFormatValidator;
 import com.streamsets.pipeline.lib.parser.log.RegExConfig;
 import com.streamsets.pipeline.lib.parser.text.TextDataParserFactory;
@@ -232,6 +233,17 @@ public class DataFormatParser {
           );
         }
         break;
+      case BINARY:
+        if (dataFormatConfig.binaryMaxObjectLen < 1) {
+          issues.add(
+              context.createConfigIssue(
+                  DataFormatGroups.DATA_FORMAT.name(),
+                  DATA_FORMAT_CONFIG_PREFIX + "binaryMaxObjectLen",
+                  ParserErrors.PARSER_04
+              )
+          );
+        }
+        break;
       default:
         issues.add(
             context.createConfigIssue(
@@ -288,6 +300,8 @@ public class DataFormatParser {
           .setConfig(DelimitedDataConstants.COMMENT_ALLOWED_CONFIG, dataFormatConfig.csvEnableComments)
           .setConfig(DelimitedDataConstants.COMMENT_MARKER_CONFIG, dataFormatConfig.csvCommentMarker)
           .setConfig(DelimitedDataConstants.IGNORE_EMPTY_LINES_CONFIG, dataFormatConfig.csvIgnoreEmptyLines)
+          .setConfig(DelimitedDataConstants.ALLOW_EXTRA_COLUMNS, dataFormatConfig.csvAllowExtraColumns)
+          .setConfig(DelimitedDataConstants.EXTRA_COLUMN_PREFIX, dataFormatConfig.csvExtraColumnPrefix)
           ;
         break;
       case XML:
@@ -323,6 +337,9 @@ public class DataFormatParser {
       case WHOLE_FILE:
         builder.setMaxDataLen(dataFormatConfig.wholeFileMaxObjectLen);
         break;
+      case BINARY:
+        builder.setMaxDataLen(dataFormatConfig.binaryMaxObjectLen);
+        break;
       default:
         throw new IllegalStateException(Utils.format("Unknown data format: {}", dataFormat));
     }
@@ -337,15 +354,24 @@ public class DataFormatParser {
   public List<Record> parse(Source.Context context, String messageId, byte[] payload) throws StageException {
     List<Record> records = new ArrayList<>();
     try (DataParser parser = parserFactory.getParser(messageId, payload)) {
-      Record record = parser.parse();
-      while (record != null) {
-        records.add(record);
-        record = parser.parse();
-      }
+      Record record = null;
+      do {
+        try {
+          record = parser.parse();
+        } catch (RecoverableDataParserException e) {
+          handleException(context, messageId, e, e.getUnparsedRecord());
+          //Go to next record
+          continue;
+        }
+        if (record != null) {
+          records.add(record);
+        }
+      } while (record != null);
     } catch (IOException |DataParserException ex) {
       Record record = context.createRecord(messageId);
       record.set(Field.create(payload));
       handleException(context, messageId, ex, record);
+      return records;
     }
     if (messageConfig != null && messageConfig.produceSingleRecordPerMessage) {
       List<Field> list = new ArrayList<>();

@@ -43,6 +43,7 @@
     <netty.version>4.0.41.Final</netty.version>
     <joda.version>2.8</joda.version>
     <commons-pool2.version>2.4.2</commons-pool2.version>
+    <xerces.version>2.11.0</xerces.version>
   </properties>
 
   <dependencies>
@@ -205,6 +206,12 @@
       <scope>compile</scope>
     </dependency>
 
+    <dependency>
+      <groupId>xerces</groupId>
+      <artifactId>xercesImpl</artifactId>
+      <version>${xerces.version}</version>
+    </dependency>
+
     <!-- Test Dependencies -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
@@ -225,6 +232,12 @@
     <dependency>
       <groupId>org.hamcrest</groupId>
       <artifactId>hamcrest-core</artifactId>
+      <version>${hamcrest.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.hamcrest</groupId>
+      <artifactId>hamcrest-library</artifactId>
       <version>${hamcrest.version}</version>
       <scope>test</scope>
     </dependency>

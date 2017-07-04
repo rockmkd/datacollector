@@ -24,10 +24,10 @@ import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.configurablestage.DProcessor;
 
 @StageDef(
-    version=1,
-    label="JSON Parser",
+    version = 1,
+    label = "JSON Parser",
     description = "Parses a string field with JSON data",
-    icon="jsonparser.png",
+    icon = "json.png",
     onlineHelpRefUrl = "index.html#Processors/JSONParser.html#task_kwz_lg2_zq"
 )
 @ConfigGroups(Groups.class)
