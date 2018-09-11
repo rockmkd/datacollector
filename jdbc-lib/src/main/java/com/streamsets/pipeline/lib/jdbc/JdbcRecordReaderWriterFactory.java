@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.lib.jdbc;
 
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.zaxxer.hikari.HikariDataSource;
 

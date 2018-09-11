@@ -57,6 +57,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -85,7 +86,7 @@ public class ElasticsearchTarget extends BaseTarget {
     if (this.conf.params == null) {
       this.conf.params = new HashMap<>();
     }
-    this.timeZone = TimeZone.getTimeZone(conf.timeZoneID);
+    this.timeZone = TimeZone.getTimeZone(ZoneId.of(conf.timeZoneID));
   }
 
   private void validateEL(ELEval elEval, String elStr, String config, ErrorCode parseError, ErrorCode evalError,
@@ -315,7 +316,7 @@ public class ElasticsearchTarget extends BaseTarget {
             "/_bulk",
             conf.params,
             entity,
-            delegate.getAuthenticationHeader()
+            delegate.getAuthenticationHeader(conf.securityConfig.securityUser.get())
         );
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         response.getEntity().writeTo(baos);
@@ -374,6 +375,10 @@ public class ElasticsearchTarget extends BaseTarget {
       case OperationType.UPDATE_CODE:
         getOperationMetadata("update", index, type, id, parent, routing, op);
         op.append(String.format("{\"doc\":%s}%n", record));
+        break;
+      case OperationType.MERGE_CODE:
+        getOperationMetadata("update", index, type, id, parent, routing, op);
+        op.append(String.format("{\"doc_as_upsert\": \"true\", \"doc\":%s}%n", record));
         break;
       case OperationType.DELETE_CODE:
         getOperationMetadata("delete", index, type, id, parent, routing, op);

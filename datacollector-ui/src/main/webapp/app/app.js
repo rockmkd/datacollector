@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-angular.module('dataCollectorApp')
-  .config(function($routeProvider, $locationProvider, $translateProvider, $provide,
-                   tmhDynamicLocaleProvider, uiSelectConfig, $httpProvider, AnalyticsProvider) {
 
+angular.module('dataCollectorApp')
+  .config(function(
+    $routeProvider, $locationProvider, $translateProvider, $provide, tmhDynamicLocaleProvider, uiSelectConfig,
+    $httpProvider, AnalyticsProvider
+  ) {
     $locationProvider.html5Mode({enabled: true, requireBase: false});
     $routeProvider.otherwise({
       templateUrl: 'app/home/home.tpl.html',
@@ -36,10 +38,10 @@ angular.module('dataCollectorApp')
       var clientTimezone = moment().tz(moment.tz.guess()).format('z');
       return function (date, format, timezone) {
         return $delegate.call(
-            this,
-            date,
-            format,
-            timezone || $rootScope.$storage.preferredTimezone || clientTimezone
+          this,
+          date,
+          format,
+          timezone || $rootScope.$storage.preferredTimezone || clientTimezone
         );
       };
     }]);
@@ -53,6 +55,7 @@ angular.module('dataCollectorApp')
     $translateProvider.preferredLanguage('en');
 
     $translateProvider.useCookieStorage();
+    $translateProvider.useSanitizeValueStrategy('sanitizeParameters');
 
     tmhDynamicLocaleProvider.localeLocationPattern('bower_components/angular-i18n/angular-locale_{{locale}}.js');
     tmhDynamicLocaleProvider.useCookieStorage('NG_TRANSLATE_LANG_KEY');
@@ -70,8 +73,8 @@ angular.module('dataCollectorApp')
           if (rejection.status === 401) {
             window.location.reload();
           } else if ((rejection.status === 0 || rejection.status === -1 ||
-            (rejection.data && (typeof rejection.data.indexOf === 'function') &&
-            rejection.data.indexOf('login.html') !== -1))
+              (rejection.data && (typeof rejection.data.indexOf === 'function') &&
+                rejection.data.indexOf('login.html') !== -1))
           )  {
             // check if the error is related to remote service
             if (rejection.config && rejection.config.headers && rejection.config.headers['X-SS-User-Auth-Token']) {
@@ -103,11 +106,11 @@ angular.module('dataCollectorApp')
     var alertsTimer;
     var isWebSocketSupported;
     var loc = window.location;
-    var httpBaseURL = ((loc.protocol === "https:") ? "https://" : "http://") + loc.hostname + (loc.port ? ":" + loc.port : "");
+    var httpBaseURL = ((loc.protocol === 'https:') ? 'https://' : 'http://') + loc.hostname + (loc.port ? ':' + loc.port : '');
     var bases = document.getElementsByTagName('base');
     var baseHref = (bases.length > 0) ? (bases[0].href).replace(httpBaseURL, '') : '/';
-    var webSocketBaseURL = ((loc.protocol === "https:") ?
-        "wss://" : "ws://") + loc.hostname + (((loc.protocol === "http:" && loc.port === 80) || (loc.protocol === "https:" && loc.port === 443)) ? "" : ":" + loc.port) + baseHref;
+    var webSocketBaseURL = ((loc.protocol === 'https:') ?
+      'wss://' : 'ws://') + loc.hostname + (((loc.protocol === 'http:' && loc.port === 80) || (loc.protocol === 'https:' && loc.port === 443)) ? '' : ':' + loc.port) + baseHref;
     var BACKSPACE_KEY = 8;
     var DELETE_KEY = 46;
     var D_KEY = 68;
@@ -126,7 +129,7 @@ angular.module('dataCollectorApp')
     // so overriding to use window.crypto.getRandomValues for getting random values.
     var randomFunction = Math.random;
     Math.random = function() {
-      if(window.crypto && typeof window.crypto.getRandomValues === "function") {
+      if(window.crypto && typeof window.crypto.getRandomValues === 'function') {
         var array = new Uint32Array(10);
         window.crypto.getRandomValues(array);
         return array[0]/10000000000;
@@ -151,339 +154,379 @@ angular.module('dataCollectorApp')
     });
 
     $rootScope.common = $rootScope.common || {
-        title : defaultTitle,
-        userName: 'Account',
-        authenticationType: 'none',
-        apiVersion: api.apiVersion,
-        baseHref: baseHref,
-        webSocketBaseURL: webSocketBaseURL,
-        active: {
-          home: 'active'
-        },
-        namePattern: '^[a-zA-Z0-9 _]+$',
-        saveOperationInProgress: 0,
-        pipelineStatus: {},
-        pipelineStatusMap: {},
-        alertsMap: {},
-        alertsTotalCount: 0,
-        errors: [],
-        infoList: [],
-        successList: [],
-        activeDetailTab: undefined,
-        dontShowHelpAlert: false,
-        logEndingOffset: -1,
-        fetchingLog: false,
-        counters: {},
-        serverTimeDifference: 0,
-        remoteServerInfo: {
-          registrationStatus: false
-        },
+      title : defaultTitle,
+      userName: 'Account',
+      authenticationType: 'none',
+      apiVersion: api.apiVersion,
+      baseHref: baseHref,
+      webSocketBaseURL: webSocketBaseURL,
+      active: {
+        home: 'active'
+      },
+      namePattern: '^[a-zA-Z0-9 _]+$',
+      saveOperationInProgress: 0,
+      pipelineStatus: {},
+      pipelineStatusMap: {},
+      alertsMap: {},
+      alertsTotalCount: 0,
+      errors: [],
+      infoList: [],
+      successList: [],
+      activeDetailTab: undefined,
+      dontShowHelpAlert: false,
+      logEndingOffset: -1,
+      fetchingLog: false,
+      counters: {},
+      serverTimeDifference: 0,
+      remoteServerInfo: {
+        registrationStatus: false
+      },
 
-        /**
-         * Open the DPM Information Dialog
-         */
-        onDPMButtonClick: function() {
-          $modalStack.dismissAll();
-          $modal.open({
-            templateUrl: 'common/administration/dpmInfo/dpmInfo.tpl.html',
-            controller: 'DPMInfoModalInstanceController',
-            size: 'lg',
-            backdrop: 'static'
+      /**
+       * Open the Control Hub Information Dialog
+       */
+      onDPMButtonClick: function() {
+        $modalStack.dismissAll();
+        $modal.open({
+          templateUrl: 'common/administration/dpmInfo/dpmInfo.tpl.html',
+          controller: 'DPMInfoModalInstanceController',
+          size: 'lg',
+          backdrop: 'static'
+        });
+      },
+
+      /**
+       * Show stats opt in/out Modal Dialog
+       */
+      onStatOptInClick: function() {
+        $modalStack.dismissAll();
+        $modal.open({
+          templateUrl: 'common/administration/statsOptIn/statsOptIn.tpl.html',
+          controller: 'StatsOptInController',
+          size: '',
+          backdrop: 'static'
+        });
+      },
+
+      /**
+       * Open the Enable Control Hub Modal Dialog
+       */
+      onEnableDPMClick: function() {
+        if (configuration.isManagedByClouderaManager()) {
+          $translate('home.enableDPM.isManagedByClouderaManager').then(function(translation) {
+            $rootScope.common.errors = [translation];
           });
-        },
+          return;
+        }
 
-        /**
-         * Open the Enable DPM Modal Dialog
-         */
-        onEnableDPMClick: function() {
-          if (configuration.isManagedByClouderaManager()) {
-            $translate('home.enableDPM.isManagedByClouderaManager').then(function(translation) {
-              $rootScope.common.errors = [translation];
-            });
-            return;
-          }
-
-          if ($rootScope.common.remoteServerInfo.registrationStatus) {
-            $translate('home.enableDPM.alreadyEnabledMsg').then(function(translation) {
-              $rootScope.common.errors = [translation];
-            });
-            return;
-          }
-
-          $modalStack.dismissAll();
-          $modal.open({
-            templateUrl: 'common/administration/enableDPM/enableDPM.tpl.html',
-            controller: 'EnableDPMModalInstanceController',
-            size: 'lg',
-            backdrop: 'static'
+        if ($rootScope.common.remoteServerInfo.registrationStatus) {
+          $translate('home.enableDPM.alreadyEnabledMsg').then(function(translation) {
+            $rootScope.common.errors = [translation];
           });
-        },
+          return;
+        }
 
-        /**
-         * Open the Disable DPM Modal Dialog
-         */
-        onDisableDPMClick: function() {
-          if (configuration.isManagedByClouderaManager()) {
-            $translate('home.enableDPM.isManagedByClouderaManager').then(function(translation) {
-              $rootScope.common.errors = [translation];
-            });
-            return;
-          }
+        $modalStack.dismissAll();
+        $modal.open({
+          templateUrl: 'common/administration/enableDPM/enableDPM.tpl.html',
+          controller: 'EnableDPMModalInstanceController',
+          size: 'lg',
+          backdrop: 'static'
+        });
+      },
 
-          $modal.open({
-            templateUrl: 'common/administration/disableDPM/disableDPM.tpl.html',
-            controller: 'DisableDPMModalInstanceController',
-            size: '',
-            backdrop: 'static'
+      /**
+       * Open the Disable Control Hub Modal Dialog
+       */
+      onDisableDPMClick: function() {
+        if (configuration.isManagedByClouderaManager()) {
+          $translate('home.enableDPM.isManagedByClouderaManager').then(function(translation) {
+            $rootScope.common.errors = [translation];
           });
-        },
+          return;
+        }
 
-        onCreateDPMUsersClick: function() {
-          $modal.open({
-            templateUrl: 'common/administration/createDPMUsers/createDPMUsers.tpl.html',
-            controller: 'CreateDPMUsersModalInstanceController',
-            size: 'lg',
-            backdrop: 'static',
-            resolve: {
-              dpmInfoModel: function () {
-                return {
-                  baseURL: 'https://cloud.streamsets.com',
-                  userID: '',
-                  userPassword: ''
-                };
-              }
+        $modal.open({
+          templateUrl: 'common/administration/disableDPM/disableDPM.tpl.html',
+          controller: 'DisableDPMModalInstanceController',
+          size: '',
+          backdrop: 'static'
+        });
+      },
+
+      onCreateDPMUsersClick: function() {
+        $modal.open({
+          templateUrl: 'common/administration/createDPMUsers/createDPMUsers.tpl.html',
+          controller: 'CreateDPMUsersModalInstanceController',
+          size: 'lg',
+          backdrop: 'static',
+          resolve: {
+            dpmInfoModel: function () {
+              return {
+                baseURL: 'https://cloud.streamsets.com',
+                userID: '',
+                userPassword: ''
+              };
             }
-          });
-        },
-
-        /**
-         * Open the Shutdown Modal Dialog
-         */
-        shutdownCollector: function() {
-          $modal.open({
-            templateUrl: 'common/administration/shutdown/shutdownModal.tpl.html',
-            controller: 'ShutdownModalInstanceController',
-            size: '',
-            backdrop: true
-          });
-        },
-
-        /**
-         * Open the Restart Modal Dialog
-         */
-        restartCollector: function() {
-          $modal.open({
-            templateUrl: 'common/administration/restart/restartModal.tpl.html',
-            controller: 'RestartModalInstanceController',
-            size: '',
-            backdrop: true
-          });
-        },
-
-        /**
-         * Logout header link command handler
-         */
-        logout: function() {
-          api.admin.logout($rootScope.common.authenticationType, $rootScope.common.isDPMEnabled)
-            .success(function() {
-              location.reload();
-            })
-            .error(function() {
-
-            });
-        },
-
-        /**
-         * Launch Local or Online Help based on settings.
-         *
-         */
-        launchHelpContents: function() {
-          contextHelpService.launchHelpContents();
-        },
-
-        /**
-         * Open the Support Bundle Modal Dialog
-         */
-        showSupportBundle: function() {
-          $modal.open({
-            templateUrl: 'app/help/supportBundle/supportBundleModal.tpl.html',
-            controller: 'SupportBundleModalInstanceController',
-            size: '',
-            backdrop: true
-          });
-        },
-
-        /**
-         * Open the About Modal Dialog
-         */
-        showAbout: function() {
-          $modal.open({
-            templateUrl: 'aboutModalContent.html',
-            controller: 'AboutModalInstanceController',
-            size: '',
-            backdrop: true
-          });
-        },
-
-        /**
-         * Open the Settings Modal Dialog
-         */
-        showSettings: function() {
-          $modal.open({
-            templateUrl: 'app/help/settings/settingsModal.tpl.html',
-            controller: 'SettingsModalInstanceController',
-            size: '',
-            backdrop: true
-          });
-        },
-
-        showSDCDirectories: function() {
-          $modal.open({
-            templateUrl: 'common/administration/sdcDirectories/sdcDirectoriesModal.tpl.html',
-            controller: 'SDCDirectoriesModalInstanceController',
-            size: '',
-            backdrop: true
-          });
-        },
-
-        /**
-         * Clear Local Storage Contents
-         */
-        clearLocalStorage: function() {
-          $localStorage.$reset();
-        },
-
-        /**
-         * Key Event on body DOM element.
-         *
-         * @param $event
-         */
-        bodyKeyEvent: function($event) {
-          if($event.target === $event.currentTarget && $event.shiftKey !== true &&
-            ($event.keyCode === BACKSPACE_KEY || $event.keyCode === DELETE_KEY)) {
-
-            //Delete Operation
-
-            $event.preventDefault();
-            $event.stopPropagation();
-
-            $rootScope.$broadcast('bodyDeleteKeyPressed');
-          } else if(($event.metaKey && $event.shiftKey && ($event.keyCode === Z_KEY)) ||
-            ($event.ctrlKey && $event.keyCode === Y_KEY))  {
-
-            //REDO Operation
-            $rootScope.$broadcast('bodyRedoKeyPressed');
-          } else if(($event.metaKey || $event.ctrlKey) && $event.keyCode === Z_KEY) {
-            //UNDO Operation
-            $rootScope.$broadcast('bodyUndoKeyPressed');
           }
+        });
+      },
 
-          if ($event.ctrlKey && $event.altKey && $event.keyCode === D_KEY) {
-            $rootScope.common.onEnableDPMClick();
-          }
-        },
+      /**
+       * Open the Shutdown Modal Dialog
+       */
+      shutdownCollector: function() {
+        $modal.open({
+          templateUrl: 'common/administration/shutdown/shutdownModal.tpl.html',
+          controller: 'ShutdownModalInstanceController',
+          size: '',
+          backdrop: true
+        });
+      },
 
-        /**
-         * Google Analytics Track Event
-         *
-         * @param category Typically the object that was interacted with (e.g. button)
-         * @param action The type of interaction (e.g. click)
-         * @param label Useful for categorizing events (e.g. nav buttons)
-         * @param value Values must be non-negative. Useful to pass counts (e.g. 4 times)
-         */
-        trackEvent: function(category, action, label, value) {
-          if(configuration.isAnalyticsEnabled()) {
-            Analytics.trackEvent(category, action, label, value);
-          }
-        },
+      /**
+       * Open the Restart Modal Dialog
+       */
+      restartCollector: function() {
+        $modal.open({
+          templateUrl: 'common/administration/restart/restartModal.tpl.html',
+          controller: 'RestartModalInstanceController',
+          size: '',
+          backdrop: true
+        });
+      },
 
-        /**
-         * Callback function when Alert is clicked.
-         *
-         * @param alert
-         */
-        onAlertClick: function(alert) {
-          $rootScope.common.trackEvent(pipelineConstant.BUTTON_CATEGORY, pipelineConstant.CLICK_ACTION,
-            'Notification Message', 1);
-          $rootScope.$broadcast('onAlertClick', alert);
-        },
+      /**
+       * Logout header link command handler
+       */
+      logout: function() {
+        api.admin.logout($rootScope.common.authenticationType, $rootScope.common.isDPMEnabled)
+          .then(function() {
+            location.reload();
+          });
+      },
 
-        /**
-         * Delete Triggered Alert
-         */
-        deleteTriggeredAlert: function(triggeredAlert, event) {
+      /**
+       * Launch Local or Online Help based on settings.
+       *
+       */
+      launchHelpContents: function() {
+        contextHelpService.launchHelpContents();
+      },
 
-          if(event) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
+      /**
+       * Open the Support Bundle Modal Dialog
+       */
+      showSupportBundle: function() {
+        $modal.open({
+          templateUrl: 'app/help/supportBundle/supportBundleModal.tpl.html',
+          controller: 'SupportBundleModalInstanceController',
+          size: '',
+          backdrop: true
+        });
+      },
 
-          var alerts = $rootScope.common.alertsMap[triggeredAlert.pipelineName];
+      /**
+       * Open the About Modal Dialog
+       */
+      showAbout: function() {
+        $modal.open({
+          templateUrl: 'aboutModalContent.html',
+          controller: 'AboutModalInstanceController',
+          size: '',
+          backdrop: true
+        });
+      },
 
-          if(alerts) {
-            $rootScope.common.alertsTotalCount--;
+      /**
+       * Open the Settings Modal Dialog
+       */
+      showSettings: function() {
+        $modal.open({
+          templateUrl: 'app/help/settings/settingsModal.tpl.html',
+          controller: 'SettingsModalInstanceController',
+          size: '',
+          backdrop: true
+        });
+      },
 
-            $rootScope.common.alertsMap[triggeredAlert.pipelineName] = _.filter(alerts, function(alert) {
-              return alert.ruleDefinition.id !== triggeredAlert.ruleDefinition.id;
-            });
-          }
-
-
-          api.pipelineAgent.deleteAlert(triggeredAlert.pipelineName, triggeredAlert.ruleDefinition.id)
-            .success(function() {
-
-            })
-            .error(function(data, status, headers, config) {
-              $rootScope.common.errors = [data];
-            });
-        },
-
-        ignoreCodeMirrorEnterKey: function() {
-          //console.log('onCodeMirrorEnterKey');
-        },
-
-        openConnectionLostModal: function () {
-          if (!isConnectionLostModalDisplayed) {
-            isConnectionLostModalDisplayed = true;
-            $modalStack.dismissAll();
-            $modal.open({
-              templateUrl: 'common/administration/connectionLost/connectionLost.tpl.html',
-              controller: 'ConnectionLostModalInstanceController',
-              size: '',
-              backdrop: 'static',
-              keyboard: false
-            });
-          }
-        },
-
-        closeConnectionLostModal: function() {
-          isConnectionLostModalDisplayed = false;
-        },
-
-        clearTextSelection: function() {
-          if (window.getSelection) {
-            if (window.getSelection().empty) {  // Chrome
-              window.getSelection().empty();
-            } else if (window.getSelection().removeAllRanges) {  // Firefox
-              window.getSelection().removeAllRanges();
+      showRegistrationModal: function() {
+        $modal.open({
+          templateUrl: 'app/help/register/registerModal.tpl.html',
+          controller: 'RegisterModalInstanceController',
+          size: '',
+          backdrop: 'static',
+          resolve: {
+            activationInfo: function () {
+              return $rootScope.common.activationInfo;
             }
-          } else if (document.selection) {  // IE?
-            document.selection.empty();
           }
-        },
+        });
+      },
 
-        /**
-         * Update Permissions callback function
-         */
-        updatePermissions: function () {
-          $modal.open({
-            templateUrl: 'common/administration/update_permissions/updatePermissions.tpl.html',
-            controller: 'UpdatePermissionsInstanceController',
-            size: 'lg',
-            backdrop: 'static'
+      showSDCDirectories: function() {
+        $modal.open({
+          templateUrl: 'common/administration/sdcDirectories/sdcDirectoriesModal.tpl.html',
+          controller: 'SDCDirectoriesModalInstanceController',
+          size: '',
+          backdrop: true
+        });
+      },
+
+      /**
+       * Clear Local Storage Contents
+       */
+      clearLocalStorage: function() {
+        $localStorage.$reset();
+      },
+
+      /**
+       * Key Event on body DOM element.
+       *
+       * @param $event
+       */
+      bodyKeyEvent: function($event) {
+        if($event.target === $event.currentTarget && $event.shiftKey !== true &&
+          ($event.keyCode === BACKSPACE_KEY || $event.keyCode === DELETE_KEY)) {
+
+          //Delete Operation
+
+          $event.preventDefault();
+          $event.stopPropagation();
+
+          $rootScope.$broadcast('bodyDeleteKeyPressed');
+        } else if(($event.metaKey && $event.shiftKey && ($event.keyCode === Z_KEY)) ||
+          ($event.ctrlKey && $event.keyCode === Y_KEY))  {
+
+          //REDO Operation
+          $rootScope.$broadcast('bodyRedoKeyPressed');
+        } else if(($event.metaKey || $event.ctrlKey) && $event.keyCode === Z_KEY) {
+          //UNDO Operation
+          $rootScope.$broadcast('bodyUndoKeyPressed');
+        }
+
+        if ($event.ctrlKey && $event.altKey && $event.keyCode === D_KEY) {
+          $rootScope.common.onEnableDPMClick();
+        }
+      },
+
+      /**
+       * Google Analytics Track Event
+       *
+       * @param category Typically the object that was interacted with (e.g. button)
+       * @param action The type of interaction (e.g. click)
+       * @param label Useful for categorizing events (e.g. nav buttons)
+       * @param value Values must be non-negative. Useful to pass counts (e.g. 4 times)
+       */
+      trackEvent: function(category, action, label, value) {
+        if(configuration.isAnalyticsEnabled()) {
+          Analytics.trackEvent(category, action, label, value);
+        }
+      },
+
+      /**
+       * Callback function when Alert is clicked.
+       *
+       * @param alert
+       */
+      onAlertClick: function(alert) {
+        $rootScope.common.trackEvent(pipelineConstant.BUTTON_CATEGORY, pipelineConstant.CLICK_ACTION,
+          'Notification Message', 1);
+        $rootScope.$broadcast('onAlertClick', alert);
+      },
+
+      /**
+       * Delete Triggered Alert
+       */
+      deleteTriggeredAlert: function(triggeredAlert, event) {
+
+        if(event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        var alerts = $rootScope.common.alertsMap[triggeredAlert.pipelineName];
+
+        if(alerts) {
+          $rootScope.common.alertsTotalCount--;
+
+          $rootScope.common.alertsMap[triggeredAlert.pipelineName] = _.filter(alerts, function(alert) {
+            return alert.ruleDefinition.id !== triggeredAlert.ruleDefinition.id;
           });
         }
-      };
+
+
+        api.pipelineAgent.deleteAlert(triggeredAlert.pipelineName, triggeredAlert.ruleDefinition.id)
+          .then(function() {
+
+          })
+          .catch(function(response) {
+            $rootScope.common.errors = [response.data];
+          });
+      },
+
+      ignoreCodeMirrorEnterKey: function() {
+        //console.log('onCodeMirrorEnterKey');
+      },
+
+      openConnectionLostModal: function () {
+        if (!isConnectionLostModalDisplayed) {
+          isConnectionLostModalDisplayed = true;
+          $modalStack.dismissAll();
+          $modal.open({
+            templateUrl: 'common/administration/connectionLost/connectionLost.tpl.html',
+            controller: 'ConnectionLostModalInstanceController',
+            size: '',
+            backdrop: 'static',
+            keyboard: false
+          });
+        }
+      },
+
+      closeConnectionLostModal: function() {
+        isConnectionLostModalDisplayed = false;
+      },
+
+      clearTextSelection: function() {
+        if (window.getSelection) {
+          if (window.getSelection().empty) {  // Chrome
+            window.getSelection().empty();
+          } else if (window.getSelection().removeAllRanges) {  // Firefox
+            window.getSelection().removeAllRanges();
+          }
+        } else if (document.selection) {  // IE?
+          document.selection.empty();
+        }
+      },
+
+      /**
+       * Update Permissions callback function
+       */
+      updatePermissions: function () {
+        $modal.open({
+          templateUrl: 'common/administration/update_permissions/updatePermissions.tpl.html',
+          controller: 'UpdatePermissionsInstanceController',
+          size: 'lg',
+          backdrop: 'static'
+        });
+      },
+
+      openEdgeTutorialPage() {
+        window.open('https://streamsets.com/documentation/datacollector/latest/help/datacollector/UserGuide/Edge_Mode/EdgePipelines_title.html', '_blank');
+      },
+
+      openMicroserviceTutorialPage() {
+        window.open('https://streamsets.com/blog/create-microservice-pipelines-streamsets-data-collector-tutorial/', '_blank');
+      },
+
+      openControlHubTutorialPage() {
+        window.open('https://streamsets.com/documentation/controlhub/latest/help/controlhub/UserGuide/GettingStarted/GettingStarted_title.html', '_blank');
+      },
+
+      openGithubTutorial() {
+        window.open('https://github.com/streamsets/tutorials', '_blank');
+      }
+    };
 
 
     api.admin.getServerTime().then(function(res) {
@@ -511,12 +554,37 @@ angular.module('dataCollectorApp')
       }
     });
 
+    api.activation.getActivation().then(function(res) {
+      if (res && res.data) {
+        var activationInfo = $rootScope.common.activationInfo = res.data;
+        if (activationInfo.enabled) {
+          var currentTime = new Date().getTime();
+          var expirationTime = activationInfo.info.expiration;
+          var difDays =  Math.floor(( expirationTime - currentTime ) / 86400000);
+          if (difDays < 0 ) {
+            $rootScope.common.infoList = [{
+              message: 'Activation key expired, you need to get a new one from StreamSets'
+            }];
+          } else if (difDays < 30) {
+            $rootScope.common.infoList = [{
+              message: 'Activation key expires in ' + difDays + '  days'
+            }];
+          } else if (!activationInfo.info.valid) {
+            $rootScope.common.infoList = [{
+              message: 'Activation key is not valid'
+            }];
+          }
+        }
+      }
+    });
+
     $q.all([configuration.init(), authService.init()])
       .then(function(results) {
         $rootScope.common.userName = authService.getUserName();
         $rootScope.common.userRoles = authService.getUserRoles().join(', ');
         $rootScope.common.userGroups = authService.getUserGroups().join(', ');
         $rootScope.userRoles = userRoles;
+        $rootScope.isAdmin = authService.isRemoteUserOrgAdmin() || authService.isAuthorized([userRoles.admin]);
         $rootScope.isAuthorized = authService.isAuthorized;
         $rootScope.common.isUserAdmin = authService.isUserAdmin();
 
@@ -542,7 +610,7 @@ angular.module('dataCollectorApp')
           authService.fetchRemoteUserRoles();
         }
 
-        isWebSocketSupported = (typeof(WebSocket) === "function") && configuration.isWebSocketUseEnabled();
+        isWebSocketSupported = (typeof(WebSocket) === 'function') && configuration.isWebSocketUseEnabled();
         refreshPipelineStatus();
         refreshAlerts();
 
@@ -550,8 +618,17 @@ angular.module('dataCollectorApp')
         if (configuration.isUIDebugEnabled()) {
           window.$rootScope = $rootScope;
         }
-      });
 
+        if ($rootScope.isAdmin) {
+          api.system.getStats()
+            .then(function (res) {
+              if (!res.data.opted) {
+                $rootScope.common.onStatOptInClick();
+              }
+            });
+        }
+
+      });
 
     api.pipelineAgent.getAllAlerts()
       .then(function(res) {
@@ -633,7 +710,7 @@ angular.module('dataCollectorApp')
 
         pipelineStatusTimer = $timeout(
           function() {
-            //console.log( "Pipeline Status Timeout executed", Date.now() );
+            //console.log( 'Pipeline Status Timeout executed', Date.now() );
           },
           configuration.getRefreshInterval()
         );
@@ -641,7 +718,8 @@ angular.module('dataCollectorApp')
         pipelineStatusTimer.then(
           function() {
             api.pipelineAgent.getAllPipelineStatus()
-              .success(function(data) {
+              .then(function(response) {
+                var data = response.data;
                 if(!_.isObject(data) && _.isString(data) && data.indexOf('<!doctype html>') !== -1) {
                   //Session invalidated
                   window.location.reload();
@@ -652,12 +730,12 @@ angular.module('dataCollectorApp')
 
                 refreshPipelineStatus();
               })
-              .error(function(data, status, headers, config) {
-                $rootScope.common.errors = [data];
+              .catch(function(response) {
+                $rootScope.common.errors = [response.data];
               });
           },
           function() {
-            //console.log( "Timer rejected!" );
+            //console.log( 'Timer rejected!' );
           }
         );
       }
@@ -722,7 +800,7 @@ angular.module('dataCollectorApp')
 
         alertsTimer = $timeout(
           function() {
-            //console.log( "Pipeline Status Timeout executed", Date.now() );
+            //console.log( 'Pipeline Status Timeout executed', Date.now() );
           },
           configuration.getRefreshInterval()
         );
@@ -730,7 +808,8 @@ angular.module('dataCollectorApp')
         alertsTimer.then(
           function() {
             api.pipelineAgent.getAllAlerts()
-              .success(function(data) {
+              .then(function(response) {
+                var data = response.data;
                 if(!_.isObject(data) && _.isString(data) && data.indexOf('<!doctype html>') !== -1) {
                   //Session invalidated
                   window.location.reload();
@@ -751,12 +830,12 @@ angular.module('dataCollectorApp')
 
                 refreshAlerts();
               })
-              .error(function(data, status, headers, config) {
-                $rootScope.common.errors = [data];
+              .catch(function(response) {
+                $rootScope.common.errors = [response.data];
               });
           },
           function() {
-            //console.log( "Timer rejected!" );
+            //console.log( 'Timer rejected!' );
           }
         );
       }

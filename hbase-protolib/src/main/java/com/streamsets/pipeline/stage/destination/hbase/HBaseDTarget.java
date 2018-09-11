@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.destination.hbase;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedTarget;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
@@ -24,7 +23,7 @@ import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.lib.hbase.common.HBaseConnectionConfig;
@@ -39,7 +38,7 @@ import java.util.List;
     icon = "hbase.png",
     privateClassLoader = true,
     upgrader = HBaseTargetUpgrader.class,
-    onlineHelpRefUrl = "index.html#Destinations/HBase.html#task_pyq_qx5_vr"
+    onlineHelpRefUrl ="index.html?contextID=task_pyq_qx5_vr"
 )
 @ConfigGroups(Groups.class)
 public class HBaseDTarget extends DTarget {
@@ -126,7 +125,7 @@ public class HBaseDTarget extends DTarget {
 
   @Override
   protected Target createTarget() {
-    return new HadoopConfigurationSynchronizedTarget(new HBaseTarget(
+    return new HBaseTarget(
         hBaseConnectionConfig,
         hbaseRowKey,
         rowKeyStorageType,
@@ -135,7 +134,7 @@ public class HBaseDTarget extends DTarget {
         ignoreMissingFieldPath,
         ignoreInvalidColumn,
         timeDriver
-    ));
+    );
   }
 
 }

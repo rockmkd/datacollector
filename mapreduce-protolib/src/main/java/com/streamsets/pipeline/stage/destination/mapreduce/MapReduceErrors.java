@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ public enum MapReduceErrors implements ErrorCode {
   MAPREDUCE_0004("Class {} doesn't implement JobCreator interface"),
   MAPREDUCE_0005("Can't submit MapReduce job: {}"),
   MAPREDUCE_0006("Hadoop UserGroupInformation reports '{}' authentication, it should be '{}'"),
+  MAPREDUCE_0007("Expression '{}' for {} evaluated to empty value when non-empty value is required"),
   ;
 
   private final String msg;

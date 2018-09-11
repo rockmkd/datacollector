@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ import com.streamsets.datacollector.alerts.AlertsUtil;
 import com.streamsets.datacollector.config.DataRuleDefinition;
 import com.streamsets.datacollector.config.DriftRuleDefinition;
 import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
-import com.streamsets.datacollector.definition.ELDefinitionExtractor;
+import com.streamsets.datacollector.definition.ConcreteELDefinitionExtractor;
 import com.streamsets.datacollector.el.ELEvaluator;
 import com.streamsets.datacollector.el.ELVariables;
 import com.streamsets.datacollector.el.ElConstantDefinition;
@@ -65,7 +65,7 @@ public class DataRuleEvaluator {
 
 
   private static List<String> createElFunctionIdx(String setName) {
-    List<ElFunctionDefinition> defs = ELDefinitionExtractor.get().extractFunctions(
+    List<ElFunctionDefinition> defs = ConcreteELDefinitionExtractor.get().extractFunctions(
         RuleELRegistry.getRuleELs(setName),
         Utils.formatL("DataRules set '{}'", setName)
     );
@@ -77,7 +77,7 @@ public class DataRuleEvaluator {
   }
 
   private static List<String> createElConstantIdx(String setName) {
-    List<ElConstantDefinition> defs = ELDefinitionExtractor.get().extractConstants(
+    List<ElConstantDefinition> defs = ConcreteELDefinitionExtractor.get().extractConstants(
         RuleELRegistry.getRuleELs(setName),
         Utils.formatL("DataRules set '{}'", setName)
     );
@@ -100,7 +100,6 @@ public class DataRuleEvaluator {
   }
 
   private final MetricRegistry metrics;
-  private final List<String> emailIds;
   private final RuleDefinitionsConfigBean ruleDefinitionsConfigBean;
   private final Configuration configuration;
   private final Map<String, Object> pipelineELContext;
@@ -116,7 +115,6 @@ public class DataRuleEvaluator {
       String rev,
       MetricRegistry metrics,
       AlertManager alertManager,
-      List<String> emailIds,
       RuleDefinitionsConfigBean ruleDefinitionsConfigBean,
       Map<String, Object> pipelineELContext,
       DataRuleDefinition dataRuleDefinition,
@@ -127,7 +125,6 @@ public class DataRuleEvaluator {
     this.name = name;
     this.rev = rev;
     this.metrics = metrics;
-    this.emailIds = emailIds;
     this.ruleDefinitionsConfigBean = ruleDefinitionsConfigBean;
     this.pipelineELContext = pipelineELContext;
     this.dataRuleDefinition = dataRuleDefinition;
@@ -230,7 +227,6 @@ public class DataRuleEvaluator {
                   for (String alertText : alertTextForMatchRecords) {
                     alertManager.alert(
                         matchingRecordCounter.getCount(),
-                        emailIds,
                         ruleDefinitionsConfigBean,
                         AlertManagerHelper.cloneRuleWithResolvedAlertText(dataRuleDefinition, alertText)
                     );
@@ -247,7 +243,6 @@ public class DataRuleEvaluator {
                 } else {
                   alertManager.alert(
                       matchingRecordCounter.getCount(),
-                      emailIds,
                       ruleDefinitionsConfigBean,
                       AlertManagerHelper.cloneRuleWithResolvedAlertText(
                           dataRuleDefinition,
@@ -276,7 +271,6 @@ public class DataRuleEvaluator {
               } else {
                 alertManager.alert(
                   matchingRecordCounter.getCount(),
-                  emailIds,
                   ruleDefinitionsConfigBean,
                   AlertManagerHelper.cloneRuleWithResolvedAlertText(
                       dataRuleDefinition,
@@ -306,7 +300,7 @@ public class DataRuleEvaluator {
         record,
         el,
         elVars,
-        new ELEvaluator("el", RuleELRegistry.getRuleELs(dataRuleDefinition.getFamily()))
+        new ELEvaluator("el",false, ConcreteELDefinitionExtractor.get(), RuleELRegistry.getRuleELs(dataRuleDefinition.getFamily()))
       );
     } catch (ObserverException e) {
       //A faulty condition should not take down rest of the alerts with it.
@@ -328,7 +322,7 @@ public class DataRuleEvaluator {
         alertText = "";
       }
 
-      ELEvaluator elEval = new ELEvaluator("alertInfo", RuleELRegistry.getRuleELs(RuleELRegistry.ALERT));
+      ELEvaluator elEval = new ELEvaluator("alertInfo",false, ConcreteELDefinitionExtractor.get(), RuleELRegistry.getRuleELs(RuleELRegistry.ALERT));
       RecordEL.setRecordInContext(elVars, record);
 
       return elEval.eval(elVars, alertText, String.class);

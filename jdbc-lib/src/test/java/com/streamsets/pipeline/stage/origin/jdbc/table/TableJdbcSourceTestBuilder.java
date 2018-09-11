@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,10 @@
  */
 package com.streamsets.pipeline.stage.origin.jdbc.table;
 
+import com.streamsets.pipeline.lib.jdbc.ConnectionPropertyBean;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
+import com.streamsets.pipeline.lib.jdbc.multithread.BatchTableStrategy;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableOrderStrategy;
 import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
 
 import java.util.ArrayList;
@@ -28,10 +31,10 @@ public class TableJdbcSourceTestBuilder {
   private boolean useCredentials;
   private String username;
   private String password;
-  private Map<String, String> driverProperties;
+  private List<ConnectionPropertyBean> driverProperties;
   private  String driverClassName;
   private String connectionTestQuery;
-  private long queryInterval;
+  private String queriesPerSecond;
   private int maxBatchSize;
   private int maxClobSize;
   private int maxBlobSize;
@@ -53,10 +56,10 @@ public class TableJdbcSourceTestBuilder {
     this.useCredentials = useCredentials;
     this.username = username;
     this.password = password;
-    this.driverProperties = Collections.emptyMap();
+    this.driverProperties = new ArrayList<>();
     this.driverClassName = "";
     this.connectionTestQuery = "";
-    this.queryInterval = 1;
+    this.queriesPerSecond = "0";
     this.maxBatchSize = 1000;
     this.maxClobSize = 1000;
     this.maxBlobSize = 1000;
@@ -93,7 +96,12 @@ public class TableJdbcSourceTestBuilder {
   }
 
   public TableJdbcSourceTestBuilder driverProperties(Map<String, String> driverProperties) {
-    this.driverProperties = driverProperties;
+    for (Map.Entry<String,String> entry : driverProperties.entrySet()) {
+      ConnectionPropertyBean config = new ConnectionPropertyBean();
+      config.key = entry.getKey();
+      config.value = () -> entry.getValue();
+      this.driverProperties.add(config);
+    }
     return this;
   }
 
@@ -107,8 +115,8 @@ public class TableJdbcSourceTestBuilder {
     return this;
   }
 
-  public TableJdbcSourceTestBuilder queryInterval(long queryInterval) {
-    this.queryInterval = queryInterval;
+  public TableJdbcSourceTestBuilder queriesPerSecond(String queriesPerSecond) {
+    this.queriesPerSecond = queriesPerSecond;
     return this;
   }
 
@@ -162,6 +170,11 @@ public class TableJdbcSourceTestBuilder {
     return this;
   }
 
+  public TableJdbcSourceTestBuilder fetchSize(int fetchSize) {
+    this.fetchSize = fetchSize;
+    return this;
+  }
+
   public TableJdbcSourceTestBuilder quoteChar(QuoteChar quoteChar) {
     this.quoteChar = quoteChar;
     return this;
@@ -186,8 +199,8 @@ public class TableJdbcSourceTestBuilder {
     HikariPoolConfigBean hikariPoolConfigBean = new HikariPoolConfigBean();
     hikariPoolConfigBean.useCredentials = useCredentials;
     hikariPoolConfigBean.connectionString = connectionString;
-    hikariPoolConfigBean.username = username;
-    hikariPoolConfigBean.password = password;
+    hikariPoolConfigBean.username = () -> username;
+    hikariPoolConfigBean.password = () -> password;
     hikariPoolConfigBean.driverClassName = driverClassName;
     hikariPoolConfigBean.driverProperties = driverProperties;
     hikariPoolConfigBean.connectionTestQuery = connectionTestQuery;
@@ -207,13 +220,16 @@ public class TableJdbcSourceTestBuilder {
     tableJdbcConfigBean.quoteChar = quoteChar;
 
     CommonSourceConfigBean commonSourceConfigBean =  new CommonSourceConfigBean(
-        queryInterval,
+        queriesPerSecond,
         maxBatchSize,
         maxClobSize,
         maxBlobSize
     );
 
     commonSourceConfigBean.numSQLErrorRetries = numSQLErrorRetries;
+
+    // in test, delay for two seconds to allow no-more-data event to come last
+    commonSourceConfigBean.noMoreDataEventDelay = 2;
 
     return new TableJdbcSource(
         hikariPoolConfigBean,
@@ -226,19 +242,29 @@ public class TableJdbcSourceTestBuilder {
     private String schema;
     private String tablePattern;
     private String tableExclusionPattern;
+    private String schemaExclusionPattern;
     private boolean overrideDefaultOffsetColumns;
     private List<String> offsetColumns;
     private Map<String, String> offsetColumnToInitialOffsetValue;
     private String extraOffsetColumnConditions;
+    private PartitioningMode partitioningMode;
+    private String partitionSize;
+    private int maxNumActivePartitions;
+    private boolean enableNonIncremental;
 
     public TableConfigBeanTestBuilder() {
       this.schema = "";
       this.tablePattern = "%";
       this.tableExclusionPattern = "";
+      this.schemaExclusionPattern = "";
       this.overrideDefaultOffsetColumns = false;
       this.offsetColumns = new ArrayList<>();
       this.offsetColumnToInitialOffsetValue = Collections.emptyMap();
       this.extraOffsetColumnConditions = "";
+      this.partitioningMode = TableConfigBean.PARTITIONING_MODE_DEFAULT_VALUE;
+      this.partitionSize = TableConfigBean.DEFAULT_PARTITION_SIZE;
+      this.maxNumActivePartitions = TableConfigBean.DEFAULT_MAX_NUM_ACTIVE_PARTITIONS;
+      this.enableNonIncremental = TableConfigBean.ENABLE_NON_INCREMENTAL_DEFAULT_VALUE;
     }
 
     public TableConfigBeanTestBuilder schema(String schema) {
@@ -253,6 +279,11 @@ public class TableJdbcSourceTestBuilder {
 
     public TableConfigBeanTestBuilder tableExclusionPattern(String tableExclusionPattern) {
       this.tableExclusionPattern = tableExclusionPattern;
+      return this;
+    }
+
+    public TableConfigBeanTestBuilder schemaExclusionPattern(String schemaExclusionPattern) {
+      this.schemaExclusionPattern = schemaExclusionPattern;
       return this;
     }
 
@@ -276,15 +307,40 @@ public class TableJdbcSourceTestBuilder {
       return this;
     }
 
+    public TableConfigBeanTestBuilder partitioningMode(PartitioningMode partitioningMode) {
+      this.partitioningMode = partitioningMode;
+      return this;
+    }
+
+    public TableConfigBeanTestBuilder enableNonIncremental(boolean enableNonIncremental) {
+      this.enableNonIncremental = enableNonIncremental;
+      return this;
+    }
+
+    public TableConfigBeanTestBuilder partitionSize(String partitionSize) {
+      this.partitionSize = partitionSize;
+      return this;
+    }
+
+    public TableConfigBeanTestBuilder maxNumActivePartitions(int maxNumActivePartitions) {
+      this.maxNumActivePartitions = maxNumActivePartitions;
+      return this;
+    }
+
     public TableConfigBean build() {
       TableConfigBean tableConfigBean = new TableConfigBean();
       tableConfigBean.schema = schema;
       tableConfigBean.tablePattern = tablePattern;
       tableConfigBean.tableExclusionPattern = tableExclusionPattern;
+      tableConfigBean.schemaExclusionPattern = schemaExclusionPattern;
       tableConfigBean.offsetColumnToInitialOffsetValue = offsetColumnToInitialOffsetValue;
       tableConfigBean.overrideDefaultOffsetColumns = overrideDefaultOffsetColumns;
       tableConfigBean.offsetColumns = offsetColumns;
       tableConfigBean.extraOffsetColumnConditions = extraOffsetColumnConditions;
+      tableConfigBean.partitioningMode = partitioningMode;
+      tableConfigBean.enableNonIncremental = enableNonIncremental;
+      tableConfigBean.partitionSize = partitionSize;
+      tableConfigBean.maxNumActivePartitions = maxNumActivePartitions;
       return tableConfigBean;
     }
   }

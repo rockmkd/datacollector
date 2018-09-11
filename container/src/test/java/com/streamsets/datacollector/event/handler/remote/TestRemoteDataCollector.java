@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,11 @@
  */
 package com.streamsets.datacollector.event.handler.remote;
 
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.callback.CallbackInfo;
 import com.streamsets.datacollector.callback.CallbackObjectType;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.config.PipelineFragmentConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.config.dto.ValidationStatus;
 import com.streamsets.datacollector.execution.Manager;
@@ -47,12 +49,15 @@ import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.production.OffsetFileUtil;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.runner.production.SourceOffsetUpgrader;
+import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.AclStoreTask;
 import com.streamsets.datacollector.store.PipelineInfo;
 import com.streamsets.datacollector.store.PipelineRevInfo;
 import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.datacollector.util.ContainerError;
+import com.streamsets.datacollector.util.PipelineDirectoryUtil;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.datacollector.validation.Issues;
 import com.streamsets.lib.security.acl.dto.Acl;
@@ -62,8 +67,10 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
+import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -71,6 +78,7 @@ import org.mockito.Mockito;
 
 import javax.ws.rs.core.MultivaluedMap;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -80,9 +88,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class TestRemoteDataCollector {
 
@@ -265,6 +274,16 @@ public class TestRemoteDataCollector {
     }
 
     @Override
+    public String getPipelineTitle() throws PipelineException {
+      return null;
+    }
+
+    @Override
+    public PipelineConfiguration getPipelineConfiguration() throws PipelineException {
+      return null;
+    }
+
+    @Override
     public void resetOffset(String user) throws PipelineStoreException, PipelineRunnerException {
       // TODO Auto-generated method stub
 
@@ -315,8 +334,7 @@ public class TestRemoteDataCollector {
     }
 
     @Override
-    public void prepareForStart(String user) throws PipelineStoreException, PipelineRunnerException {
-      // TODO Auto-generated method stub
+    public void prepareForStart(StartPipelineContext context) throws PipelineException {
 
     }
 
@@ -327,30 +345,13 @@ public class TestRemoteDataCollector {
     }
 
     @Override
-    public void start(String user) throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
-        StageException {
-      // TODO Auto-generated method stub
+    public void start(StartPipelineContext context) throws PipelineException, StageException {
+
     }
 
     @Override
-    public void start(
-        String user,
-        Map<String, Object> runtimeParameters
-    ) throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
-        StageException {
-      // TODO Auto-generated method stub
-    }
+    public void startAndCaptureSnapshot(StartPipelineContext context, String snapshotName, String snapshotLabel, int batches, int batchSize) throws PipelineException, StageException {
 
-    @Override
-    public void startAndCaptureSnapshot(
-        String user,
-        Map<String, Object> runtimeParameters,
-        String snapshotName,
-        String snapshotLabel,
-        int batches,
-        int batchSize
-    ) throws PipelineException, StageException {
-      // TODO Auto-generated method stub
     }
 
     @Override
@@ -450,6 +451,11 @@ public class TestRemoteDataCollector {
     }
 
     @Override
+    public Map<String, Object> createStateAttributes() {
+      return new HashMap<>();
+    }
+
+    @Override
     public void close() {
       // TODO Auto-generated method stub
 
@@ -478,6 +484,10 @@ public class TestRemoteDataCollector {
       return 0;
     }
 
+    @Override
+    public Runner getDelegatingRunner() {
+      return null;
+    }
   }
 
   private static class MockPreviewer implements Previewer {
@@ -534,9 +544,11 @@ public class TestRemoteDataCollector {
         int batches,
         int batchSize,
         boolean skipTargets,
+        boolean skipLifecycleEvents,
         String stopStage,
         List<StageOutput> stagesOverride,
-        long timeoutMillis
+        long timeoutMillis,
+        boolean testOrigin
     ) throws PipelineException {
 
     }
@@ -723,7 +735,8 @@ public class TestRemoteDataCollector {
         String pipelineId,
         String pipelineTitle,
         String description,
-        boolean isRemote
+        boolean isRemote,
+        boolean draft
     ) throws PipelineStoreException {
       // TODO Auto-generated method stub
       return new PipelineConfiguration(
@@ -737,7 +750,9 @@ public class TestRemoteDataCollector {
           null,
           null,
           null,
-          null
+          null,
+          Collections.emptyList(),
+          Collections.emptyList()
       );
     }
 
@@ -788,7 +803,8 @@ public class TestRemoteDataCollector {
     public RuleDefinitions storeRules(
         String pipelineName,
         String tag,
-        RuleDefinitions ruleDefinitions
+        RuleDefinitions ruleDefinitions,
+        boolean draft
     ) throws PipelineStoreException {
       // TODO Auto-generated method stub
       return null;
@@ -823,6 +839,17 @@ public class TestRemoteDataCollector {
     }
 
     @Override
+    public PipelineFragmentConfiguration createPipelineFragment(
+        String user,
+        String pipelineId,
+        String pipelineTitle,
+        String description,
+        boolean draft
+    ) throws PipelineException {
+      return null;
+    }
+
+    @Override
     public PipelineConfiguration save(
         String user,
         String name,
@@ -846,13 +873,18 @@ public class TestRemoteDataCollector {
   public void testValidateConfigs() throws Exception {
     try {
       AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-      RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+      RemoteDataCollector dataCollector = new RemoteDataCollector(
+          new Configuration(),
+          new MockManager(),
           new MockPipelineStoreTask(),
           new MockPipelineStateStore(),
           aclStoreTask,
           new RemoteStateEventListener(new Configuration()),
           null,
-          Mockito.mock(AclCacheHelper.class)
+          Mockito.mock(AclCacheHelper.class),
+          Mockito.mock(StageLibraryTask.class),
+          Mockito.mock(BlobStoreTask.class),
+          new SafeScheduledExecutorService(1, "supportBundleExecutor")
       );
       dataCollector.validateConfigs("user", "ns:name", "rev");
       dataCollector.validateConfigs("user1", "ns:name1", "rev1");
@@ -868,20 +900,27 @@ public class TestRemoteDataCollector {
   public void testStopAndDelete() throws Exception {
     try {
       AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-      RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+      RemoteDataCollector dataCollector = new RemoteDataCollector(
+          new Configuration(),
+          new MockManager(),
           new MockPipelineStoreTask(),
           new MockPipelineStateStore(),
           aclStoreTask,
           new RemoteStateEventListener(new Configuration()),
           null,
-          Mockito.mock(AclCacheHelper.class)
+          Mockito.mock(AclCacheHelper.class),
+          Mockito.mock(StageLibraryTask.class),
+          Mockito.mock(BlobStoreTask.class),
+          new SafeScheduledExecutorService(1, "supportBundleExecutor")
       );
-      dataCollector.stopAndDelete("user", "ns:name", "rev");
-      dataCollector.stopAndDelete("user", "ns:name", "rev");
+      RemoteDataCollector.StopAndDeleteCallable stopAndDeleteCallable = new RemoteDataCollector.StopAndDeleteCallable(
+          dataCollector, "user", "ns:name", "rev", 600000
+      );
+      stopAndDeleteCallable.call();
+
       assertEquals(1, MockRunner.stopCalled);
       assertEquals(1, MockPipelineStoreTask.deleteCalled);
       assertEquals(1, MockPipelineStoreTask.deleteRulesCalled);
-      assertEquals(2, MockPipelineStateStore.getStateCalled);
     } finally {
       MockRunner.stopCalled = 0;
       MockPipelineStateStore.getStateCalled = 0;
@@ -897,17 +936,26 @@ public class TestRemoteDataCollector {
       AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
       File testFolder = tempFolder.newFolder();
       Mockito.when(runtimeInfo.getDataDir()).thenReturn(testFolder.getAbsolutePath());
+      Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, "ns:name", "rev").toPath());
+      Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, "ns:name1", "rev1").toPath());
+      Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, "ns:name2", "rev1").toPath());
+
       OffsetFileUtil.saveOffsets(runtimeInfo, "ns:name", "rev", Collections.singletonMap(Source.POLL_SOURCE_OFFSET_KEY, "offset:100"));
       OffsetFileUtil.saveOffsets(runtimeInfo, "ns:name1", "rev1", Collections.singletonMap(Source.POLL_SOURCE_OFFSET_KEY, "offset:101"));
       OffsetFileUtil.saveOffsets(runtimeInfo, "ns:name2", "rev1", Collections.singletonMap(Source.POLL_SOURCE_OFFSET_KEY, "offset:102"));
 
-      RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+      RemoteDataCollector dataCollector = new RemoteDataCollector(
+          new Configuration(),
+          new MockManager(),
           new MockPipelineStoreTask(),
           new MockPipelineStateStore(),
           aclStoreTask,
           new RemoteStateEventListener(new Configuration()),
           runtimeInfo,
-          Mockito.mock(AclCacheHelper.class)
+          Mockito.mock(AclCacheHelper.class),
+          Mockito.mock(StageLibraryTask.class),
+          Mockito.mock(BlobStoreTask.class),
+          new SafeScheduledExecutorService(1, "supportBundleExecutor")
       );
       dataCollector.init();
       dataCollector.validateConfigs("user", "ns:name", "rev");
@@ -952,13 +1000,18 @@ public class TestRemoteDataCollector {
   public void testAclOnSavePipeline() throws Exception {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         new MockPipelineStoreTask(),
         new MockPipelineStateStore(),
         aclStoreTask,
         new RemoteStateEventListener(new Configuration()),
         runtimeInfo,
-        Mockito.mock(AclCacheHelper.class)
+        Mockito.mock(AclCacheHelper.class),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(BlobStoreTask.class),
+        new SafeScheduledExecutorService(1, "supportBundleExecutor")
     );
     File testFolder = tempFolder.newFolder();
     Mockito.when(runtimeInfo.getDataDir()).thenReturn(testFolder.getAbsolutePath());
@@ -966,6 +1019,7 @@ public class TestRemoteDataCollector {
     SourceOffset sourceOffset = new SourceOffset();
     sourceOffset.setOffset("offset:1000");
     new SourceOffsetUpgrader().upgrade(sourceOffset);
+    Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, "foo", "0").toPath());
     dataCollector.savePipeline("user", "foo", "0", "", sourceOffset, Mockito.mock(PipelineConfiguration.class), null,
         acl);
     Mockito.verify(aclStoreTask, Mockito.times(1)).saveAcl(Mockito.eq("foo"), Mockito.eq(acl));
@@ -976,13 +1030,18 @@ public class TestRemoteDataCollector {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
     PipelineStoreTask pipelineStoreTask = Mockito.mock(MockPipelineStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         pipelineStoreTask,
         new MockPipelineStateStore(),
         aclStoreTask,
         new RemoteStateEventListener(new Configuration()),
         runtimeInfo,
-        Mockito.mock(AclCacheHelper.class)
+        Mockito.mock(AclCacheHelper.class),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(BlobStoreTask.class),
+        new SafeScheduledExecutorService(1, "supportBundleExecutor")
     );
     File testFolder = tempFolder.newFolder();
     Mockito.when(runtimeInfo.getDataDir()).thenReturn(testFolder.getAbsolutePath());
@@ -998,19 +1057,25 @@ public class TestRemoteDataCollector {
   public void testSavePipelineOffset() throws Exception {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         new MockPipelineStoreTask(),
         new MockPipelineStateStore(),
         aclStoreTask,
         new RemoteStateEventListener(new Configuration()),
         runtimeInfo,
-        Mockito.mock(AclCacheHelper.class)
+        Mockito.mock(AclCacheHelper.class),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(BlobStoreTask.class),
+        new SafeScheduledExecutorService(1, "supportBundleExecutor")
     );
     File testFolder = tempFolder.newFolder();
     Mockito.when(runtimeInfo.getDataDir()).thenReturn(testFolder.getAbsolutePath());
     SourceOffset sourceOffset = new SourceOffset();
     sourceOffset.setOffset("offset:1000");
     new SourceOffsetUpgrader().upgrade(sourceOffset);
+    Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, "foo", "0").toPath());
     dataCollector.savePipeline("user", "foo", "0", "", sourceOffset, Mockito.mock(PipelineConfiguration.class), null,
         new Acl());
     assertTrue("Offset File doesn't exist", OffsetFileUtil.getPipelineOffsetFile(runtimeInfo, "foo", "0").exists());
@@ -1026,13 +1091,18 @@ public class TestRemoteDataCollector {
     AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
     RemoteStateEventListener remoteStateEventListener = Mockito.mock(RemoteStateEventListener.class);
     PipelineStoreTask pipelineStoreTask = Mockito.mock(MockPipelineStoreTask.class);
-    RemoteDataCollector dataCollector = new RemoteDataCollector(new MockManager(),
+    RemoteDataCollector dataCollector = new RemoteDataCollector(
+        new Configuration(),
+        new MockManager(),
         pipelineStoreTask,
         new MockPipelineStateStore(),
         aclStoreTask,
         remoteStateEventListener,
         runtimeInfo,
-        Mockito.mock(AclCacheHelper.class)
+        Mockito.mock(AclCacheHelper.class),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(BlobStoreTask.class),
+        new SafeScheduledExecutorService(1, "supportBundleExecutor")
     );
     List<PipelineState> pipelineStates = new ArrayList<>();
     pipelineStates.add(new PipelineStateImpl("user",
@@ -1077,16 +1147,44 @@ public class TestRemoteDataCollector {
   }
 
   @Test
+  public void testPipelineStateExists() throws Exception {
+    Manager manager = Mockito.mock(StandaloneAndClusterPipelineManager.class);
+    PipelineStoreTask pipelineStoreTask = Mockito.mock(PipelineStoreTask.class);
+    PipelineStateStore pipelineStateStore = Mockito.mock(PipelineStateStore.class);
+    Mockito.when(pipelineStateStore.getState("name", "rev")).thenThrow(new PipelineStoreException(ContainerError
+        .CONTAINER_0209));
+    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(
+        new Configuration(),
+        manager,
+        pipelineStoreTask,
+        pipelineStateStore,
+        Mockito.mock(AclStoreTask.class),
+        Mockito.mock(RemoteStateEventListener.class),
+        Mockito.mock(RuntimeInfo.class),
+        Mockito.mock(AclCacheHelper.class),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(BlobStoreTask.class),
+        new SafeScheduledExecutorService(1, "supportBundleExecutor")
+    ));
+    Assert.assertTrue(!dataCollector.pipelineStateExists("name", "rev"));
+  }
+
+  @Test
   public void testRunnerCount() throws Exception {
     Manager manager = Mockito.mock(StandaloneAndClusterPipelineManager.class);
     PipelineStoreTask pipelineStoreTask = Mockito.mock(PipelineStoreTask.class);
-    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(manager,
+    RemoteDataCollector dataCollector = Mockito.spy(new RemoteDataCollector(
+        new Configuration(),
+        manager,
         pipelineStoreTask,
         Mockito.mock(PipelineStateStore.class),
         Mockito.mock(AclStoreTask.class),
         Mockito.mock(RemoteStateEventListener.class),
         Mockito.mock(RuntimeInfo.class),
-        Mockito.mock(AclCacheHelper.class)
+        Mockito.mock(AclCacheHelper.class),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(BlobStoreTask.class),
+        new SafeScheduledExecutorService(1, "supportBundleExecutor")
     ));
     PipelineState pipelineStatus1 = new PipelineStateImpl("user",
         "ns:name",

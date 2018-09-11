@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,19 +16,34 @@
 package com.streamsets.pipeline.stage.destination.devnull;
 
 import com.streamsets.pipeline.api.ErrorStage;
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.HideStage;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 
 @StageDef(
     version = 1,
     label = "Discard",
-    description = "Discards records",
+    description = "Discards records and events",
     icon="",
-    onlineHelpRefUrl = "index.html#Pipeline_Configuration/ErrorHandling.html#concept_kgc_l4y_5r"
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+    },
+    flags = StageBehaviorFlags.PASSTHROUGH,
+    onlineHelpRefUrl ="index.html?contextID=concept_kgc_l4y_5r"
 )
 @HideConfigs(preconditions = true, onErrorRecord = true)
 @ErrorStage
+@PipelineLifecycleStage
+@HideStage({HideStage.Type.ERROR_STAGE, HideStage.Type.LIFECYCLE_STAGE})
 @GenerateResourceBundle
 public class ToErrorNullDTarget extends NullDTarget {
 }

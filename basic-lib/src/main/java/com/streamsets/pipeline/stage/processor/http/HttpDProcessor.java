@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,20 +21,19 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.lib.http.Groups;
 
 @StageDef(
-    version = 9,
+    version = 11,
     label = "HTTP Client",
     description = "Uses an HTTP client to make arbitrary requests.",
     icon = "httpclient.png",
     recordsByRef = true,
     upgrader = HttpProcessorUpgrader.class,
-    onlineHelpRefUrl = "index.html#Processors/HTTPClient.html#task_z54_1qr_fw"
+    onlineHelpRefUrl ="index.html?contextID=task_z54_1qr_fw"
 )
 @HideConfigs(value = {
-    "conf.dataFormatConfig.compression",
     "conf.dataFormatConfig.jsonContent"
 })
 @ConfigGroups(Groups.class)

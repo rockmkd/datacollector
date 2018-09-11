@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -505,8 +505,8 @@ public class LdapLoginModule extends AbstractLoginModule
     }
 
     List<String> roles = getUserRoles(username, userDn);
-
-    UserInfo userInfo = new UserInfo(username, null, roles);
+    //Authentication already succeeded. We won't store user password so passing empty credential
+    UserInfo userInfo = new UserInfo(username, Credential.getCredential(""), roles);
     JAASUserInfo jaasUserInfo = new JAASUserInfo(userInfo);
     jaasUserInfo.fetchRoles();
     setCurrentUser(jaasUserInfo);

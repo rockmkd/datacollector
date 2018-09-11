@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.Utils;
 import org.iq80.snappy.SnappyFramedInputStream;
 import org.slf4j.Logger;
@@ -41,8 +42,8 @@ public class HttpReceiverServlet extends HttpServlet {
   private final HttpReceiver receiver;
   private final BlockingQueue<Exception> errorQueue;
   private final Meter invalidRequestMeter;
-  private final Meter errorRequestMeter;
-  private final Meter requestMeter;
+  protected final Meter errorRequestMeter;
+  protected final Meter requestMeter;
   private final Timer requestTimer;
   private volatile boolean shuttingDown;
 
@@ -55,14 +56,20 @@ public class HttpReceiverServlet extends HttpServlet {
     requestTimer = context.createTimer("requests");
   }
 
-  HttpReceiver getReceiver() {
+  protected HttpReceiver getReceiver() {
     return receiver;
   }
 
   @VisibleForTesting
-  boolean validateAppId(HttpServletRequest req, HttpServletResponse res)
+  protected boolean validateAppId(HttpServletRequest req, HttpServletResponse res)
       throws ServletException, IOException {
     boolean valid = false;
+    String ourAppId = null;
+    try {
+      ourAppId = getReceiver().getAppId().get();
+    } catch (StageException e) {
+      throw new IOException("Cant resolve credential value", e);
+    }
     String requestor = req.getRemoteAddr() + ":" + req.getRemotePort();
     String reqAppId = req.getHeader(HttpConstants.X_SDC_APPLICATION_ID_HEADER);
 
@@ -73,7 +80,7 @@ public class HttpReceiverServlet extends HttpServlet {
     if (reqAppId == null) {
       LOG.warn("Request from '{}' missing appId, rejected", requestor);
       res.sendError(HttpServletResponse.SC_FORBIDDEN, "Missing 'appId'");
-    } else if (!getReceiver().getAppId().equals(reqAppId)) {
+    } else if (!ourAppId.equals(reqAppId)) {
       LOG.warn("Request from '{}' invalid appId '{}', rejected", requestor, reqAppId);
       res.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid 'appId'");
     } else {
@@ -116,6 +123,11 @@ public class HttpReceiverServlet extends HttpServlet {
   }
 
   @Override
+  protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    doPost(req, resp);
+  }
+
+  @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
     String requestor = req.getRemoteAddr() + ":" + req.getRemotePort();
     if (isShuttingDown()) {
@@ -144,13 +156,7 @@ public class HttpReceiverServlet extends HttpServlet {
             }
           }
           LOG.debug("Processing request from '{}'", requestor);
-          if (getReceiver().process(req, is)) {
-            resp.setStatus(HttpServletResponse.SC_OK);
-            requestMeter.mark();
-          } else {
-            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Record(s) didn't reach all destinations");
-            errorRequestMeter.mark();
-          }
+          processRequest(req, is, resp);
         } catch (Exception ex) {
           errorQueue.offer(ex);
           errorRequestMeter.mark();
@@ -166,12 +172,22 @@ public class HttpReceiverServlet extends HttpServlet {
     }
   }
 
+  protected void processRequest(HttpServletRequest req, InputStream is, HttpServletResponse resp) throws IOException {
+    if (getReceiver().process(req, is, resp)) {
+      resp.setStatus(HttpServletResponse.SC_OK);
+      requestMeter.mark();
+    } else {
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Record(s) didn't reach all destinations");
+      errorRequestMeter.mark();
+    }
+  }
+
   @VisibleForTesting
   boolean isShuttingDown() {
     return shuttingDown;
   }
 
-  void setShuttingDown() {
+  public void setShuttingDown() {
     shuttingDown = true;
   }
 

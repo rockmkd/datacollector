@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,12 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.config.OnStagePreConditionFailure;
 import com.streamsets.pipeline.config.OnStagePreConditionFailureChooserValues;
-import com.streamsets.pipeline.configurablestage.DProcessor;
 
 @StageDef(
     version=3,
@@ -32,7 +33,8 @@ import com.streamsets.pipeline.configurablestage.DProcessor;
     description = "Uses an algorithm to hash field values",
     icon="hash.png",
     upgrader = FieldHasherProcessorUpgrader.class,
-    onlineHelpRefUrl = "index.html#Processors/FieldHasher.html#task_xjd_dlk_wq"
+    flags = StageBehaviorFlags.PURE_FUNCTION,
+    onlineHelpRefUrl ="index.html?contextID=task_xjd_dlk_wq"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

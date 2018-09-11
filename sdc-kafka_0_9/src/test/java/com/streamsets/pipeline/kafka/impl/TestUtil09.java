@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,6 @@ import org.apache.kafka.common.protocol.SecurityProtocol;
 import scala.Option;
 
 import java.io.File;
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Map;

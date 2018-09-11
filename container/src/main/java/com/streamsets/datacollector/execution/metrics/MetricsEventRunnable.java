@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,6 +79,7 @@ public class MetricsEventRunnable implements Runnable {
   private static final String PIPELINE_COMMIT_ID = "PIPELINE_COMMIT_ID";
   private static final String JOB_ID = "JOB_ID";
   private static final String UPDATE_WAIT_TIME_MS = "UPDATE_WAIT_TIME_MS";
+  public static final String TIME_SERIES_ANALYSIS = "TIME_SERIES_ANALYSIS";
   private static final String SDC = "sdc";
   private static final String X_REQUESTED_BY = "X-Requested-By";
   private static final String X_SS_APP_AUTH_TOKEN = "X-SS-App-Auth-Token";
@@ -106,6 +107,8 @@ public class MetricsEventRunnable implements Runnable {
   private String jobId;
   private Integer waitTimeBetweenUpdates;
   private final int retryAttempts = 5;
+  private boolean timeSeriesAnalysis = true;
+  private boolean isPipelineStopped = false;
   private WebTarget webTarget;
   private Stopwatch stopwatch = null;
 
@@ -134,8 +137,14 @@ public class MetricsEventRunnable implements Runnable {
     this.runtimeInfo = runtimeInfo;
   }
 
-  public void setThreadHealthReporter(ThreadHealthReporter threadHealthReporter) {
-    this.threadHealthReporter = threadHealthReporter;
+  public void onStopPipeline() {
+    this.threadHealthReporter = null;
+    if (isDPMPipeline) {
+      // Send final metrics to DPM on stop
+      this.stopwatch = null;
+      this.isPipelineStopped = true;
+      this.run();
+    }
   }
 
   public void setStatsQueue(BlockingQueue<Record> statsQueue) {
@@ -160,7 +169,8 @@ public class MetricsEventRunnable implements Runnable {
       }
       ObjectMapper objectMapper = ObjectMapperFactory.get();
       PipelineState state = pipelineStateStore.getState(name, rev);
-      if (hasMetricEventListeners(state) || isDPMPipeline) {
+      if (hasMetricEventListeners(state) ||
+          (isDPMPipeline && (isWriteStatsToDPMDirectlyEnabled() || isStatAggregationEnabled()))) {
         // compute aggregated metrics in case of cluster mode pipeline
         // get individual pipeline metrics if non cluster mode pipeline
         String metricsJSONStr;
@@ -175,19 +185,24 @@ public class MetricsEventRunnable implements Runnable {
         if (hasMetricEventListeners(state)) {
           eventListenerManager.broadcastMetrics(name, metricsJSONStr);
         }
-        if (isStatAggregationEnabled()) {
+        // don't queue stats record when pipeline is stopped as runner is not going to process any more batches
+        if (isStatAggregationEnabled() && !isPipelineStopped) {
           AggregatorUtil.enqueStatsRecord(
             AggregatorUtil.createMetricJsonRecord(
                 runtimeInfo.getId(),
                 runtimeInfo.getMasterSDCId(),
                 pipelineConfiguration.getMetadata(),
                 false, // isAggregated - no its not aggregated
+                timeSeriesAnalysis,
+                false,
                 metricsJSONStr
             ),
             statsQueue,
             configuration
           );
-        } else if (isDPMPipeline && isWriteStatsToDPMDirectlyEnabled()) {
+        } else if (isDPMPipeline && isWriteStatsToDPMDirectlyEnabled() &&
+            state.getExecutionMode() != ExecutionMode.SLAVE) {
+          // Write Stats to Control hub is not supported for slave nodes
           sendMetricsToDPM(pipelineConfiguration, metricsJSONStr);
         }
       }
@@ -286,7 +301,7 @@ public class MetricsEventRunnable implements Runnable {
       isDPMPipeline = isRemotePipeline(state);
       if (isDPMPipeline && isWriteStatsToDPMDirectlyEnabled()) {
         PipelineConfigBean pipelineConfigBean = PipelineBeanCreator.get()
-            .create(pipelineConfiguration, new ArrayList<>());
+            .create(pipelineConfiguration, new ArrayList<>(), null);
         for (String key : pipelineConfigBean.constants.keySet()) {
           switch (key) {
             case REMOTE_TIMESERIES_URL:
@@ -303,6 +318,13 @@ public class MetricsEventRunnable implements Runnable {
                 waitTimeBetweenUpdates = (Integer) pipelineConfigBean.constants.get(key);
               } else {
                 waitTimeBetweenUpdates = 15000;
+              }
+              break;
+            case TIME_SERIES_ANALYSIS:
+              if (pipelineConfigBean.constants.get(key) != null) {
+                timeSeriesAnalysis = (Boolean) pipelineConfigBean.constants.get(key);
+              } else {
+                timeSeriesAnalysis = true;
               }
               break;
           }
@@ -341,6 +363,7 @@ public class MetricsEventRunnable implements Runnable {
       }
       metadata.put(DPM_PIPELINE_COMMIT_ID, pipelineCommitId);
       metadata.put(DPM_JOB_ID, jobId);
+      metadata.put(AggregatorUtil.TIME_SERIES_ANALYSIS, String.valueOf(timeSeriesAnalysis));
       sdcMetricsJson.setMetadata(metadata);
 
       sendUpdate(ImmutableList.of(sdcMetricsJson));

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,8 +22,11 @@ public class DataFormatChooserValues extends BaseEnumChooserValues<DataFormat> {
 
   public DataFormatChooserValues() {
     super(
+        DataFormat.AVRO,
         DataFormat.BINARY,
+        DataFormat.DELIMITED,
         DataFormat.JSON,
+        DataFormat.PROTOBUF,
         DataFormat.SDC_JSON,
         DataFormat.TEXT
     );

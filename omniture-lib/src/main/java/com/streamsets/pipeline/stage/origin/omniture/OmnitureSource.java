@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseSource;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.ext.DataCollectorServices;
 import com.streamsets.pipeline.api.ext.json.JsonMapper;
 import com.streamsets.pipeline.config.JsonMode;
@@ -51,8 +52,8 @@ public class OmnitureSource extends BaseSource {
   private final long requestTimeoutMillis;
 
   /** WSSE Parameters */
-  private final String username;
-  private final String sharedSecret;
+  private final CredentialValue username;
+  private final CredentialValue sharedSecret;
 
   private final long maxBatchWaitTime;
   private final int batchSize;
@@ -114,6 +115,16 @@ public class OmnitureSource extends BaseSource {
     parserFactory = new DataParserFactoryBuilder(getContext(), DataParserFormat.JSON)
         .setMode(JsonMode.MULTIPLE_OBJECTS).setMaxDataLen(-1).build();
 
+    boolean useProxy = proxySettings != null;
+    String proxyUsername = null;
+    String proxyPassword = null;
+    String proxyUri = null;
+    if(useProxy) {
+      proxyUsername = proxySettings.resolveUsername(getContext(), "PROXY", "proxySettings.", errors);
+      proxyPassword = proxySettings.resolvePassword(getContext(), "PROXY", "proxySettings.", errors);
+      proxyUri = proxySettings.proxyUri;
+    }
+
     switch (httpMode) {
       case POLLING:
         validateReportDescription(errors);
@@ -124,7 +135,10 @@ public class OmnitureSource extends BaseSource {
             username,
             sharedSecret,
             entityQueue,
-            proxySettings
+            useProxy,
+            proxyUri,
+            proxyUsername,
+            proxyPassword
         );
         createPollingConsumer();
         break;

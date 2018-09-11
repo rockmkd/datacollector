@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.http;
 
 import com.google.common.collect.ImmutableBiMap;
+import com.streamsets.datacollector.activation.Activation;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.UserGroupManager;
@@ -36,11 +37,12 @@ public class DataCollectorWebServerTask extends WebServerTask {
       BuildInfo buildInfo,
       RuntimeInfo runtimeInfo,
       Configuration conf,
+      Activation activation,
       Set<ContextConfigurator> contextConfigurators,
       Set<WebAppProvider> webAppProviders,
       UserGroupManager userGroupManager
   ) {
-    super(buildInfo, runtimeInfo, conf, contextConfigurators, webAppProviders);
+    super(buildInfo, runtimeInfo, conf, activation, contextConfigurators, webAppProviders);
     this.buildInfo = buildInfo;
     this.conf = conf;
     this.userGroupManager = userGroupManager;

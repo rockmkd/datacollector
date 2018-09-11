@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,9 +36,10 @@ public class SnapshotInfoJson {
       @JsonProperty("rev") String rev,
       @JsonProperty("timeStamp") long timeStamp,
       @JsonProperty("inProgress") boolean inProgress,
-      @JsonProperty("batchNumber") long batchNumber
+      @JsonProperty("batchNumber") long batchNumber,
+      @JsonProperty("failureSnapshot") boolean failureSnapshot
   ) {
-    snapshotInfo = new SnapshotInfoImpl(user, id, label, name, rev, timeStamp, inProgress, batchNumber);
+    snapshotInfo = new SnapshotInfoImpl(user, id, label, name, rev, timeStamp, inProgress, batchNumber, failureSnapshot);
   }
 
   public SnapshotInfoJson(SnapshotInfo snapshotInfo) {
@@ -75,6 +76,10 @@ public class SnapshotInfoJson {
 
   public long getBatchNumber() {
     return snapshotInfo.getBatchNumber();
+  }
+
+  public boolean isFailureSnapshot() {
+    return snapshotInfo.isFailureSnapshot();
   }
 
   @JsonIgnore

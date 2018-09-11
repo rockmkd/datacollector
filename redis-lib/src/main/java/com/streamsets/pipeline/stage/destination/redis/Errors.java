@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,7 @@ public enum Errors implements ErrorCode {
   REDIS_06("Failed to publish"),
   REDIS_07("Unsupported '{}' : '{}' found in record {}"),
   REDIS_08("Error while writing records to redis"),
+  REDIS_09("Delete error. Key cannot not be null or empty."),
   ;
 
   private final String msg;

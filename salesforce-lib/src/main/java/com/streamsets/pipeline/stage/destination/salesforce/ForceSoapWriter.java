@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -213,10 +213,10 @@ public class ForceSoapWriter extends ForceWriter {
   ) throws StageException {
     Iterator<Record> batchIterator = records.iterator();
     List<OnRecordErrorException> errorRecords = new LinkedList<>();
-    Map<Integer, List<SObject>> sRecordsByOp = new HashMap<>();
 
     // Iterate through entire batch
     while (batchIterator.hasNext()) {
+      Map<Integer, List<SObject>> sRecordsByOp = new HashMap<>();
       Map<SObject, Record> recordMap = new HashMap<>();
 
       // Can only create 200 records per call
@@ -234,6 +234,7 @@ public class ForceSoapWriter extends ForceWriter {
         List<SObject> sRecords = sRecordsByOp.computeIfAbsent(opCode, k -> new ArrayList<>());
 
         SortedSet<String> columnsPresent = Sets.newTreeSet(fieldMappings.keySet());
+        List<String> fieldsToNull = new ArrayList<>();
         for (Map.Entry<String, String> mapping : fieldMappings.entrySet()) {
           String sFieldName = mapping.getKey();
           String fieldPath = mapping.getValue();
@@ -246,7 +247,15 @@ public class ForceSoapWriter extends ForceWriter {
 
           final Object value = record.get(fieldPath).getValue();
 
-          so.setField(sFieldName, value);
+          if (value == null &&
+              (opCode == OperationType.UPDATE_CODE || opCode == OperationType.UPSERT_CODE)) {
+            fieldsToNull.add(sFieldName);
+          } else {
+            so.setField(sFieldName, value);
+          }
+        }
+        if (fieldsToNull.size() > 0) {
+          so.setFieldsToNull(fieldsToNull.toArray(new String[0]));
         }
         sRecords.add(so);
         recordMap.put(so, record);

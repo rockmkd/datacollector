@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,10 @@ import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
 import com.streamsets.pipeline.lib.jdbc.UnknownTypeAction;
 import com.streamsets.pipeline.lib.jdbc.UnknownTypeActionChooserValues;
+import com.streamsets.pipeline.lib.jdbc.multithread.BatchTableStrategy;
+import com.streamsets.pipeline.lib.jdbc.multithread.BatchTableStrategyChooserValues;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableOrderStrategy;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableOrderStrategyChooserValues;
 
 import java.util.List;
 

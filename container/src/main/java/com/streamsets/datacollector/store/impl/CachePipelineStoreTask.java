@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@ package com.streamsets.datacollector.store.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.config.PipelineFragmentConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.execution.StateEventListener;
 import com.streamsets.datacollector.store.PipelineInfo;
@@ -93,11 +94,15 @@ public class CachePipelineStoreTask implements PipelineStoreTask {
       String pipelineId,
       String pipelineTitle,
       String description,
-      boolean isRemote
+      boolean isRemote,
+      boolean draft
   ) throws PipelineException {
     synchronized (lockCache.getLock(pipelineId)) {
-      PipelineConfiguration pipelineConf = pipelineStore.create(user, pipelineId, pipelineTitle, description, isRemote);
-      pipelineInfoMap.put(pipelineConf.getInfo().getPipelineId(), pipelineConf.getInfo());
+      PipelineConfiguration pipelineConf = pipelineStore
+          .create(user, pipelineId, pipelineTitle, description, isRemote, draft);
+      if (!draft) {
+        pipelineInfoMap.put(pipelineConf.getInfo().getPipelineId(), pipelineConf.getInfo());
+      }
       return pipelineConf;
     }
   }
@@ -156,9 +161,13 @@ public class CachePipelineStoreTask implements PipelineStoreTask {
   }
 
   @Override
-  public RuleDefinitions storeRules(String pipelineName, String tag, RuleDefinitions ruleDefinitions)
-    throws PipelineException {
-    return pipelineStore.storeRules(pipelineName, tag, ruleDefinitions);
+  public RuleDefinitions storeRules(
+      String pipelineName,
+      String tag,
+      RuleDefinitions ruleDefinitions,
+      boolean draft
+  ) throws PipelineException {
+    return pipelineStore.storeRules(pipelineName, tag, ruleDefinitions, draft);
   }
 
   @Override
@@ -198,5 +207,16 @@ public class CachePipelineStoreTask implements PipelineStoreTask {
   @Override
   public boolean isRemotePipeline(String name, String rev) throws PipelineStoreException {
     return pipelineStore.isRemotePipeline(name, rev);
+  }
+
+  @Override
+  public PipelineFragmentConfiguration createPipelineFragment(
+      String user,
+      String pipelineId,
+      String pipelineTitle,
+      String description,
+      boolean draft
+  ) throws PipelineException {
+    return pipelineStore.createPipelineFragment(user, pipelineId, pipelineTitle, description, draft);
   }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,6 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.SSEAlgorithm;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
-import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.Target;
@@ -34,7 +33,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -51,27 +49,16 @@ abstract class FileHelper {
   protected final S3TargetConfigBean s3TargetConfigBean;
   protected final ErrorRecordHandler errorRecordHandler;
 
-  protected List<EventRecord> cachedEventRecords;
-
   FileHelper(Target.Context context, S3TargetConfigBean s3TargetConfigBean, TransferManager transferManager) {
     this.context = context;
     this.s3TargetConfigBean = s3TargetConfigBean;
     this.transferManager = transferManager;
     this.errorRecordHandler = new DefaultErrorRecordHandler(context);
-    this.cachedEventRecords = new ArrayList<>();
   }
 
-  public List<EventRecord> getEventRecordsForTheBatch() {
-    return cachedEventRecords;
-  }
+  abstract List<UploadMetadata> handle(Iterator<Record> recordIterator, String bucket, String keyPrefix) throws IOException, StageException;
 
-  public void clearEventRecordsForTheBatch() {
-    cachedEventRecords.clear();
-  }
-
-  abstract List<Upload> handle(Iterator<Record> recordIterator, String bucket, String keyPrefix) throws IOException, StageException;
-
-  protected ObjectMetadata getObjectMetadata() {
+  protected ObjectMetadata getObjectMetadata() throws StageException {
     ObjectMetadata metadata = null;
     if (s3TargetConfigBean.sseConfig.useSSE) {
       metadata = new ObjectMetadata();
@@ -83,12 +70,12 @@ abstract class FileHelper {
           metadata.setSSEAlgorithm(SSEAlgorithm.KMS.getAlgorithm());
           metadata.setHeader(
               Headers.SERVER_SIDE_ENCRYPTION_AWS_KMS_KEYID,
-              s3TargetConfigBean.sseConfig.kmsKeyId
+              s3TargetConfigBean.sseConfig.kmsKeyId.get()
           );
           if (!s3TargetConfigBean.sseConfig.encryptionContext.isEmpty()) {
             metadata.setHeader(
                 "x-amz-server-side-encryption-context",
-                s3TargetConfigBean.sseConfig.encryptionContext
+                s3TargetConfigBean.sseConfig.resolveEncryptionContext()
             );
           }
           break;
@@ -96,11 +83,11 @@ abstract class FileHelper {
           metadata.setSSECustomerAlgorithm(SSEAlgorithm.AES256.getAlgorithm());
           metadata.setHeader(
               Headers.SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
-              s3TargetConfigBean.sseConfig.customerKey
+              s3TargetConfigBean.sseConfig.customerKey.get()
           );
           metadata.setHeader(
               Headers.COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
-              s3TargetConfigBean.sseConfig.customerKeyMd5
+              s3TargetConfigBean.sseConfig.customerKeyMd5.get()
           );
           break;
         default:

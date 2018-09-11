@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +17,14 @@ package com.streamsets.datacollector.http;
 
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableSet;
+import com.streamsets.datacollector.activation.NopActivation;
 import com.streamsets.datacollector.main.DataCollectorBuildInfo;
 import com.streamsets.datacollector.main.FileUserGroupManager;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.lib.security.http.RegistrationResponseDelegate;
 import com.streamsets.lib.security.http.RemoteSSOService;
 import com.streamsets.lib.security.http.SSOPrincipal;
 import com.streamsets.lib.security.http.SSOService;
@@ -119,6 +121,7 @@ public class TestWebServerTaskHttpHttps {
     return new DataCollectorWebServerTask(new DataCollectorBuildInfo(),
         runtimeInfo,
         conf,
+        new NopActivation(),
         configurators,
         webAppProviders,
         new FileUserGroupManager()
@@ -498,6 +501,10 @@ public class TestWebServerTaskHttpHttps {
     @Override
     public void clearCaches() {
 
+    }
+
+    @Override
+    public void setRegistrationResponseDelegate(RegistrationResponseDelegate delegate) {
     }
   }
 

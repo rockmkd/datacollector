@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -240,6 +240,23 @@ public class HttpTarget extends BaseTarget implements OffsetCommitTrigger {
       }
       metadata.put(DPM_PIPELINE_COMMIT_ID, pipelineCommitId);
       metadata.put(DPM_JOB_ID, jobId);
+
+      Field timeSeriesAnalysisField =  currentRecord.get("/" + AggregatorUtil.TIME_SERIES_ANALYSIS);
+      if (timeSeriesAnalysisField != null) {
+        metadata.put(AggregatorUtil.TIME_SERIES_ANALYSIS, timeSeriesAnalysisField.getValueAsString());
+      }
+      // SDC's from 3.2 will have the last record field
+      Field isLastRecord = currentRecord.get("/" + AggregatorUtil.LAST_RECORD);
+      if (isLastRecord != null) {
+        if (Boolean.valueOf(isLastRecord.getValueAsString())) {
+          LOG.info(
+              "Got last metric record from {} running job {}",
+              sdcMetricsJson.getSdcId(),
+              jobId
+          );
+        }
+        metadata.put(AggregatorUtil.LAST_RECORD, isLastRecord.getValueAsString());
+      }
       sdcMetricsJson.setMetadata(metadata);
     }
     String metricRegistryJson = currentRecord.get("/" + AggregatorUtil.METRIC_JSON_STRING).getValueAsString();
@@ -255,6 +272,5 @@ public class HttpTarget extends BaseTarget implements OffsetCommitTrigger {
       sdcIdToRecordMap.put(record.get("/" + AggregatorUtil.SDC_ID).getValueAsString(), record);
     }
   }
-
 
 }

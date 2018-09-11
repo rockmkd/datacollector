@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.datacollector.execution.alerts;
 
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.streamsets.datacollector.config.MetricsRuleDefinition;
 import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
@@ -23,15 +22,12 @@ import com.streamsets.datacollector.util.ObserverException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-
 public class MetricRuleEvaluator {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricRuleEvaluator.class);
 
   private final MetricsRuleDefinition metricsRuleDefinition;
   private final MetricRegistry metrics;
-  private final List<String> emailIds;
   private final RuleDefinitionsConfigBean ruleDefinitionsConfigBean;
   private final AlertManager alertManager;
 
@@ -39,41 +35,36 @@ public class MetricRuleEvaluator {
       MetricsRuleDefinition metricsRuleDefinition,
       MetricRegistry metricRegistry,
       AlertManager alertManager,
-      List<String> emailIds,
       RuleDefinitionsConfigBean ruleDefinitionsConfigBean
   ) {
     this.metricsRuleDefinition = metricsRuleDefinition;
     this.metrics = metricRegistry;
-    this.emailIds = emailIds;
     this.ruleDefinitionsConfigBean = ruleDefinitionsConfigBean;
     this.alertManager = alertManager;
   }
 
   public void checkForAlerts() {
     if (metricsRuleDefinition.isEnabled()) {
-      Metric metric = MetricRuleEvaluatorHelper.getMetric(
-        metrics,
-        metricsRuleDefinition.getMetricId(),
-        metricsRuleDefinition.getMetricType()
-      );
-      if(metric != null) {
-        try {
-          Object value = MetricRuleEvaluatorHelper.getMetricValue(
-            metricsRuleDefinition.getMetricElement(),
-            metricsRuleDefinition.getMetricType(),
-            metric
-          );
+      try {
+        Object value = MetricRuleEvaluatorHelper.getMetricValue(
+          metrics,
+          metricsRuleDefinition.getMetricId(),
+          metricsRuleDefinition.getMetricType(),
+          metricsRuleDefinition.getMetricElement()
+        );
+
+        if(value != null) {
           if (MetricRuleEvaluatorHelper.evaluate(value, metricsRuleDefinition.getCondition())) {
-            alertManager.alert(value, emailIds, ruleDefinitionsConfigBean, metricsRuleDefinition);
+            alertManager.alert(value, ruleDefinitionsConfigBean, metricsRuleDefinition);
           }
-        } catch (ObserverException e) {
-          //A faulty condition should not take down rest of the alerts with it.
-          //Log and it and continue for now
-          LOG.error("Error processing metric definition alert '{}', reason: {}", metricsRuleDefinition.getId(),
-            e.toString(), e);
-          //Trigger alert with exception message
-          alertManager.alertException(e.toString(), metricsRuleDefinition);
         }
+      } catch (ObserverException e) {
+        //A faulty condition should not take down rest of the alerts with it.
+        //Log and it and continue for now
+        LOG.error("Error processing metric definition alert '{}', reason: {}", metricsRuleDefinition.getId(),
+          e.toString(), e);
+        //Trigger alert with exception message
+        alertManager.alertException(e.toString(), metricsRuleDefinition);
       }
     }
   }

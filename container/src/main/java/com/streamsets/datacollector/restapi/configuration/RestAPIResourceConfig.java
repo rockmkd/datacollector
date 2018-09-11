@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.restapi.configuration;
 
+import com.streamsets.datacollector.activation.Activation;
 import com.streamsets.datacollector.bundles.SupportBundleManager;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.main.BuildInfo;
@@ -24,6 +25,7 @@ import com.streamsets.datacollector.restapi.RestAPI;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.AclStoreTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 import com.streamsets.datacollector.util.Configuration;
 import io.swagger.jaxrs.config.BeanConfig;
 import io.swagger.jaxrs.listing.ApiListingResource;
@@ -52,9 +54,11 @@ public class RestAPIResourceConfig extends ResourceConfig {
         bindFactory(ConfigurationInjector.class).to(Configuration.class);
         bindFactory(RuntimeInfoInjector.class).to(RuntimeInfo.class);
         bindFactory(BuildInfoInjector.class).to(BuildInfo.class);
+        bindFactory(StatsCollectorInjector.class).to(StatsCollector.class);
         bindFactory(StandAndClusterManagerInjector.class).to(Manager.class);
         bindFactory(SupportBundleInjector.class).to(SupportBundleManager.class);
         bindFactory(UserGroupManagerInjector.class).to(UserGroupManager.class);
+        bindFactory(ActivationInjector.class).to(Activation.class);
       }
     });
 

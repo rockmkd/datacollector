@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.lib.http;
 
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -29,7 +30,7 @@ public interface HttpReceiver {
 
   void destroy();
 
-  String getAppId();
+  CredentialValue getAppId();
 
   boolean isAppIdViaQueryParamAllowed();
 
@@ -37,6 +38,6 @@ public interface HttpReceiver {
 
   boolean validate(HttpServletRequest req, HttpServletResponse res) throws IOException;
 
-  boolean process(HttpServletRequest req, InputStream is) throws IOException;
+  boolean process(HttpServletRequest req, InputStream is, HttpServletResponse resp) throws IOException;
 
 }

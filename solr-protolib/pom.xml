@@ -23,12 +23,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root-lib</artifactId>
-    <version>2.7.0.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <relativePath>../root-lib</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-solr-protolib</artifactId>
-  <version>2.7.0.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Solr ProtoLib</description>
   <name>StreamSets Data Collector Solr ProtoLib</name>
   <packaging>jar</packaging>
@@ -147,18 +147,6 @@
     </dependency>
 
     <dependency>
-      <groupId>com.streamsets</groupId>
-      <artifactId>streamsets-datacollector-common</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>com.streamsets</groupId>
-      <artifactId>streamsets-datacollector-commonlib</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
       <groupId>org.apache.solr</groupId>
       <artifactId>solr-solrj</artifactId>
       <version>${solr.version}</version>
@@ -204,6 +192,12 @@
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-stagesupport</artifactId>
+      <scope>compile</scope>
     </dependency>
   </dependencies>
 

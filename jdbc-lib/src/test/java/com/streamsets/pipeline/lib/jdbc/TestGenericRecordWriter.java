@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 package com.streamsets.pipeline.lib.jdbc;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSortedMap;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
@@ -44,8 +43,10 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TestGenericRecordWriter {
 
@@ -363,20 +364,46 @@ public class TestGenericRecordWriter {
     fields.put("field2", Field.create("StreamSets"));
     record.set(Field.create(fields));
 
-    SortedMap<String, String> columnsToParameters = ImmutableSortedMap.of(
-        "P_ID", "?",
-        "MSG", "?"
-    );
+    SortedMap<String, String> columnsToParameters = new TreeMap<>();
+    columnsToParameters.put("P_ID", "?");
+    columnsToParameters.put("MSG", "?");
 
     String query = "INSERT INTO TEST.TEST_TABLE (MSG, P_ID) VALUES (?, ?)";
     executeSetParameters(OperationType.INSERT_CODE, query, writer, columnsToParameters, record);
 
-    query = "UPDATE TEST.TEST_TABLE SET  MSG = ?, P_ID = ? WHERE P_ID = ?";
-    fields.put("field2", Field.create("This is an updated message"));
-    executeSetParameters(OperationType.UPDATE_CODE, query, writer, columnsToParameters, record);
-
     query = "DELETE FROM TEST.TEST_TABLE  WHERE P_ID = ?";
     executeSetParameters(OperationType.DELETE_CODE, query, writer, columnsToParameters, record);
+
+    query = "UPDATE TEST.TEST_TABLE SET  MSG = ? WHERE P_ID = ?";
+    fields.put("field2", Field.create("This is an updated message"));
+    columnsToParameters.remove("P_ID");
+    executeSetParameters(OperationType.UPDATE_CODE, query, writer, columnsToParameters, record);
+  }
+
+  @Test
+  public void testEmptyRecord() throws Exception {
+    Record record = RecordCreator.create();
+    Map<String, Field> fields = new HashMap<>();
+    record.set(Field.create(fields));
+    // record doesn't have operation code in header, but default is set to INSERT.
+    boolean caseSensitive = false;
+
+    JdbcGenericRecordWriter writer = new JdbcGenericRecordWriter(
+        connectionString,
+        dataSource,
+        "TEST",
+        "TEST_TABLE",
+        false, //rollback set to false
+        new LinkedList<>(),
+        PreparedStatementCache.UNLIMITED_CACHE,
+        JDBCOperationType.INSERT,
+        UnsupportedOperationAction.USE_DEFAULT,
+        new JdbcRecordReader(),
+        caseSensitive
+    );
+    List<Record> batch = ImmutableList.of(record);
+    final List<OnRecordErrorException> errors = writer.writeBatch(batch);
+    assertTrue(errors.isEmpty());
   }
 
   private void executeSetParameters(

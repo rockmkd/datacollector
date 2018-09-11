@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,14 @@
  */
 package com.streamsets.pipeline.lib.parser.avro;
 
+import com.streamsets.pipeline.api.ProtoConfigurableEntity;
 import com.streamsets.pipeline.api.Record;
-import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.lib.parser.AbstractDataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.util.AvroJavaSnappyCodec;
 import com.streamsets.pipeline.lib.util.AvroTypeUtil;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.generic.GenericData;
@@ -48,9 +49,9 @@ public class AvroDataFileParser extends AbstractDataParser {
   private long recordCount;
   private final DataFileReader<GenericRecord> dataFileReader;
   private boolean eof;
-  private Stage.Context context;
+  private ProtoConfigurableEntity.Context context;
 
-  public AvroDataFileParser(Stage.Context context, Schema schema, File file, String readerOffset, int maxObjectLength)
+  public AvroDataFileParser(ProtoConfigurableEntity.Context context, Schema schema, File file, String readerOffset, int maxObjectLength)
     throws IOException {
     this.context = context;
     this.file = file;
@@ -91,6 +92,7 @@ public class AvroDataFileParser extends AbstractDataParser {
       recordCount++;
       Record record = context.createRecord(file.getName() + OFFSET_SEPARATOR + previousSync + OFFSET_SEPARATOR + recordCount);
       record.set(AvroTypeUtil.avroToSdcField(record, avroRecord.getSchema(), avroRecord));
+      record.getHeader().setAttribute(HeaderAttributeConstants.AVRO_SCHEMA, avroRecord.getSchema().toString());
       return record;
     }
     eof = true;

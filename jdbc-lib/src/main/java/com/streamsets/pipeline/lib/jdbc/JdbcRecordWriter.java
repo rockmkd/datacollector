@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +18,6 @@ package com.streamsets.pipeline.lib.jdbc;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
-import com.streamsets.pipeline.lib.operation.OperationType;
-import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
-import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 
 import java.util.Collection;
 import java.util.List;
@@ -38,4 +35,12 @@ public interface JdbcRecordWriter {
    * @throws StageException
    */
   List<OnRecordErrorException> writeBatch(Collection<Record> batch) throws StageException;
+  /*
+   * Accepts a batch of records to write to a JDBC destination record by record
+   * only supports Microsoft SQL Server
+   * @param batch batch of SDC records
+   * @return any records that failed to be written to the destination
+   * @throws StageException
+   */
+  List<OnRecordErrorException> writePerRecord(Collection<Record> batch) throws StageException;
 }

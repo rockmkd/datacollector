@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.stage.processor.scripting.ProcessingMode;
 import com.streamsets.pipeline.stage.processor.scripting.ProcessingModeChooserValues;
 
@@ -30,11 +30,11 @@ import java.util.List;
 
 @GenerateResourceBundle
 @StageDef(
-    version = 2,
+    version = 3,
     label = "Solr",
     description = "Upload data to an Apache Solr",
     icon = "solr.png",
-    onlineHelpRefUrl = "index.html#Destinations/Solr.html#task_ld1_phr_wr",
+    onlineHelpRefUrl ="index.html?contextID=task_ld1_phr_wr",
     upgrader = SolrDTargetUpgrader.class
 )
 @ConfigGroups(Groups.class)
@@ -119,6 +119,16 @@ public class SolrDTarget extends DTarget {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Ignore Optional Fields",
+      displayPosition = 59,
+      group = "SOLR"
+  )
+  public boolean ignoreOptionalFields = false;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.MODEL,
       defaultValue= "TO_ERROR",
       label = "Missing Fields",
@@ -129,7 +139,8 @@ public class SolrDTarget extends DTarget {
   @ValueChooserModel(MissingFieldActionChooserValues.class)
   public MissingFieldAction missingFieldAction = MissingFieldAction.TO_ERROR;
 
-  @ConfigDef(required = true,
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.BOOLEAN,
       defaultValue = "false",
       label = "Kerberos Authentication",
@@ -137,6 +148,51 @@ public class SolrDTarget extends DTarget {
       group = "SOLR"
   )
   public boolean kerberosAuth;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Skip Validation",
+      displayPosition = 80,
+      group = "SOLR"
+  )
+  public boolean skipValidation;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "true",
+      label = "Wait Flush",
+      description = "Block until index changes are flushed to disk",
+      displayPosition = 1000,
+      group = "SOLR"
+  )
+  public boolean waitFlush = true;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "true",
+      label = "Wait Searcher",
+      description = "Block until a new searcher is opened and registered as the main query searcher, making the" +
+          " changes visible",
+      displayPosition = 1010,
+      group = "SOLR"
+  )
+  public boolean waitSearcher = true;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Soft Commit",
+      description = "Makes index changes visible while neither fsync-ing index files nor writing a new index" +
+          " descriptor",
+      displayPosition = 1020,
+      group = "SOLR"
+  )
+  public boolean softCommit = false;
 
   @Override
   protected Target createTarget() {
@@ -148,7 +204,12 @@ public class SolrDTarget extends DTarget {
         fieldNamesMap,
         defaultCollection,
         kerberosAuth,
-        missingFieldAction
+        missingFieldAction,
+        skipValidation,
+        waitFlush,
+        waitSearcher,
+        softCommit,
+        ignoreOptionalFields
     );
   }
 

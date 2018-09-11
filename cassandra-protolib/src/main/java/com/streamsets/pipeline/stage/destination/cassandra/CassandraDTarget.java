@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @GenerateResourceBundle
 @StageDef(
@@ -29,7 +29,7 @@ import com.streamsets.pipeline.configurablestage.DTarget;
     description = "Writes data to Cassandra",
     icon = "cassandra.png",
     upgrader = CassandraTargetUpgrader.class,
-    onlineHelpRefUrl = "index.html#Destinations/Cassandra.html#task_t1d_z3l_sr"
+    onlineHelpRefUrl ="index.html?contextID=task_t1d_z3l_sr"
 )
 @ConfigGroups(value = Groups.class)
 public class CassandraDTarget extends DTarget {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.execution.runner.common;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.MemoryLimitConfiguration;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.PipelineStateStore;
@@ -30,6 +31,7 @@ import com.streamsets.datacollector.record.RecordImpl;
 import com.streamsets.datacollector.runner.ErrorSink;
 import com.streamsets.datacollector.runner.MockStages;
 import com.streamsets.datacollector.runner.Pipeline;
+import com.streamsets.datacollector.runner.SourceResponseSink;
 import com.streamsets.datacollector.runner.production.BadRecordsHandler;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.TestUtil;
@@ -56,8 +58,6 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import java.io.File;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -187,6 +187,7 @@ public class TestErrorRecord {
     ProductionPipelineRunner runner = new ProductionPipelineRunner(
         TestUtil.MY_PIPELINE,
         "0",
+        null,
         new Configuration(),
         runtimeInfo,
         new MetricRegistry(),
@@ -205,10 +206,12 @@ public class TestErrorRecord {
         MockStages.createStageLibrary(),
         runner,
         null,
+        Mockito.mock(BlobStoreTask.class),
         Mockito.mock(LineagePublisherTask.class)
     ).build(
         MockStages.userContext(),
-        MockStages.createPipelineConfigurationSourceProcessorTarget()
+        MockStages.createPipelineConfigurationSourceProcessorTarget(),
+        System.currentTimeMillis()
     );
     pipeline.registerStatusListener(new TestProductionPipeline.MyStateListener());
 
@@ -225,9 +228,14 @@ public class TestErrorRecord {
         0
     );
 
-    PowerMockito.replace(
-        MemberMatcher.method(BadRecordsHandler.class, "handle", String.class, String.class, ErrorSink.class)
-    ).with((proxy, method, args) -> {
+    PowerMockito.replace(MemberMatcher.method(
+        BadRecordsHandler.class,
+        "handle",
+        String.class,
+        String.class,
+        ErrorSink.class,
+        SourceResponseSink.class
+    )).with((proxy, method, args) -> {
       ErrorSink errorSink = (ErrorSink) args[2];
       for (Map.Entry<String, List<Record>> entry : errorSink.getErrorRecords().entrySet()) {
         for (Record record : entry.getValue()) {
@@ -240,7 +248,7 @@ public class TestErrorRecord {
     captureMockStages(errorStage, new AtomicBoolean(false));
 
     ProductionPipelineRunnable runnable =
-        new ProductionPipelineRunnable(null, (StandaloneRunner) ((AsyncRunner) this.runner).getRunner(), pipeline,
+        new ProductionPipelineRunnable(null, this.runner.getRunner(StandaloneRunner.class), pipeline,
             TestUtil.MY_PIPELINE, "0", Collections.<Future<?>> emptyList());
     Thread t = new Thread(runnable);
     t.start();

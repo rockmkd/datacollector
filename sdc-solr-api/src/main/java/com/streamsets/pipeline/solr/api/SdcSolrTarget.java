@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 public interface SdcSolrTarget {
+  public final static String REQUIRED = "required";
 
   public void init() throws Exception;
 
@@ -35,5 +36,7 @@ public interface SdcSolrTarget {
   public void rollback() throws StageException;
 
   public String getVersion();
+
+  public List<String> getRequiredFieldNamesMap();
 
 }

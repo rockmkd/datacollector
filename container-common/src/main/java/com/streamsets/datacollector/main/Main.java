@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@ package com.streamsets.datacollector.main;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.streamsets.datacollector.security.SecurityContext;
+import com.streamsets.datacollector.security.SecurityUtil;
 import com.streamsets.datacollector.task.Task;
 import com.streamsets.datacollector.task.TaskWrapper;
 import com.streamsets.datacollector.util.Configuration;
@@ -26,26 +27,32 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.crypto.Cipher;
-import javax.security.auth.Subject;
 import java.net.Authenticator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedExceptionAction;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
   private final ObjectGraph dagger;
   private final Task task;
+  private final Callable<Boolean> taskStopCondition;
 
   @VisibleForTesting
-  protected Main(Class moduleClass) {
-    this(ObjectGraph.create(moduleClass), null);
+  protected Main(Class moduleClass, Callable<Boolean> taskStopCondition) {
+    this(ObjectGraph.create(moduleClass), null, taskStopCondition);
   }
+
   @VisibleForTesting
-  public Main(ObjectGraph dagger, Task task) {
+  public Main(ObjectGraph dagger, Task task, Callable<Boolean> taskStopCondition) {
     this.dagger = dagger;
     if (task == null) {
       task = dagger.get(TaskWrapper.class);
     }
     this.task = task;
+    this.taskStopCondition = taskStopCondition;
   }
 
   @VisibleForTesting
@@ -96,31 +103,44 @@ public class Main {
 
       final Logger finalLog = log;
       final ShutdownHandler.ShutdownStatus shutdownStatus = new ShutdownHandler.ShutdownStatus();
-      Subject.doAs(securityContext.getSubject(), new PrivilegedExceptionAction<Void>() {
-        @Override
-        public Void run() throws Exception {
-          task.init();
-          Thread shutdownHookThread = new Thread("Main.shutdownHook") {
-            @Override
-            public void run() {
-              finalLog.debug("Stopping, reason: SIGTERM (kill)");
-              task.stop();
-            }
-          };
-          getRuntime().addShutdownHook(shutdownHookThread);
-          dagger.get(RuntimeInfo.class).setShutdownHandler(new ShutdownHandler(finalLog, task, shutdownStatus));
-          task.run();
-          task.waitWhileRunning();
-          try {
-            getRuntime().removeShutdownHook(shutdownHookThread);
-          } catch (IllegalStateException ignored) {
-            // thrown when we try and remove the shutdown
-            // hook but it is already running
+      final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
+      PrivilegedExceptionAction<Void> action = () -> {
+        task.init();
+        Thread shutdownHookThread = new Thread("Main.shutdownHook") {
+          @Override
+          public void run() {
+            finalLog.debug("Stopping, reason: SIGTERM (kill)");
+            task.stop();
           }
-          finalLog.debug("Stopping, reason: programmatic stop()");
-          return null;
+        };
+        getRuntime().addShutdownHook(shutdownHookThread);
+        dagger.get(RuntimeInfo.class).setShutdownHandler(new ShutdownHandler(finalLog, task, shutdownStatus));
+        if (taskStopCondition != null) {
+          //Check every second for the condition to stop the task
+          scheduledExecutorService.scheduleAtFixedRate(() -> {
+            try {
+              if (taskStopCondition.call()) {
+                task.stop();
+              }
+            } catch (Exception e) {
+              finalLog.error("Error evaluating task stop condition : {}", e);
+              throw new RuntimeException(e);
+            }
+          }, 1,1, TimeUnit.SECONDS);
         }
-      });
+        task.run();
+        task.waitWhileRunning();
+        scheduledExecutorService.shutdown();
+        try {
+          getRuntime().removeShutdownHook(shutdownHookThread);
+        } catch (IllegalStateException ignored) {
+          // thrown when we try and remove the shutdown
+          // hook but it is already running
+        }
+        finalLog.debug("Stopping, reason: programmatic stop()");
+        return null;
+      };
+      SecurityUtil.doAs(securityContext.getSubject(), action);
       return shutdownStatus.getExitStatus();
     } catch (Throwable ex) {
       if (log != null) {
@@ -136,5 +156,4 @@ public class Main {
       return 1;
     }
   }
-
 }

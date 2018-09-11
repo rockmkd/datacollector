@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,14 +31,8 @@ public class PipelineDirectoryUtil {
   private PipelineDirectoryUtil() {}
 
   public static File getPipelineDir(RuntimeInfo runtimeInfo, String pipelineName, String rev) {
-    File pipelineDir = new File(new File(new File(runtimeInfo.getDataDir(), PIPELINE_BASE_DIR),
+    return new File(new File(new File(runtimeInfo.getDataDir(), PIPELINE_BASE_DIR),
       PipelineUtils.escapedPipelineName(pipelineName)), rev);
-    if(!pipelineDir.exists()) {
-      if(!pipelineDir.mkdirs()) {
-        throw new RuntimeException(Utils.format("Could not create directory '{}'", pipelineDir.getAbsolutePath()));
-      }
-    }
-    return pipelineDir;
   }
 
   public static boolean deletePipelineDir(RuntimeInfo runtimeInfo, String pipelineName) {

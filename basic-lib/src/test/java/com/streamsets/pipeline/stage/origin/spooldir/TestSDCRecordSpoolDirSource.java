@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,20 +27,31 @@ import com.streamsets.pipeline.config.Compression;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.OnParseError;
 import com.streamsets.pipeline.config.PostProcessingOptions;
+import com.streamsets.pipeline.lib.dirspooler.LocalFileSystem;
+import com.streamsets.pipeline.lib.dirspooler.Offset;
 import com.streamsets.pipeline.lib.dirspooler.PathMatcherMode;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirRunnable;
 import com.streamsets.pipeline.sdk.ContextInfoCreator;
+import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.lib.dirspooler.WrappedFile;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class TestSDCRecordSpoolDirSource {
+  private static final int threadNumber = 0;
+  private static final int batchSize = 10;
+  private static final Map<String, Offset> lastSourceOffset = new HashMap<>();
 
   private String createTestDir() {
     File f = new File("target", UUID.randomUUID().toString());
@@ -48,7 +59,7 @@ public class TestSDCRecordSpoolDirSource {
     return f.getAbsolutePath();
   }
 
-  private File createErrorRecordsFile() throws Exception {
+  private WrappedFile createErrorRecordsFile() throws Exception {
     File f = new File(createTestDir(), "sdc-records-000000");
     Source.Context sourceContext = ContextInfoCreator.createSourceContext("myInstance", false, OnRecordError.TO_ERROR,
       ImmutableList.of("lane"));
@@ -62,7 +73,7 @@ public class TestSDCRecordSpoolDirSource {
     r.set(Field.create("Bye"));
     jsonRecordWriter.write(r);
     jsonRecordWriter.close();
-    return f;
+    return new LocalFileSystem("*", PathMatcherMode.GLOB).getFile(f.getAbsolutePath());
   }
 
   private SpoolDirSource createSource(String dir) {
@@ -92,13 +103,14 @@ public class TestSDCRecordSpoolDirSource {
 
   @Test
   public void testProduceFullFile() throws Exception {
-    File errorRecordsFile = createErrorRecordsFile();
+    WrappedFile errorRecordsFile = createErrorRecordsFile();
     SpoolDirSource source = createSource(errorRecordsFile.getParent());
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      Assert.assertEquals("-1", source.produce(errorRecordsFile, "0", 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      Assert.assertEquals("-1", runnable.generateBatch(errorRecordsFile, "0", 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       Assert.assertNotNull(records);

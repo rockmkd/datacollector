@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,4 +57,8 @@ public class SolrFieldMappingConfig {
       displayPosition = 20
   )
   public String solrFieldName;
+
+  public boolean equals(String fieldName) {
+    return this.field.equals(fieldName);
+  }
 }

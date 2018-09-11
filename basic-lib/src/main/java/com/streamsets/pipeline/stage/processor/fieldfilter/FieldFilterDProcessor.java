@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,13 +18,17 @@ package com.streamsets.pipeline.stage.processor.fieldfilter;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDef.Type;
 import com.streamsets.pipeline.api.ConfigGroups;
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
+import com.streamsets.pipeline.lib.el.FieldEL;
+import com.streamsets.pipeline.lib.el.RecordEL;
 
 import java.util.List;
 
@@ -33,7 +37,17 @@ import java.util.List;
     label="Field Remover",
     description="Removes fields from a record",
     icon="filter.png",
-    onlineHelpRefUrl = "index.html#Processors/FieldRemover.html#task_c1j_btr_wq"
+    onlineHelpRefUrl ="index.html?contextID=task_c1j_btr_wq",
+    flags = StageBehaviorFlags.PURE_FUNCTION,
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
+    }
 )
 @ConfigGroups(Groups.class)
 @HideConfigs(onErrorRecord = true)
@@ -59,7 +73,9 @@ public class FieldFilterDProcessor extends DProcessor {
       label = "Fields",
       description = "",
       displayPosition = 20,
-      group = "FILTER"
+      group = "FILTER",
+      evaluation = ConfigDef.Evaluation.EXPLICIT,
+      elDefs = {RecordEL.class, FieldEL.class}
   )
   @FieldSelectorModel
   public List<String> fields;

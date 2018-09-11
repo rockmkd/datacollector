@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -282,4 +282,122 @@ public class TestFieldZipProcessor {
       runner.runDestroy();
     }
   }
+
+  @Test
+  public void testMissingFieldsContinuePolicy() throws StageException {
+    FieldZipConfig zipConfig = new FieldZipConfig();
+    zipConfig.firstField = "/first";
+    zipConfig.secondField = "/second";
+    zipConfig.zippedFieldPath = "/target";
+    FieldZipConfigBean configBean = new FieldZipConfigBean();
+    configBean.fieldZipConfigs = Lists.newArrayList(zipConfig);
+    configBean.valuesOnly = false;
+    configBean.onStagePreConditionFailure = OnStagePreConditionFailure.CONTINUE;
+    FieldZipProcessor processor = new FieldZipProcessor(configBean);
+
+    ProcessorRunner runner = new ProcessorRunner.Builder(FieldZipDProcessor.class, processor)
+        .addOutputLane("a").build();
+    runner.runInit();
+
+    try {
+      Map<String, Field> rootMap;
+
+      // First record
+      rootMap = new LinkedHashMap<>();
+      rootMap.put("first", Field.create(ImmutableList.of(Field.create("a"))));
+      Record firstRecord = RecordCreator.create();
+      firstRecord.set(Field.create(rootMap));
+
+      // Second record
+      rootMap = new LinkedHashMap<>();
+      rootMap.put("second", Field.create(ImmutableList.of(Field.create("a"))));
+      Record secondRecord = RecordCreator.create();
+      secondRecord.set(Field.create(rootMap));
+
+      StageRunner.Output output = runner.runProcess(ImmutableList.of(firstRecord, secondRecord));
+
+      List<Record> records = output.getRecords().get("a");
+
+      Assert.assertEquals(2, records.size());
+
+      Assert.assertTrue(records.get(0).has("/first"));
+      Assert.assertFalse(records.get(0).has("/second"));
+      Assert.assertFalse(records.get(0).has("/target"));
+
+      Assert.assertFalse(records.get(1).has("/first"));
+      Assert.assertTrue(records.get(1).has("/second"));
+      Assert.assertFalse(records.get(1).has("/target"));
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testOneLongListWithContinue() throws StageException {
+    FieldZipConfig zipConfig = new FieldZipConfig();
+    zipConfig.firstField = "/list1";
+    zipConfig.secondField = "/list2";
+    zipConfig.zippedFieldPath = "/zipped";
+    FieldZipConfigBean configBean = new FieldZipConfigBean();
+    configBean.fieldZipConfigs = ImmutableList.of(zipConfig);
+    configBean.valuesOnly = false;
+    configBean.onStagePreConditionFailure = OnStagePreConditionFailure.CONTINUE;
+    FieldZipProcessor processor = new FieldZipProcessor(configBean);
+
+    ProcessorRunner runner = new ProcessorRunner.Builder(FieldZipDProcessor.class, processor)
+        .addOutputLane("a").build();
+    runner.runInit();
+
+    try {
+      // Various lists
+      List<Field> listField1 = ImmutableList.of(
+          Field.create(1),
+          Field.create(2));
+      List<Field> listField2 = ImmutableList.of(
+          Field.create(11),
+          Field.create(12),
+          Field.create(13),
+          Field.create(14));
+
+      // Proper record with two lists of the same length
+      Map<String, Field> map = new LinkedHashMap<>();
+      map.put("list1", Field.create(listField1));
+      map.put("list2", Field.create(listField1));
+      Record firstRecord = RecordCreator.create("s", "s:1");
+      firstRecord.set(Field.create(map));
+
+      // Second record that have differently-length lists
+      map = new LinkedHashMap<>();
+      map.put("list1", Field.create(listField1));
+      map.put("list2", Field.create(listField2));
+      Record secondRecord = RecordCreator.create("s", "s:2");
+      secondRecord.set(Field.create(map));
+
+      StageRunner.Output output = runner.runProcess(ImmutableList.of(firstRecord, secondRecord));
+      Assert.assertEquals(2, output.getRecords().get("a").size());
+
+      Assert.assertEquals(0, runner.getErrorRecords().size());
+
+      // First Record
+      Record record = output.getRecords().get("a").get(0);
+      Assert.assertNotNull(record);
+      Assert.assertTrue(record.has("/list1"));
+      Assert.assertTrue(record.has("/list2"));
+      Assert.assertTrue(record.has("/zipped"));
+      List<Field> zipped = record.get("/zipped").getValueAsList();
+      Assert.assertEquals(2, zipped.size());
+
+      // Second record
+      record = output.getRecords().get("a").get(1);
+      Assert.assertNotNull(record);
+      Assert.assertTrue(record.has("/list1"));
+      Assert.assertTrue(record.has("/list2"));
+      Assert.assertTrue(record.has("/zipped"));
+      zipped = record.get("/zipped").getValueAsList();
+      Assert.assertEquals(2, zipped.size());
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,8 @@
 package com.streamsets.datacollector.execution.manager.standalone;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
+import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.PipelineState;
@@ -33,6 +35,8 @@ import com.streamsets.datacollector.execution.runner.standalone.StandaloneRunner
 import com.streamsets.datacollector.execution.snapshot.file.FileSnapshotStore;
 import com.streamsets.datacollector.execution.store.FilePipelineStateStore;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
+import com.streamsets.datacollector.main.BuildInfo;
+import com.streamsets.datacollector.main.DataCollectorBuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
@@ -44,6 +48,7 @@ import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.store.impl.FileAclStoreTask;
 import com.streamsets.datacollector.store.impl.FilePipelineStoreTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.LockCache;
 import com.streamsets.datacollector.util.LockCacheModule;
@@ -55,6 +60,7 @@ import dagger.ObjectGraph;
 import dagger.Provides;
 import org.apache.commons.io.FileUtils;
 import org.awaitility.Duration;
+import org.eclipse.jetty.util.security.Credential;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -68,6 +74,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.sql.Blob;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -111,6 +118,11 @@ public class TestStandalonePipelineManager {
     public TestPipelineManagerModule(long expiry, long initialExpiryDelay) {
       this.initialExpiryDelay = initialExpiryDelay;
       this.expiry = expiry;
+    }
+
+    @Provides @Singleton
+    public BuildInfo provideBuildInfo() {
+      return new DataCollectorBuildInfo();
     }
 
     @Provides @Singleton
@@ -177,6 +189,11 @@ public class TestStandalonePipelineManager {
       return MockStages.createStageLibrary(new URLClassLoader(new URL[0]));
     }
 
+    @Provides @Singleton
+    public CredentialStoresTask provideCredentialStoreTask() {
+      return Mockito.mock(CredentialStoresTask.class);
+    }
+
     @Provides @Singleton @Named("previewExecutor")
     public SafeScheduledExecutorService providePreviewExecutor() {
       return new SafeScheduledExecutorService(1, "preview");
@@ -187,9 +204,19 @@ public class TestStandalonePipelineManager {
       return new SafeScheduledExecutorService(10, "runner");
     }
 
+    @Provides @Singleton @Named("runnerStopExecutor")
+    public SafeScheduledExecutorService provideRunnerStopExecutor() {
+      return new SafeScheduledExecutorService(10, "runnerStop");
+    }
+
     @Provides @Singleton @Named("managerExecutor")
     public SafeScheduledExecutorService provideManagerExecutor() {
       return new SafeScheduledExecutorService(10, "manager");
+    }
+
+    @Provides @Singleton @Named("supportBundleExecutor")
+    public SafeScheduledExecutorService provideSupportBundleExecutor() {
+      return new SafeScheduledExecutorService(1, "supportBundleExecutor");
     }
 
     @Provides @Singleton
@@ -223,8 +250,18 @@ public class TestStandalonePipelineManager {
     }
 
     @Provides @Singleton
+    public BlobStoreTask provideBlobStoreTask() {
+      return Mockito.mock(BlobStoreTask.class);
+    }
+
+    @Provides @Singleton
     public LineagePublisherTask provideLineagePublisherTask() {
       return Mockito.mock(LineagePublisherTask.class);
+    }
+
+    @Provides @Singleton
+    public StatsCollector provideStatsCollector() {
+      return Mockito.mock(StatsCollector.class);
     }
 
   }
@@ -259,7 +296,7 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testPreviewer() throws PipelineException {
-    pipelineStoreTask.create("user", "abcd", "label","blah", false);
+    pipelineStoreTask.create("user", "abcd", "label","blah", false, false);
     Previewer previewer = pipelineManager.createPreviewer("user", "abcd", "0");
     assertEquals(previewer, pipelineManager.getPreviewer(previewer.getId()));
     ((StandaloneAndClusterPipelineManager)pipelineManager).outputRetrieved(previewer.getId());
@@ -280,20 +317,20 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testRunner() throws Exception {
-    pipelineStoreTask.create("user", "aaaa", "label","blah", false);
+    pipelineStoreTask.create("user", "aaaa", "label","blah", false, false);
     Runner runner = pipelineManager.getRunner("aaaa", "0");
     assertNotNull(runner);
   }
 
   @Test
   public void testGetPipelineStates() throws Exception {
-    pipelineStoreTask.create("user", "aaaa", "label","blah", false);
+    pipelineStoreTask.create("user", "aaaa", "label","blah", false, false);
     List<PipelineState> pipelineStates = pipelineManager.getPipelines();
 
     assertEquals("aaaa", pipelineStates.get(0).getPipelineId());
     assertEquals("0", pipelineStates.get(0).getRev());
 
-    pipelineStoreTask.create("user", "bbbb", "label","blah", false);
+    pipelineStoreTask.create("user", "bbbb", "label","blah", false, false);
     pipelineStates = pipelineManager.getPipelines();
     assertEquals(2, pipelineStates.size());
 
@@ -307,7 +344,7 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testRemotePipelineStartup() throws Exception {
-    pipelineStoreTask.create("user", "remote", "label","0", true);
+    pipelineStoreTask.create("user", "remote", "label","0", true, false);
     pipelineStateStore.saveState("user", "remote", "0", PipelineStatus.CONNECTING, "blah", null, ExecutionMode
             .STANDALONE,
         null, 0, 0);
@@ -328,6 +365,9 @@ public class TestStandalonePipelineManager {
     pipelineStateStore.saveState("user", "remote", "0", PipelineStatus.CONNECTING, "blah", null, ExecutionMode
         .STANDALONE, null, 0, 0);
 
+    // Make sure that handover between the sub-tests is done properly
+    assertFalse(((StandaloneAndClusterPipelineManager) pipelineManager).isRunnerPresent("remote", "0"));
+
     setUpManager(StandaloneAndClusterPipelineManager.DEFAULT_RUNNER_EXPIRY_INTERVAL,
         StandaloneAndClusterPipelineManager.DEFAULT_RUNNER_EXPIRY_INITIAL_DELAY,
         false);
@@ -342,7 +382,7 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testInitTask() throws Exception {
-    pipelineStoreTask.create("user", "aaaa", "label","blah", false);
+    pipelineStoreTask.create("user", "aaaa", "label","blah", false, false);
     pipelineStateStore.saveState("user", "aaaa", "0", PipelineStatus.CONNECTING, "blah", null, ExecutionMode.STANDALONE, null, 0, 0);
     pipelineManager.stop();
     pipelineStoreTask.stop();
@@ -374,7 +414,7 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testExpiry() throws Exception {
-    pipelineStoreTask.create("user", "aaaa", "label","blah", false);
+    pipelineStoreTask.create("user", "aaaa", "label","blah", false, false);
     Runner runner = pipelineManager.getRunner("aaaa", "0");
     pipelineStateStore.saveState("user", "aaaa", "0", PipelineStatus.RUNNING_ERROR, "blah", null, ExecutionMode.STANDALONE, null, 0, 0);
     assertEquals(PipelineStatus.RUNNING_ERROR, runner.getState().getStatus());
@@ -398,8 +438,8 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testPipelineRunnersAtDifferentTimesExpiry() throws Exception {
-    pipelineStoreTask.create("user", "aaaa", "label","blah", false);
-    pipelineStoreTask.create("user", "bbbb", "label","blah", false);
+    pipelineStoreTask.create("user", "aaaa", "label","blah", false, false);
+    pipelineStoreTask.create("user", "bbbb", "label","blah", false, false);
     setUpManager(100, 0, false);
 
     pipelineManager.getRunner("aaaa", "0");
@@ -430,7 +470,7 @@ public class TestStandalonePipelineManager {
 
   @Test
   public void testChangeExecutionModes() throws Exception {
-    pipelineStoreTask.create("user1", "pipeline2", "label","blah", false);
+    pipelineStoreTask.create("user1", "pipeline2", "label","blah", false, false);
     pipelineStateStore.saveState("user", "pipeline2", "0", PipelineStatus.EDITED, "blah", null, ExecutionMode.STANDALONE, null, 0, 0);
     Runner runner1 = pipelineManager.getRunner("pipeline2", "0");
     pipelineStateStore.saveState("user", "pipeline2", "0", PipelineStatus.EDITED, "blah", null, ExecutionMode.CLUSTER_BATCH, null, 0, 0);

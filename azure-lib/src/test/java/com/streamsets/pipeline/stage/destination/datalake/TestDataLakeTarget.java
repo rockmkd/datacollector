@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,6 @@ package com.streamsets.pipeline.stage.destination.datalake;
 
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.sdk.TargetRunner;
-import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.List;
@@ -38,6 +37,5 @@ public class TestDataLakeTarget {
     List<Stage.ConfigIssue> issues = targetRunner.runValidateConfigs();
 
     assertEquals(1, issues.size());
-
   }
 }

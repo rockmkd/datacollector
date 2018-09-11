@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,10 @@ public class MSOperationCode {
   static final int BEFORE_UPDATE = 3;
   static final int AFTER_UPDATE = 4;
 
+  static final String CT_DELETE = "D";
+  static final String CT_INSERT = "I";
+  static final String CT_UPDATE = "U";
+
   static final String OP_FIELD = "__$operation";
 
   // Mapping of MS operation code and SDC Operation Type
@@ -39,6 +43,12 @@ public class MSOperationCode {
       .put(INSERT, OperationType.INSERT_CODE)
       .put(BEFORE_UPDATE, OperationType.UNSUPPORTED_CODE)
       .put(AFTER_UPDATE, OperationType.UPDATE_CODE)
+      .build();
+
+  static final ImmutableMap<String, Integer> CT_CRUD_MAP = ImmutableMap.<String, Integer> builder()
+      .put(CT_DELETE, OperationType.DELETE_CODE)
+      .put(CT_INSERT, OperationType.INSERT_CODE)
+      .put(CT_UPDATE, OperationType.UPDATE_CODE)
       .build();
 
   static String getOpField(){
@@ -56,6 +66,13 @@ public class MSOperationCode {
     }
   }
 
+  public static int convertToJDBCCode(String op) {
+    if (CT_CRUD_MAP.containsKey(op)) {
+      return CT_CRUD_MAP.get(op);
+    }
+    throw new UnsupportedOperationException(Utils.format("Operation code {} is not supported", op));
+  }
+
   /**
    * Take an numeric operation code and check if the number is
    * valid operation code.
@@ -63,7 +80,7 @@ public class MSOperationCode {
    * @param op Numeric operation code in String
    * @return Operation code in int, -1 if invalid number
    */
-  static int convertToJDBCCode(int op)  {
+  public static int convertToJDBCCode(int op)  {
     if (CRUD_MAP.containsKey(op)){
       return CRUD_MAP.get(op);
     }

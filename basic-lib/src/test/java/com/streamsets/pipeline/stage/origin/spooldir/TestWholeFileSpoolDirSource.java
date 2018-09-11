@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.origin.spooldir;
 
-import com.codahale.metrics.Gauge;
 import com.google.common.collect.ImmutableSet;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.FileRef;
@@ -26,9 +25,10 @@ import com.streamsets.pipeline.config.Compression;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.PostProcessingOptions;
 import com.streamsets.pipeline.lib.dirspooler.PathMatcherMode;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirRunnable;
 import com.streamsets.pipeline.lib.io.fileref.FileRefUtil;
-import com.streamsets.pipeline.sdk.SourceRunner;
-import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.sdk.PushSourceRunner;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,10 +43,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TestWholeFileSpoolDirSource {
   private String testDir;
@@ -95,16 +98,27 @@ public class TestWholeFileSpoolDirSource {
     );
 
     SpoolDirSource source = createSource();
-    SourceRunner runner =
-        new SourceRunner.Builder(SpoolDirDSource.class, source)
+    PushSourceRunner runner =
+        new PushSourceRunner.Builder(SpoolDirDSource.class, source)
             .addOutputLane("lane")
             .setOnRecordError(OnRecordError.TO_ERROR)
             .build();
 
+    final List<Record> records = Collections.synchronizedList(new ArrayList<>(10));
+    AtomicInteger batchCount = new AtomicInteger(0);
+
     runner.runInit();
     try {
-      StageRunner.Output output = runner.runProduce("", 10);
-      List<Record> records = output.getRecords().get("lane");
+      runner.runProduce(new HashMap<>(), 10, output2 -> {
+        synchronized (records) {
+          records.addAll(output2.getRecords().get("lane"));
+        }
+        batchCount.incrementAndGet();
+        runner.setStop();
+      });
+
+      runner.waitOnProduce();
+
       Assert.assertNotNull(records);
       Assert.assertEquals(1, records.size());
       Record record = records.get(0);
@@ -119,10 +133,10 @@ public class TestWholeFileSpoolDirSource {
       Assert.assertTrue(record.get(FileRefUtil.FILE_INFO_FIELD_PATH).getValueAsMap().keySet().containsAll(metadata.keySet()));
 
       //Check permissions
-      Assert.assertTrue(record.has(FileRefUtil.FILE_INFO_FIELD_PATH + "/" + SpoolDirSource.PERMISSIONS));
+      Assert.assertTrue(record.has(FileRefUtil.FILE_INFO_FIELD_PATH + "/" + SpoolDirRunnable.PERMISSIONS));
       Assert.assertEquals(
           "rwxr-----",
-          record.get(FileRefUtil.FILE_INFO_FIELD_PATH + "/" + SpoolDirSource.PERMISSIONS).getValueAsString()
+          record.get(FileRefUtil.FILE_INFO_FIELD_PATH + "/" + SpoolDirRunnable.PERMISSIONS).getValueAsString()
       );
 
       Assert.assertEquals(Field.Type.FILE_REF, record.get(FileRefUtil.FILE_REF_FIELD_PATH).getType());
@@ -136,7 +150,7 @@ public class TestWholeFileSpoolDirSource {
 
   private void initMetrics(Stage.Context context) {
     context.createMeter(FileRefUtil.TRANSFER_THROUGHPUT_METER);
-    final Map<String, Object> gaugeStatistics = context.createGauge(FileRefUtil.GAUGE_NAME).getValue();
+    final Map<String, Object> gaugeStatistics = context.createGauge(FileRefUtil.fileStatisticGaugeName(context)).getValue();
     gaugeStatistics.put(FileRefUtil.TRANSFER_THROUGHPUT, 0L);
     gaugeStatistics.put(FileRefUtil.SENT_BYTES, 0L);
     gaugeStatistics.put(FileRefUtil.REMAINING_BYTES, 0L);
@@ -149,16 +163,27 @@ public class TestWholeFileSpoolDirSource {
     Path sourcePath = Paths.get(testDir + "/source.txt");
     Files.write(sourcePath, "Sample Text 1".getBytes());
     SpoolDirSource source = createSource();
-    SourceRunner runner =
-        new SourceRunner.Builder(SpoolDirDSource.class, source)
+    PushSourceRunner runner =
+        new PushSourceRunner.Builder(SpoolDirDSource.class, source)
             .addOutputLane("lane")
             .setOnRecordError(OnRecordError.TO_ERROR)
             .build();
 
+    final List<Record> records = Collections.synchronizedList(new ArrayList<>(10));
+    AtomicInteger batchCount = new AtomicInteger(0);
+
     runner.runInit();
+
     try {
-      StageRunner.Output output = runner.runProduce("", 10);
-      List<Record> records = output.getRecords().get("lane");
+      runner.runProduce(new HashMap<>(), 10, output2 -> {
+        synchronized (records) {
+          records.addAll(output2.getRecords().get("lane"));
+        }
+        batchCount.incrementAndGet();
+        runner.setStop();
+      });
+      runner.waitOnProduce();
+
       Assert.assertNotNull(records);
       Assert.assertEquals(1, records.size());
       Record record = records.get(0);

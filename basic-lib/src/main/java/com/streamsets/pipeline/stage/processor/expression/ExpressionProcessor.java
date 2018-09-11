@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.lib.el.ELUtils;
 import com.streamsets.pipeline.lib.el.RecordEL;
+import com.streamsets.pipeline.lib.el.StringELConstants;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.lib.util.FieldRegexUtil;
 
@@ -34,8 +35,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.streamsets.pipeline.lib.el.StringEL.MEMOIZED;
 
 public class ExpressionProcessor extends SingleLaneRecordProcessor {
 
@@ -65,35 +64,29 @@ public class ExpressionProcessor extends SingleLaneRecordProcessor {
     expressionVars = ELUtils.parseConstants(
         null, getContext(), Groups.EXPRESSIONS.name(), "constants", Errors.EXPR_01, issues
     );
-    expressionVars.addContextVariable(MEMOIZED, memoizedVars);
+    expressionVars.addContextVariable(StringELConstants.MEMOIZED, memoizedVars);
     expressionEval = createExpressionEval(getContext());
     for(ExpressionProcessorConfig expressionProcessorConfig : expressionProcessorConfigs) {
-      ELUtils.validateExpression(expressionEval, expressionVars, expressionProcessorConfig.expression, getContext(),
-        Groups.EXPRESSIONS.name(), "expressionProcessorConfigs", Errors.EXPR_00,
-        Object.class, issues);
+      ELUtils.validateExpression(expressionProcessorConfig.expression, getContext(),
+        Groups.EXPRESSIONS.name(), "expressionProcessorConfigs", Errors.EXPR_00, issues);
     }
 
     if(headerAttributeConfigs != null && !headerAttributeConfigs.isEmpty()) {
       headerAttributeEval = createHeaderAttributeEval(getContext());
       for (HeaderAttributeConfig headerAttributeConfig : headerAttributeConfigs) {
-        ELUtils.validateExpression(headerAttributeEval, expressionVars, headerAttributeConfig.headerAttributeExpression,
-          getContext(), Groups.EXPRESSIONS.name(), "headerAttributeConfigs", Errors.EXPR_00, Object.class, issues);
+        ELUtils.validateExpression(headerAttributeConfig.headerAttributeExpression,
+          getContext(), Groups.EXPRESSIONS.name(), "headerAttributeConfigs", Errors.EXPR_00, issues);
       }
     }
 
     if (fieldAttributeConfigs != null && !fieldAttributeConfigs.isEmpty()) {
       fieldAttributeEval = createFieldAttributeEval(getContext());
       for (FieldAttributeConfig fieldAttributeConfig : fieldAttributeConfigs) {
-        ELUtils.validateExpression(
-            fieldAttributeEval,
-            expressionVars,
-            fieldAttributeConfig.fieldAttributeExpression,
+        ELUtils.validateExpression(fieldAttributeConfig.fieldAttributeExpression,
             getContext(),
             Groups.EXPRESSIONS.name(),
             "fieldAttributeConfigs",
-            Errors.EXPR_00,
-            Object.class,
-            issues
+            Errors.EXPR_00, issues
         );
       }
     }
@@ -220,7 +213,8 @@ public class ExpressionProcessor extends SingleLaneRecordProcessor {
     batchMaker.addRecord(record);
   }
 
-  private static Field.Type getTypeFromObject(Object result) {
+  // TODO: Better to move to some util class?
+  public static Field.Type getTypeFromObject(Object result) {
     if(result instanceof Double) {
       return Field.Type.DOUBLE;
     } else if(result instanceof Long) {

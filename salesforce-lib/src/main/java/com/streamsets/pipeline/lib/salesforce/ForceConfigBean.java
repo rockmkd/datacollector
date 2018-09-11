@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,36 +15,38 @@
  */
 package com.streamsets.pipeline.lib.salesforce;
 
+import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.Dependency;
-import com.streamsets.pipeline.lib.el.VaultEL;
 import com.streamsets.pipeline.api.ConfigDef;
+import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
+import com.streamsets.pipeline.lib.salesforce.mutualauth.MutualAuthConfigBean;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ForceConfigBean {
   public static final String CONF_PREFIX = "forceConfig.";
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "",
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Username",
       description = "Salesforce username, in the form user@example.com",
       displayPosition = 10,
-      elDefs = VaultEL.class,
       group = "FORCE"
   )
-  public String username;
+  public CredentialValue username;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "",
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Password",
       description = "Salesforce password, or an EL to load the password from a resource, for example, ${runtime:loadResource('forcePassword.txt',true)}",
       displayPosition = 20,
-      elDefs = VaultEL.class,
       group = "FORCE"
   )
-  public String password;
+  public CredentialValue password;
 
   @ConfigDef(
       required = true,
@@ -60,7 +62,7 @@ public class ForceConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.STRING,
-      defaultValue = "39.0",
+      defaultValue = "43.0",
       label = "API Version",
       description = "Salesforce API Version",
       displayPosition = 40,
@@ -120,51 +122,45 @@ public class ForceConfigBean {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "",
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Proxy Realm",
       description = "Authenticaton realm for the proxy server.",
       displayPosition = 435,
-      elDefs = VaultEL.class,
       group = "ADVANCED",
       dependencies = {
           @Dependency(configName = "useProxy", triggeredByValues = "true"),
           @Dependency(configName = "useProxyCredentials", triggeredByValues = "true")
       }
   )
-  public String proxyRealm;
+  public CredentialValue proxyRealm;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "",
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Proxy Username",
       description = "Username for the proxy server.",
       displayPosition = 440,
-      elDefs = VaultEL.class,
       group = "ADVANCED",
       dependencies = {
           @Dependency(configName = "useProxy", triggeredByValues = "true"),
           @Dependency(configName = "useProxyCredentials", triggeredByValues = "true")
       }
   )
-  public String proxyUsername;
+  public CredentialValue proxyUsername;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      defaultValue = "",
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Proxy Password",
       description = "Password for the proxy server, or an EL to load the password from a resource, for example, ${runtime:loadResource('proxyPassword.txt',true)}",
       displayPosition = 450,
-      elDefs = VaultEL.class,
       group = "ADVANCED",
       dependencies = {
           @Dependency(configName = "useProxy", triggeredByValues = "true"),
           @Dependency(configName = "useProxyCredentials", triggeredByValues = "true")
       }
   )
-  public String proxyPassword;
+  public CredentialValue proxyPassword;
 
   @ConfigDef(
       required = true,
@@ -183,4 +179,17 @@ public class ForceConfigBean {
       displayPosition = 1010
   )
   public boolean showTrace;
+
+  @ConfigDefBean(groups = "ADVANCED")
+  public MutualAuthConfigBean mutualAuth = new MutualAuthConfigBean();
+
+  public List<Stage.ConfigIssue> init(Stage.Context context, String prefix) {
+    List<Stage.ConfigIssue> issues = new ArrayList<>();
+
+    if (mutualAuth.useMutualAuth) {
+      mutualAuth.init(context, prefix + "mutualAuth.", issues);
+    }
+
+    return issues;
+  }
 }

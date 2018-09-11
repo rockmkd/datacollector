@@ -99,7 +99,7 @@ angular
         'Total': '#5cb85c',
         'Event': '#ff9f4a'
       },
-      stageNameToLabelMap: _.reduce($scope.pipelineConfig.stages, function(nameToLabelMap, stageInstance){
+      stageNameToLabelMap: _.reduce($scope.stageInstances, function(nameToLabelMap, stageInstance){
         nameToLabelMap[stageInstance.instanceName] = stageInstance.uiInfo.label;
         return nameToLabelMap;
       }, {}),
@@ -107,6 +107,7 @@ angular
       customStageTimers: undefined,
       customStageHistograms: undefined,
       customStageGauges: undefined,
+      runnerGauges: undefined,
 
       getDurationLabel: function(key) {
         switch(key) {
@@ -131,7 +132,7 @@ angular
       },
 
       removeChart: function(chart, index) {
-        $rootScope.$storage.summaryPanelList.splice(index, 1);
+        $rootScope.$storage.summaryPanelList_v1.splice(index, 1);
       },
 
       dateFormat: function() {
@@ -258,7 +259,7 @@ angular
       }
 
 
-
+      //Counters
       if(pipelineMetrics.counters) {
         var persistedCounters = ['memoryConsumed'],
           pipelineCounterKey = 'pipeline.' + pipelineConfig.info.pipelineId,
@@ -304,6 +305,25 @@ angular
         });
       }
 
+      //Gauges
+      if(pipelineMetrics.gauges) {
+        if(!isStageSelected) {
+          $scope.runnerGauges = [];
+          angular.forEach(pipelineMetrics.gauges, function(gaugeObj, gaugeKey) {
+            if (gaugeKey.indexOf('runner.') !== -1) {
+              var runnerId = gaugeKey
+                .replace('runner.', '')
+                .replace('.gauge', '')
+                .replace(/([A-Z])/g, ' $1');
+              $scope.runnerGauges.push({
+                gaugeKey: gaugeKey,
+                runnerId: runnerId
+              });
+            }
+          });
+        }
+      }
+
       //meters
       if(pipelineMetrics.meters) {
         if(isStageSelected) {
@@ -324,7 +344,7 @@ angular
           if ($scope.customStageMeters === undefined) {
             $scope.customStageMeters = [];
             angular.forEach(pipelineMetrics.meters, function(meterObj, meterKey) {
-              if (meterKey.indexOf('custom.' + currentSelection.instanceName) !== -1) {
+              if (meterKey.startsWith('custom.' + currentSelection.instanceName)) {
                 var label = meterKey
                   .replace('custom.' + currentSelection.instanceName + '.', '')
                   .replace('.meter', '')
@@ -342,7 +362,7 @@ angular
           if ($scope.customStageTimers === undefined) {
             $scope.customStageTimers = [];
             angular.forEach(pipelineMetrics.timers, function(timerObj, timerKey) {
-              if (timerKey.indexOf('custom.' + currentSelection.instanceName) !== -1) {
+              if (timerKey.startsWith('custom.' + currentSelection.instanceName)) {
                 var label = timerKey
                   .replace('custom.' + currentSelection.instanceName + '.', '')
                   .replace('.timer', '')
@@ -360,7 +380,7 @@ angular
           if ($scope.customStageHistograms === undefined) {
             $scope.customStageHistograms = [];
             angular.forEach(pipelineMetrics.histograms, function(histogramObj, histogramKey) {
-              if (histogramKey.indexOf('custom.' + currentSelection.instanceName) !== -1) {
+              if (histogramKey.startsWith('custom.' + currentSelection.instanceName)) {
                 var label = histogramKey
                   .replace('custom.' + currentSelection.instanceName + '.', '')
                   .replace('.histogram', '')
@@ -378,7 +398,7 @@ angular
           if ($scope.customStageGauges === undefined) {
             $scope.customStageGauges = [];
             angular.forEach(pipelineMetrics.gauges, function(gaugeObj, gaugeKey) {
-              if (gaugeKey.indexOf('custom.' + currentSelection.instanceName) !== -1) {
+              if (gaugeKey.startsWith('custom.' + currentSelection.instanceName)) {
                 var label = gaugeKey
                   .replace('custom.' + currentSelection.instanceName + '.', '')
                   .replace('.gauge', '')
@@ -429,6 +449,7 @@ angular
         $scope.customStageTimers = undefined;
         $scope.customStageHistograms = undefined;
         $scope.customStageGauges = undefined;
+        $scope.runnerGauges = undefined;
         updateSummaryData();
       }
     });
@@ -462,7 +483,7 @@ angular
       });
 
       modalInstance.result.then(function (selectedCharts) {
-        $rootScope.$storage.summaryPanelList = selectedCharts;
+        $rootScope.$storage.summaryPanelList_v1 = selectedCharts;
       }, function () {
 
       });

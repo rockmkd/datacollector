@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +21,12 @@ import com.streamsets.datacollector.config.MetricElement;
 import com.streamsets.datacollector.config.MetricType;
 import com.streamsets.datacollector.config.MetricsRuleDefinition;
 import com.streamsets.datacollector.config.ThresholdType;
+import com.streamsets.datacollector.creation.PipelineBeanCreator;
+import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
 import com.streamsets.datacollector.execution.runner.common.Constants;
 import com.streamsets.datacollector.record.RecordImpl;
 import com.streamsets.datacollector.runner.production.RulesConfigurationChangeRequest;
+import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import org.slf4j.Logger;
@@ -100,6 +103,8 @@ public class AggregatorUtil {
   public static final String METADATA = "metadata";
   public static final String SDC_ID = "sdcId";
   public static final String MASTER_SDC_ID = "masterSdcId";
+  public static final String TIME_SERIES_ANALYSIS = "timeSeriesAnalysis";
+  public static final String LAST_RECORD = "lastRecord";
 
   private AggregatorUtil() {
 
@@ -175,8 +180,16 @@ public class AggregatorUtil {
   }
 
   public static Record createConfigChangeRequestRecord(
-      RulesConfigurationChangeRequest rulesConfigurationChangeRequest
+      RulesConfigurationChangeRequest rulesConfigurationChangeRequest,
+      Map<String, Object> resolvedParameters
   ) {
+    RuleDefinitionsConfigBean ruleDefinitionsConfigBean = PipelineBeanCreator.get()
+        .createRuleDefinitionsConfigBean(
+            rulesConfigurationChangeRequest.getRuleDefinitions(),
+            new ArrayList<Issue>(),
+            resolvedParameters
+        );
+    List<String> emailIds = ruleDefinitionsConfigBean.emailIDs;
     Record record = createRecord(CONFIGURATION_CHANGE);
     Map<String, Field> map = new HashMap<>();
     map.put(
@@ -197,11 +210,7 @@ public class AggregatorUtil {
     );
     map.put(
       EMAILS,
-      Field.create(
-        createListField(
-          rulesConfigurationChangeRequest.getRuleDefinitions().getEmailIds()
-        )
-      )
+      Field.create(createListField(emailIds))
     );
     map.put(AggregatorUtil.TIMESTAMP, Field.create(System.currentTimeMillis()));
     record.set(Field.create(map));
@@ -298,6 +307,8 @@ public class AggregatorUtil {
       String masterSdcId,
       Map<String, Object> metadata,
       boolean isAggregated,
+      boolean timeSeriesAnalysis,
+      boolean lastRecord,
       String metricsJSONStr
   ) {
     Record record = createRecord(METRIC_JSON_STRING);
@@ -307,6 +318,8 @@ public class AggregatorUtil {
     map.put(MASTER_SDC_ID, Field.create(masterSdcId));
     map.put(IS_AGGREGATED, Field.create(isAggregated));
     map.put(METADATA, getMetadataField(metadata));
+    map.put(TIME_SERIES_ANALYSIS, Field.create(timeSeriesAnalysis));
+    map.put(LAST_RECORD, Field.create(lastRecord));
     map.put(METRIC_JSON_STRING, Field.create(metricsJSONStr));
     record.set(Field.create(map));
     return record;

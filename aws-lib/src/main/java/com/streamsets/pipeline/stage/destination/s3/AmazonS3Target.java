@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,6 @@ package com.streamsets.pipeline.stage.destination.s3;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
-import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -33,7 +32,7 @@ import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
-import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.api.service.dataformats.DataFormatGeneratorService;
 import com.streamsets.pipeline.lib.el.ELUtils;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
@@ -44,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -60,6 +60,7 @@ public class AmazonS3Target extends BaseTarget {
   private static final String BUCKET_TEMPLATE = "bucketTemplate";
   private static final String PARTITION_TEMPLATE = "partitionTemplate";
   private static final String TIME_DRIVER_TEMPLATE = "timeDriverTemplate";
+  private static final String BUCKET_DOES_NOT_EXIST = "The specified bucket does not exist";
 
   private final S3TargetConfigBean s3TargetConfigBean;
   private final String bucketTemplate;
@@ -91,7 +92,7 @@ public class AmazonS3Target extends BaseTarget {
     bucketEval = getContext().createELEval(BUCKET_TEMPLATE);
     partitionEval = getContext().createELEval(PARTITION_TEMPLATE);
     timeDriverEval = getContext().createELEval(TIME_DRIVER_TEMPLATE);
-    calendar = Calendar.getInstance(TimeZone.getTimeZone(s3TargetConfigBean.timeZoneID));
+    calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of(s3TargetConfigBean.timeZoneID)));
 
     transferManager = TransferManagerBuilder
         .standard()
@@ -105,33 +106,23 @@ public class AmazonS3Target extends BaseTarget {
     TimeNowEL.setTimeNowInContext(elVars, new Date());
 
     if (partitionTemplate.contains(EL_PREFIX)) {
-      ELUtils.validateExpression(
-          partitionEval,
-          elVars,
-          partitionTemplate,
+      ELUtils.validateExpression(partitionTemplate,
           getContext(),
           Groups.S3.getLabel(),
           S3TargetConfigBean.S3_TARGET_CONFIG_BEAN_PREFIX + PARTITION_TEMPLATE,
-          Errors.S3_03,
-          String.class,
-          issues
+          Errors.S3_03, issues
       );
     }
 
     if (timeDriverTemplate.contains(EL_PREFIX)) {
-      ELUtils.validateExpression(
-          timeDriverEval,
-          elVars,
-          timeDriverTemplate,
+      ELUtils.validateExpression(timeDriverTemplate,
           getContext(),
           Groups.S3.getLabel(),
           S3TargetConfigBean.S3_TARGET_CONFIG_BEAN_PREFIX + TIME_DRIVER_TEMPLATE,
-          Errors.S3_04,
-          Date.class,
-          issues
+          Errors.S3_04, issues
       );
     }
-    if (s3TargetConfigBean.dataFormat == DataFormat.WHOLE_FILE) {
+    if (getContext().getService(DataFormatGeneratorService.class).isWholeFileFormat()) {
       fileHelper = new WholeFileHelper(getContext(), s3TargetConfigBean, transferManager, issues);
     } else {
       fileHelper = new DefaultFileHelper(getContext(), s3TargetConfigBean, transferManager);
@@ -157,28 +148,41 @@ public class AmazonS3Target extends BaseTarget {
     Multimap<Partition, Record> partitions = partitionBatch(batch);
 
     try {
-      List<Upload> uploads = new ArrayList<>();
+      List<UploadMetadata> uploads = new ArrayList<>();
       for (Partition partition : partitions.keySet()) {
-        List<Upload> partitionUploads = fileHelper.handle(
+        List<UploadMetadata> partitionUploads = fileHelper.handle(
           partitions.get(partition).iterator(),
           partition.bucket,
           getKeyPrefix(partition.path)
         );
         uploads.addAll(partitionUploads);
       }
-      // Wait for all the uploads to complete before moving on to the next batch
-      for (Upload upload : uploads) {
-        upload.waitForCompletion();
-      }
-      List<EventRecord> eventRecords = fileHelper.getEventRecordsForTheBatch();
 
-      for (EventRecord eventRecord : eventRecords) {
-        getContext().toEvent(eventRecord);
-      }
-      //Clear the batch events.
-      fileHelper.clearEventRecordsForTheBatch();
+      for (UploadMetadata upload : uploads) {
+        try {
+          // Wait for given object to fully upload
+          upload.getUpload().waitForCompletion();
 
-    } catch (AmazonClientException | IOException | InterruptedException e) {
+          // Propagate events associated with this upload
+          for(EventRecord event : upload.getEvents()) {
+            getContext().toEvent(event);
+          }
+        } catch (AmazonClientException | InterruptedException e) {
+          LOG.error(Errors.S3_21.getMessage(), e.toString(), e);
+
+          // Sadly Amazon does not provide a better way how to determine what has happened
+          if(e instanceof AmazonClientException && e.toString().contains(BUCKET_DOES_NOT_EXIST)) {
+            // In case of incorrect bucket, we simply move all records to error stream
+            errorRecordHandler.onError(upload.getRecords(), new StageException(Errors.S3_21, e.toString()));
+          } else {
+            // In default case we stop pipeline execution (incorrect credentials, network split, ...)
+            throw new StageException(Errors.S3_21, e.toString(), e);
+          }
+        }
+      }
+
+    } catch (IOException e) {
+      // IOException is hard exception on which we will stop pipeline
       LOG.error(Errors.S3_21.getMessage(), e.toString(), e);
       throw new StageException(Errors.S3_21, e.toString(), e);
     }

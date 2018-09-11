@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,7 @@ public class MultiFileInfo {
     this.fileFullPath = resolvedPath;
     this.fileRollMode = source.getFileRollMode();
     this.pattern = source.getPattern();
-    this.firstFile = null;
+    this.firstFile = source.getFirstFile();
     this.multiLineMainLinePatter = source.getMultiLineMainLinePatter();
     this.source = source;
   }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,15 +21,13 @@ import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.PushSource;
-import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DPushSource;
-import com.streamsets.pipeline.configurablestage.DSource;
+import com.streamsets.pipeline.api.base.configurablestage.DPushSource;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
 
 @StageDef(
-    version = 2,
+    version = 5,
     label = "JDBC Multitable Consumer",
     description = "Reads data from a JDBC source using table names.",
     icon = "rdbms_multithreaded.png",
@@ -38,10 +36,15 @@ import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
     resetOffset = true,
     producesEvents = true,
     upgrader = TableJdbcSourceUpgrader.class,
-    onlineHelpRefUrl = "index.html#Origins/MultiTableJDBCConsumer.html#task_kst_m4w_4y"
+    onlineHelpRefUrl ="index.html?contextID=task_kst_m4w_4y"
 )
+
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
+@HideConfigs({
+    "commonSourceConfigBean.allowLateTable",
+    "commonSourceConfigBean.enableSchemaChanges"
+})
 public final class TableJdbcDSource extends DPushSource {
 
   @ConfigDefBean

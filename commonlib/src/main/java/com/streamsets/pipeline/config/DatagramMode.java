@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +27,7 @@ public enum DatagramMode implements Label {
   NETFLOW("NetFlow"),
   SYSLOG("syslog"),
   COLLECTD("collectd"),
+  RAW_DATA("Raw/Separated data")
   ;
 
   private final String label;

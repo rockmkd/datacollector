@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,7 @@ public class TestOverrunCsvParser {
   @Before
   public void setUp() {
     System.getProperties().remove(OverrunReader.READ_LIMIT_SYS_PROP);
+    OverrunReader.reInitializeDefaultReadLimit();
   }
 
   @After
@@ -40,6 +41,7 @@ public class TestOverrunCsvParser {
 
   private void testLimit(int limit, int lineLength) throws Exception {
     System.setProperty(OverrunReader.READ_LIMIT_SYS_PROP, "" + limit);
+    OverrunReader.reInitializeDefaultReadLimit();
     String csv = "a," + Strings.repeat("b", lineLength) + ",c";
     OverrunCsvParser parser = new OverrunCsvParser(new StringReader(csv), CSVFormat.DEFAULT, -1);
     Assert.assertNotNull(parser.read());

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,6 @@ package com.streamsets.pipeline.lib.parser.net.syslog;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Lists;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
-import org.apache.commons.lang3.StringUtils;
 
 import java.net.InetSocketAddress;
 import java.time.Clock;
@@ -26,6 +25,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class SyslogBaseTestClass {
@@ -37,7 +37,7 @@ public class SyslogBaseTestClass {
   }
 
   private final LoadingCache<String, Long> rfc5424TsCache = SyslogDecoder.buildTimestampCache(
-      DateTimeFormatter.ofPattern(SyslogDecoder.RFC5424_TS_PATTERN)
+      DateTimeFormatter.ofPattern(SyslogDecoder.RFC5424_TS_PATTERN, Locale.US)
   );
 
   protected Clock getSystemClock() {

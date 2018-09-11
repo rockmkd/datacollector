@@ -23,20 +23,20 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root</artifactId>
-    <version>2.7.0.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <relativePath>../root</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-container</artifactId>
-  <version>2.7.0.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Container</description>
   <name>StreamSets Data Collector Container</name>
   <packaging>jar</packaging>
 
   <properties>
     <aws.version>1.10.59</aws.version>
-    <commons-compress.version>1.10</commons-compress.version>
     <sdc.log4j.level>DEBUG</sdc.log4j.level>
+    <airlift.version>0.7</airlift.version>
   </properties>
 
   <dependencies>
@@ -80,6 +80,11 @@
           <artifactId>commons-csv</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>io.airlift</groupId>
+      <artifactId>airline</artifactId>
+      <version>${airlift.version}</version>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
@@ -227,7 +232,6 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
-      <version>${commons-compress.version}</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -298,11 +302,6 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
-      <groupId>org.glassfish.jersey.media</groupId>
-      <artifactId>jersey-media-multipart</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
       <groupId>org.glassfish.jersey.test-framework.providers</groupId>
       <artifactId>jersey-test-framework-provider-inmemory</artifactId>
       <scope>test</scope>
@@ -349,16 +348,6 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>javax.servlet.jsp</groupId>
-      <artifactId>jsp-api</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>commons-el</groupId>
-      <artifactId>commons-el</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
       <groupId>com.esotericsoftware</groupId>
       <artifactId>kryo</artifactId>
       <scope>compile</scope>
@@ -398,13 +387,6 @@
         </exclusion>
       </exclusions>
     </dependency>
-    <!-- Include current Jersey artifacts -->
-    <dependency>
-      <groupId>org.glassfish.jersey.media</groupId>
-      <artifactId>jersey-media-multipart</artifactId>
-      <version>${jersey.version}</version>
-    </dependency>
-    <!-- End Jersey artifacts -->
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-pool2</artifactId>

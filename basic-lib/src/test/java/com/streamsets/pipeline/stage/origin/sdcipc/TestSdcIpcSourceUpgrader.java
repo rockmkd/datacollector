@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.origin.sdcipc;
 
-import com.streamsets.pipeline.stage.origin.mqtt.MqttClientSourceUpgrader;
 import com.streamsets.pipeline.stage.util.tls.TlsConfigBeanUpgraderTestUtil;
 import org.junit.Test;
 

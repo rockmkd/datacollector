@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,8 @@ public interface ValidationIssue {
   String getErrorCode();
 
   String getInstanceName();
+
+  String getServiceName();
 
   String getLevel();
 

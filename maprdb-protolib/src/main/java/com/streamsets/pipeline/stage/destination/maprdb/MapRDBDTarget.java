@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.destination.maprdb;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedTarget;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
@@ -26,8 +25,8 @@ import com.streamsets.pipeline.stage.destination.hbase.HBaseDTarget;
   version = 1,
   label = "MapR DB",
   description = "Writes to a MapR DB",
-  icon = "mapr.png",
-  onlineHelpRefUrl = "index.html#Destinations/MapRDB.html#task_pgk_p2z_yv"
+  icon = "mapr_db.png",
+  onlineHelpRefUrl ="index.html?contextID=task_pgk_p2z_yv"
 )
 @HideConfigs(
   value = {
@@ -41,7 +40,7 @@ public class MapRDBDTarget extends HBaseDTarget {
 
   @Override
   protected Target createTarget() {
-    return new HadoopConfigurationSynchronizedTarget(new MapRDBTarget(
+    return new MapRDBTarget(
         hBaseConnectionConfig,
         hbaseRowKey,
         rowKeyStorageType,
@@ -50,6 +49,6 @@ public class MapRDBDTarget extends HBaseDTarget {
         ignoreMissingFieldPath,
         ignoreInvalidColumn,
         timeDriver
-    ));
+    );
   }
 }

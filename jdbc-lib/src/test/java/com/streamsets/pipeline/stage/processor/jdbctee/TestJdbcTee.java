@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.lib.jdbc.*;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.sdk.ProcessorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
@@ -116,8 +117,9 @@ public class TestJdbcTee {
   private HikariPoolConfigBean createConfigBean(String connectionString, String username, String password) {
     HikariPoolConfigBean bean = new HikariPoolConfigBean();
     bean.connectionString = connectionString;
-    bean.username = username;
-    bean.password = password;
+    bean.useCredentials = true;
+    bean.username = () -> username;
+    bean.password = () -> password;
 
     return bean;
   }

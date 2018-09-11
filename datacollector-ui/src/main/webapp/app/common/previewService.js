@@ -13,15 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Service for providing access to the Preview/Snapshot utility functions.
- */
+
+ // Service for providing access to the Preview/Snapshot utility functions.
 angular.module('dataCollectorApp.common')
   .service('previewService', function(api, $q, $translate, $timeout) {
-
-    var self = this,
-      translations;
-
+    var self = this;
+    var translations;
 
     $translate([
       'global.form.stream',
@@ -30,7 +27,6 @@ angular.module('dataCollectorApp.common')
     ]).then(function (_translations) {
       translations = _translations;
     });
-
 
     /**
      * Returns Preview input lane & output lane data for the given Stage Instance.
@@ -41,12 +37,12 @@ angular.module('dataCollectorApp.common')
      */
     this.getPreviewDataForStage = function (batchData, stageInstance) {
       var stagePreviewData = {
-          input: [],
-          output: [],
-          errorRecords: [],
-          stageErrors: [],
-          newRecords: []
-        };
+        input: [],
+        output: [],
+        errorRecords: [],
+        stageErrors: [],
+        newRecords: []
+      };
 
       angular.forEach(batchData, function (stageOutput) {
         if(stageOutput.instanceName === stageInstance.instanceName) {
@@ -63,7 +59,7 @@ angular.module('dataCollectorApp.common')
           stagePreviewData.stageErrors = stageOutput.stageErrors;
           stagePreviewData.eventRecords = [];
           if (stageOutput.eventRecords && stageOutput.eventRecords.length) {
-            var eventLane = eventRecords = stageOutput.instanceName + '_EventLane';
+            var eventLane = stageOutput.instanceName + '_EventLane';
             angular.forEach(stageOutput.eventRecords, function(eventRecord) {
               eventRecord.laneName = eventLane;
               stagePreviewData.eventRecords.push(eventRecord);
@@ -123,7 +119,7 @@ angular.module('dataCollectorApp.common')
 
           stagePreviewData.eventRecords = [];
           if (stageOutput.eventRecords && stageOutput.eventRecords.length) {
-            var eventLane = eventRecords = stageOutput.instanceName + '_EventLane';
+            var eventLane = stageOutput.instanceName + '_EventLane';
             angular.forEach(stageOutput.eventRecords, function(eventRecord) {
               eventRecord.laneName = eventLane;
               stagePreviewData.eventRecords.push(eventRecord);
@@ -155,18 +151,18 @@ angular.module('dataCollectorApp.common')
     /**
      * Returns Input Records from Preview Data.
      *
-     * @param pipelineName
+     * @param pipelineId
      * @param stageInstance
      * @param batchSize
      * @returns {*}
      */
-    this.getInputRecordsFromPreview = function(pipelineName, stageInstance, batchSize) {
+    this.getInputRecordsFromPreview = function(pipelineId, stageInstance, batchSize) {
       var deferred = $q.defer();
-      api.pipelineAgent.createPreview(pipelineName, 0, batchSize, 0, true, [], stageInstance.instanceName)
+      api.pipelineAgent.createPreview(pipelineId, 0, batchSize, 0, true, true, [], stageInstance.instanceName)
         .then(
           function (res) {
             var checkStatusDefer = $q.defer();
-            checkForPreviewStatus(res.data.previewerId, checkStatusDefer);
+            checkForPreviewStatus(pipelineId, res.data.previewerId, checkStatusDefer);
             return checkStatusDefer.promise;
           },
           function(res) {
@@ -197,24 +193,24 @@ angular.module('dataCollectorApp.common')
      */
     this.getEdgeInputRecordsFromPreview = function(pipelineName, edge, batchSize) {
       var deferred = $q.defer();
-      api.pipelineAgent.createPreview(pipelineName, 0, batchSize, 0, true, [], edge.target.instanceName)
+      api.pipelineAgent.createPreview(pipelineName, 0, batchSize, 0, true, true, [], edge.target.instanceName)
         .then(
-        function (res) {
-          var checkStatusDefer = $q.defer();
-          checkForPreviewStatus(res.data.previewerId, checkStatusDefer);
-          return checkStatusDefer.promise;
-        },
-        function(res) {
-          deferred.reject(res);
-        })
+          function (res) {
+            var checkStatusDefer = $q.defer();
+            checkForPreviewStatus(res.data.previewerId, checkStatusDefer);
+            return checkStatusDefer.promise;
+          },
+          function(res) {
+            deferred.reject(res);
+          })
         .then(
-        function(previewData) {
-          var stagePreviewData = self.getPreviewDataForEdge(previewData.batchesOutput[0], edge);
-          deferred.resolve(stagePreviewData.input);
-        },
-        function(res) {
-          deferred.reject(res);
-        });
+          function(previewData) {
+            var stagePreviewData = self.getPreviewDataForEdge(previewData.batchesOutput[0], edge);
+            deferred.resolve(stagePreviewData.input);
+          },
+          function(res) {
+            deferred.reject(res);
+          });
 
       return deferred.promise;
     };
@@ -304,7 +300,7 @@ angular.module('dataCollectorApp.common')
           var lanePredicate = lanePredicatesConfiguration.value[index];
           if(lanePredicate && lanePredicate.predicate) {
             info += ', <span class="predicate-label">' + translations['global.form.condition'] +
-            ': </span><span class="predicate-value">' + escapeHtml(lanePredicate.predicate) + '</span>';
+              ': </span><span class="predicate-value">' + escapeHtml(lanePredicate.predicate) + '</span>';
           }
         } else {
           var outputStreamLabels = stageInstance.uiInfo.outputStreamLabels,
@@ -385,15 +381,11 @@ angular.module('dataCollectorApp.common')
         .replace(/'/g, "&#039;");
     }
 
-
-
-
-
     /**
      * Check for Preview Status for every 1 seconds, once done open the snapshot view.
      *
      */
-    var checkForPreviewStatus = function(previewerId, defer) {
+    var checkForPreviewStatus = function(pipelineId, previewerId, defer) {
       var previewStatusTimer = $timeout(
         function() {
         },
@@ -402,17 +394,18 @@ angular.module('dataCollectorApp.common')
 
       previewStatusTimer.then(
         function() {
-          api.pipelineAgent.getPreviewStatus(previewerId)
-            .success(function(data) {
-              if(data && _.contains(['INVALID', 'START_ERROR', 'RUN_ERROR', 'CONNECT_ERROR', 'FINISHED'], data.status)) {
-                fetchPreviewData(previewerId, defer);
+          api.pipelineAgent.getPreviewStatus(pipelineId, previewerId)
+            .then(function(response) {
+              var data = response.data;
+              if(data && _.contains(['INVALID', 'START_ERROR', 'RUN_ERROR', 'CONNECT_ERROR', 'FINISHED', 'STOP_ERROR'], data.status)) {
+                fetchPreviewData(pipelineId, previewerId, defer);
               } else {
-                checkForPreviewStatus(previewerId, defer);
+                checkForPreviewStatus(pipelineId, previewerId, defer);
               }
             })
-            .error(function(data, status, headers, config) {
+            .catch(function(response) {
               defer.reject();
-              $scope.common.errors = [data];
+              $scope.common.errors = [response.data];
             });
         },
         function() {
@@ -422,9 +415,10 @@ angular.module('dataCollectorApp.common')
       );
     };
 
-    var fetchPreviewData = function(previewerId, defer) {
-      api.pipelineAgent.getPreviewData(previewerId)
-        .success(function(previewData) {
+    var fetchPreviewData = function(pipelineId, previewerId, defer) {
+      api.pipelineAgent.getPreviewData(pipelineId, previewerId)
+        .then(function(response) {
+          var previewData = response.data;
           if(previewData.status !== 'FINISHED') {
             //Ignore
             defer.reject();
@@ -432,9 +426,9 @@ angular.module('dataCollectorApp.common')
             defer.resolve(previewData);
           }
         })
-        .error(function(data, status, headers, config) {
+        .catch(function(response) {
           defer.reject();
-          $scope.common.errors = [data];
+          $scope.common.errors = [response.data];
         });
     };
 

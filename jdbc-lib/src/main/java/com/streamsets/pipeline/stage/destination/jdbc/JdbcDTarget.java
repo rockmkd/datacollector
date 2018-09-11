@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,15 +24,16 @@ import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
-import com.streamsets.pipeline.lib.jdbc.ChangeLogFormat;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnParamMapping;
 import com.streamsets.pipeline.lib.jdbc.JDBCOperationType;
 import com.streamsets.pipeline.lib.jdbc.JDBCOperationChooserValues;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormatChooserValues;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationActionChooserValues;
 
@@ -45,7 +46,7 @@ import java.util.List;
     description = "Insert, update, delete data to a JDBC destination.",
     upgrader = JdbcTargetUpgrader.class,
     icon = "rdbms.png",
-    onlineHelpRefUrl = "index.html#Destinations/JDBCProducer.html#task_cx3_lhh_ht"
+    onlineHelpRefUrl ="index.html?contextID=task_cx3_lhh_ht"
 )
 @ConfigGroups(value = Groups.class)
 @HideConfigs(value = {

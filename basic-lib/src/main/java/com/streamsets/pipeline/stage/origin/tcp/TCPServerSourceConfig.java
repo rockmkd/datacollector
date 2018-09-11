@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,13 @@ import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.config.CharsetChooserValues;
 import com.streamsets.pipeline.config.DataFormat;
-import com.streamsets.pipeline.config.DataFormatChooserValues;
 import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
+import com.streamsets.pipeline.lib.parser.net.netflow.NetflowDataParserFactory;
+import com.streamsets.pipeline.lib.parser.net.netflow.OutputValuesMode;
+import com.streamsets.pipeline.lib.parser.net.netflow.OutputValuesModeChooserValues;
 import com.streamsets.pipeline.lib.parser.net.syslog.SyslogFramingMode;
 import com.streamsets.pipeline.lib.parser.net.syslog.SyslogFramingModeChooserValues;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
@@ -41,7 +43,7 @@ public class TCPServerSourceConfig {
       displayPosition = 1,
       group = "DATA_FORMAT",
       dependsOn = "tcpMode",
-      triggeredByValue = "DELIMITED_RECORDS"
+      triggeredByValue = {"DELIMITED_RECORDS", "CHARACTER_BASED_LENGTH_FIELD", "FLUME_AVRO_IPC"}
   )
   @ValueChooserModel(DataFormatChooserValues.class)
   public DataFormat dataFormat;
@@ -62,6 +64,19 @@ public class TCPServerSourceConfig {
       displayPosition = 1
   )
   public List<String> ports; // string so we can listen on multiple ports in the future
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.STRING,
+      label = "Bind Address",
+      defaultValue = "0.0.0.0",
+      description = "Bind address for opening listener.",
+      dependsOn = "tcpMode",
+      triggeredByValue = "FLUME_AVRO_IPC",
+      group = "TCP",
+      displayPosition = 4
+  )
+  public String bindAddress;
 
   @ConfigDef(
       required = true,
@@ -158,11 +173,66 @@ public class TCPServerSourceConfig {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.MODEL,
+      defaultValue = "UTF-8",
+      label = "Charset",
+      description = "The character encoding that the character data with length prefix messages use. Note that the" +
+          " length digits themselves, plus space, must be in a single byte encoding.",
+      displayPosition = 80,
+      group = "TCP",
+      dependsOn = "tcpMode",
+      triggeredByValue = "CHARACTER_BASED_LENGTH_FIELD"
+  )
+  @ValueChooserModel(CharsetChooserValues.class)
+  public String lengthFieldCharset;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      defaultValue = NetflowDataParserFactory.DEFAULT_OUTPUT_VALUES_MODE_STR,
+      label = NetflowDataParserFactory.OUTPUT_VALUES_MODE_LABEL,
+      description = NetflowDataParserFactory.OUTPUT_VALUES_MODE_TOOLTIP,
+      displayPosition = 90,
+      group = "NETFLOW_V9",
+      dependsOn = "tcpMode",
+      triggeredByValue = "NETFLOW"
+  )
+  @ValueChooserModel(OutputValuesModeChooserValues.class)
+  public OutputValuesMode netflowOutputValuesMode = NetflowDataParserFactory.DEFAULT_OUTPUT_VALUES_MODE;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = NetflowDataParserFactory.DEFAULT_MAX_TEMPLATE_CACHE_SIZE_STR,
+      label = NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_LABEL,
+      description = NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_TOOLTIP,
+      displayPosition = 92,
+      group = "NETFLOW_V9",
+      dependsOn = "tcpMode",
+      triggeredByValue = "NETFLOW"
+  )
+  public int maxTemplateCacheSize = NetflowDataParserFactory.DEFAULT_MAX_TEMPLATE_CACHE_SIZE;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = NetflowDataParserFactory.DEFAULT_TEMPLATE_CACHE_TIMEOUT_MS_STR,
+      label = NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_LABEL,
+      description = NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_TOOLTIP,
+      displayPosition = 95,
+      group = "NETFLOW_V9",
+      dependsOn = "tcpMode",
+      triggeredByValue = "NETFLOW"
+  )
+  public int templateCacheTimeoutMs = NetflowDataParserFactory.DEFAULT_TEMPLATE_CACHE_TIMEOUT_MS;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.NUMBER,
       defaultValue = "1000",
       label = "Max Batch Size (messages)",
       group = "TCP",
-      displayPosition = 70,
+      displayPosition = 100,
       min = 0,
       max = Integer.MAX_VALUE
   )
@@ -174,7 +244,7 @@ public class TCPServerSourceConfig {
       defaultValue = "1000",
       label = "Batch Wait Time (ms)",
       description = "Max time to wait for data before sending a batch",
-      displayPosition = 80,
+      displayPosition = 110,
       group = "TCP",
       min = 1,
       max = Integer.MAX_VALUE

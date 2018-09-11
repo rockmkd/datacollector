@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,22 +23,21 @@ import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
-import com.streamsets.pipeline.api.el.ELEval;
-import com.streamsets.pipeline.api.el.ELEvalException;
-import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.impl.Utils;
-import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.api.service.dataformats.DataFormatParserService;
+import com.streamsets.pipeline.api.service.dataformats.DataParser;
+import com.streamsets.pipeline.api.service.dataformats.DataParserException;
+import com.streamsets.pipeline.api.service.dataformats.RecoverableDataParserException;
 import com.streamsets.pipeline.lib.hashing.HashingUtil;
 import com.streamsets.pipeline.api.ext.io.ObjectLengthException;
 import com.streamsets.pipeline.api.ext.io.OverrunException;
-import com.streamsets.pipeline.lib.io.fileref.FileRefUtil;
-import com.streamsets.pipeline.lib.parser.DataParser;
-import com.streamsets.pipeline.lib.parser.DataParserException;
-import com.streamsets.pipeline.lib.parser.RecoverableDataParserException;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
-import org.apache.commons.io.IOUtils;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,9 +59,7 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
   private ErrorRecordHandler errorRecordHandler;
   private DataParser parser;
   private S3Object object;
-
-  private ELEval rateLimitElEval;
-  private ELVars rateLimitElVars;
+  private DataFormatParserService dataParser;
 
   public AmazonS3Source(S3ConfigBean s3ConfigBean) {
     super(s3ConfigBean);
@@ -71,23 +68,30 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
   @Override
   protected void initChild(List<ConfigIssue> issues) {
     errorRecordHandler = new DefaultErrorRecordHandler(getContext());
-    rateLimitElEval = FileRefUtil.createElEvalForRateLimit(getContext());
-    rateLimitElVars = getContext().createELVars();
+    dataParser = getContext().getService(DataFormatParserService.class);
   }
 
   @Override
   public void destroy() {
-    IOUtils.closeQuietly(parser);
+    try {
+      if(parser != null) {
+        parser.close();
+      }
+    } catch (IOException e) {
+      // Quiet close
+    }
+
     super.destroy();
   }
 
   @Override
   protected String produce(S3ObjectSummary s3Object, String offset, int maxBatchSize, BatchMaker batchMaker)
       throws StageException, BadSpoolObjectException {
+
     try {
       if (parser == null) {
         String recordId = s3ConfigBean.s3Config.bucket + s3ConfigBean.s3Config.delimiter + s3Object.getKey();
-        if (s3ConfigBean.dataFormat == DataFormat.WHOLE_FILE) {
+        if (dataParser.isWholeFileFormat()) {
           handleWholeFileDataFormat(s3Object, recordId);
         } else {
           //Get S3 object instead of stream because we want to call close on the object when we close the
@@ -125,9 +129,9 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
                 s3ConfigBean.sseConfig.customerKeyMd5
             );
           }
-          parser = s3ConfigBean.dataFormatConfig.getParserFactory().getParser(recordId, object.getObjectContent(),
-              offset);
+          parser = getContext().getService(DataFormatParserService.class).getParser(recordId, object.getObjectContent(), offset);
         }
+        sendLineageEvent(s3Object);
         //we don't use S3 GetObject range capabilities to skip the already process offset because the parsers cannot
         // pick up from a non root doc depth in the case of a single object with records.
       }
@@ -151,6 +155,7 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
           if (record != null) {
             setHeaders(record, object);
             batchMaker.addRecord(record);
+            noMoreDataRecordCount++;
             i++;
             offset = parser.getOffset();
           } else {
@@ -160,6 +165,7 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
               object.close();
               object = null;
             }
+            noMoreDataFileCount++;
             offset = S3Constants.MINUS_ONE;
             break;
           }
@@ -167,6 +173,7 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
           String exOffset = offset;
           offset = S3Constants.MINUS_ONE;
           errorRecordHandler.onError(Errors.S3_SPOOLDIR_02, s3Object.getKey(), exOffset, ex);
+          noMoreDataErrorCount++;
         }
       }
     } catch (AmazonClientException e) {
@@ -236,7 +243,7 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
       for(Map.Entry<String, Object> entry : metaData.entrySet()) {
         //Content-Length is partial for whole file format, so not populating it here
         //Users can always look at /record/fileInfo/size to get the real size.
-        boolean shouldAddThisMetadata = !(s3ConfigBean.dataFormat == DataFormat.WHOLE_FILE && entry.getKey().equals(CONTENT_LENGTH));
+        boolean shouldAddThisMetadata = !(dataParser.isWholeFileFormat() && entry.getKey().equals(CONTENT_LENGTH));
         if (shouldAddThisMetadata) {
           String value = entry.getValue() == null ? "" : entry.getValue().toString();
           record.getHeader().setAttribute(entry.getKey(), value);
@@ -249,7 +256,7 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
 
   //For whole file we do not care whether it is a preview or not,
   //as the record is just the metadata along with file ref.
-  private void handleWholeFileDataFormat(S3ObjectSummary s3ObjectSummary, String recordId) throws ELEvalException, DataParserException, IOException {
+  private void handleWholeFileDataFormat(S3ObjectSummary s3ObjectSummary, String recordId) throws StageException, IOException {
     S3Object partialS3ObjectForMetadata = null;
     //partialObject with fetchSize 1 byte.
     //This is mostly used for extracting metadata and such.
@@ -268,11 +275,11 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
         .useSSE(s3ConfigBean.sseConfig.useCustomerSSEKey)
         .customerKey(s3ConfigBean.sseConfig.customerKey)
         .customerKeyMd5(s3ConfigBean.sseConfig.customerKeyMd5)
-        .bufferSize(s3ConfigBean.dataFormatConfig.wholeFileMaxObjectLen)
+        .bufferSize((int)dataParser.suggestedWholeFileBufferSize())
         .createMetrics(true)
         .totalSizeInBytes(s3ObjectSummary.getSize())
-        .rateLimit(FileRefUtil.evaluateAndGetRateLimit(rateLimitElEval, rateLimitElVars, s3ConfigBean.dataFormatConfig.rateLimit));
-    if (s3ConfigBean.dataFormatConfig.verifyChecksum) {
+        .rateLimit(dataParser.wholeFileRateLimit());
+    if (dataParser.isWholeFileChecksumRequired()) {
       s3FileRefBuilder.verifyChecksum(true)
           .checksumAlgorithm(HashingUtil.HashType.MD5)
           //128 bit hex encoded md5 checksum.
@@ -288,9 +295,18 @@ public class AmazonS3Source extends AbstractAmazonS3Source {
     if (metadata.containsKey(CONTENT_LENGTH)) {
       metadata.remove(CONTENT_LENGTH);
     }
-    parser = s3ConfigBean.dataFormatConfig.getParserFactory().getParser(recordId, metadata, s3FileRefBuilder.build());
+    parser = dataParser.getParser(recordId, metadata, s3FileRefBuilder.build());
     //Object is assigned so that setHeaders() function can use this to get metadata
     //information about the object
     object = partialS3ObjectForMetadata;
+  }
+
+  private void sendLineageEvent(S3ObjectSummary s3Object) {
+    LineageEvent event = getContext().createLineageEvent(LineageEventType.ENTITY_READ);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE, EndPointType.S3.name());
+    event.setSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME, s3Object.getKey());
+    event.setSpecificAttribute(LineageSpecificAttribute.DESCRIPTION, s3ConfigBean.s3Config.bucket);
+
+    getContext().publishLineageEvent(event);
   }
 }

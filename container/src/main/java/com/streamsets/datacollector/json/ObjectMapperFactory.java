@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,9 +17,12 @@ package com.streamsets.datacollector.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.streamsets.datacollector.credential.ClearCredentialValue;
 import com.streamsets.datacollector.record.FieldDeserializer;
 import com.streamsets.datacollector.restapi.bean.FieldJson;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
+
+import java.time.ZonedDateTime;
 
 public class ObjectMapperFactory {
 
@@ -33,6 +36,8 @@ public class ObjectMapperFactory {
     SimpleModule module = new SimpleModule();
     module.addDeserializer(FieldJson.class, new FieldDeserializer());
     module.addDeserializer(ErrorMessage.class, new ErrorMessageDeserializer());
+    module.addSerializer(ClearCredentialValue.class, new ClearCredentialValueSerializer());
+    module.addSerializer(ZonedDateTime.class, new ZonedDateTimeSerializer());
     objectMapper.registerModule(module);
     return objectMapper;
   }

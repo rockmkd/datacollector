@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.streamsets.pipeline.api.Batch;
+import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
@@ -30,12 +32,17 @@ import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.lib.el.ELUtils;
+import com.streamsets.pipeline.lib.event.CommonEvents;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableContextUtil;
 import com.streamsets.pipeline.lib.operation.OperationType;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import com.streamsets.pipeline.stage.destination.jdbc.Groups;
+import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
+import com.streamsets.pipeline.stage.origin.jdbc.table.QuoteChar;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,18 +59,22 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.SortedMap;
 
@@ -104,6 +115,19 @@ public class JdbcUtil {
   private static final Joiner joinerWithQuote = Joiner.on("\", \"");
   private static final Joiner joinerColumnWithQuote = Joiner.on("\" = ?, \"");
   private static final Joiner joinerWhereClauseWitheQuote =  Joiner.on("\" = ? AND \"");
+
+  /**
+   * The query to select the min value for a particular offset column
+   */
+  public static final String MIN_OFFSET_VALUE_QUERY = "SELECT MIN(%s) FROM %s";
+
+  /**
+   * The index within the result set for the MIN_OFFSET_VALUE_QUERY that contains the min offset value
+   */
+  private static final int MIN_OFFSET_VALUE_QUERY_RESULT_SET_INDEX = 1;
+
+  public static final int NANOS_TO_MILLIS_ADJUSTMENT = 1_000_000;
+  public static final String FIELD_ATTRIBUTE_NANOSECONDS = "nanoSeconds";
 
   private JdbcUtil() {
   }
@@ -160,14 +184,21 @@ public class JdbcUtil {
    */
   public static String formatSqlException(SQLException ex) {
     StringBuilder sb = new StringBuilder();
+    Set<String> messages = new HashSet<>();
     for (Throwable e : ex) {
       if (e instanceof SQLException) {
+        String message = e.getMessage();
+        if (!messages.add(message)) {
+          continue;
+        }
         sb.append("SQLState: " + ((SQLException) e).getSQLState() + "\n")
             .append("Error Code: " + ((SQLException) e).getErrorCode() + "\n")
-            .append("Message: " + e.getMessage() + "\n");
+            .append("Message: " + message + "\n");
         Throwable t = ex.getCause();
         while (t != null) {
-          sb.append("Cause: " + t + "\n");
+          if (messages.add(t.getMessage())) {
+            sb.append("Cause: " + t + "\n");
+          }
           t = t.getCause();
         }
       }
@@ -205,13 +236,14 @@ public class JdbcUtil {
       Connection connection,
       String catalog,
       String schemaPattern,
-      String schemaLessTablePattern
+      String schemaLessTablePattern,
+      boolean includeViews
   ) throws SQLException {
     return connection.getMetaData().getTables(
         catalog,
         schemaPattern,
         schemaLessTablePattern,
-        new String[]{"TABLE"}
+        includeViews ? new String[]{"TABLE", "VIEW"} : new String[]{"TABLE"}
     );
   }
 
@@ -243,11 +275,69 @@ public class JdbcUtil {
     String table = tableName;
     DatabaseMetaData metadata = connection.getMetaData();
     List<String> keys = new ArrayList<>();
-    ResultSet result = metadata.getPrimaryKeys(null, schema, table);
+    ResultSet result = metadata.getPrimaryKeys(connection.getCatalog(), schema, table);
     while (result.next()) {
       keys.add(result.getString(COLUMN_NAME));
     }
     return keys;
+  }
+
+  public static Map<String, String> getMinimumOffsetValues(
+      Connection connection,
+      String schema,
+      String tableName,
+      QuoteChar quoteChar,
+      Collection<String> offsetColumnNames
+  ) throws SQLException {
+    Map<String, String> minOffsetValues = new HashMap<>();
+    final String qualifiedName = TableContextUtil.getQuotedQualifiedTableName(
+        schema,
+        tableName,
+        quoteChar.getQuoteCharacter()
+    );
+    for (String offsetColumn : offsetColumnNames) {
+      final String minOffsetQuery = String.format(MIN_OFFSET_VALUE_QUERY, offsetColumn, qualifiedName);
+      try (
+        Statement st = connection.createStatement();
+        ResultSet rs = st.executeQuery(minOffsetQuery)
+      ) {
+        if (rs.next()) {
+          String minValue = null;
+          final int colType = rs.getMetaData().getColumnType(MIN_OFFSET_VALUE_QUERY_RESULT_SET_INDEX);
+          switch (colType) {
+            case Types.DATE:
+              java.sql.Date date = rs.getDate(MIN_OFFSET_VALUE_QUERY_RESULT_SET_INDEX);
+              if (date != null) {
+                minValue = String.valueOf(date.toInstant().toEpochMilli());
+              }
+              break;
+            case Types.TIME:
+              java.sql.Time time = rs.getTime(MIN_OFFSET_VALUE_QUERY_RESULT_SET_INDEX);
+              if (time != null) {
+                minValue = String.valueOf(time.toInstant().toEpochMilli());
+              }
+              break;
+            case Types.TIMESTAMP:
+              Timestamp timestamp = rs.getTimestamp(MIN_OFFSET_VALUE_QUERY_RESULT_SET_INDEX);
+              if (timestamp != null) {
+                final Instant instant = timestamp.toInstant();
+                minValue = String.valueOf(instant.toEpochMilli());
+              }
+              break;
+            default:
+              minValue = rs.getString(MIN_OFFSET_VALUE_QUERY_RESULT_SET_INDEX);
+              break;
+          }
+          if (minValue != null) {
+            minOffsetValues.put(offsetColumn, minValue);
+          }
+        } else {
+          LOG.warn("Unable to get minimum offset value using query {}; result set had no rows", minOffsetQuery);
+        }
+      }
+    }
+
+    return minOffsetValues;
   }
 
   /**
@@ -372,7 +462,8 @@ public class JdbcUtil {
       maxClobSize,
       maxBlobSize,
       DataType.USE_COLUMN_TYPE,
-      unknownTypeAction
+      unknownTypeAction,
+      false
     );
   }
 
@@ -383,7 +474,8 @@ public class JdbcUtil {
       int maxClobSize,
       int maxBlobSize,
       DataType userSpecifiedType,
-      UnknownTypeAction unknownTypeAction
+      UnknownTypeAction unknownTypeAction,
+      boolean timestampToString
   ) throws SQLException, IOException, StageException {
       Field field;
       if (userSpecifiedType != DataType.USE_COLUMN_TYPE) {
@@ -428,6 +520,8 @@ public class JdbcUtil {
           case Types.DECIMAL:
           case Types.NUMERIC:
             field = Field.create(Field.Type.DECIMAL, rs.getBigDecimal(columnIndex));
+            field.setAttribute(HeaderAttributeConstants.ATTR_SCALE, String.valueOf(rs.getMetaData().getScale(columnIndex)));
+            field.setAttribute(HeaderAttributeConstants.ATTR_PRECISION, String.valueOf(rs.getMetaData().getPrecision(columnIndex)));
             break;
           case Types.DOUBLE:
             field = Field.create(Field.Type.DOUBLE, rs.getObject(columnIndex));
@@ -450,7 +544,18 @@ public class JdbcUtil {
             field = Field.create(Field.Type.TIME, rs.getObject(columnIndex));
             break;
           case Types.TIMESTAMP:
-            field = Field.create(Field.Type.DATETIME, rs.getTimestamp(columnIndex));
+            final Timestamp timestamp = rs.getTimestamp(columnIndex);
+            if(timestampToString) {
+             field = Field.create(Field.Type.STRING, timestamp.toString());
+            } else {
+              field = Field.create(Field.Type.DATETIME, timestamp);
+              if (timestamp != null) {
+                final long actualNanos = timestamp.getNanos() % NANOS_TO_MILLIS_ADJUSTMENT;
+                if (actualNanos > 0) {
+                  field.setAttribute(FIELD_ATTRIBUTE_NANOSECONDS, String.valueOf(actualNanos));
+                }
+              }
+            }
             break;
           // Ugly hack until we can support LocalTime, LocalDate, LocalDateTime, etc.
           case Types.TIME_WITH_TIMEZONE:
@@ -459,7 +564,7 @@ public class JdbcUtil {
             break;
           case Types.TIMESTAMP_WITH_TIMEZONE:
             OffsetDateTime offsetDateTime = rs.getObject(columnIndex, OffsetDateTime.class);
-            field = Field.create(Field.Type.DATETIME, Date.from(offsetDateTime.toInstant()));
+            field = Field.create(Field.Type.ZONED_DATETIME, offsetDateTime.toZonedDateTime());
             break;
           //case Types.REF_CURSOR: // JDK8 only
           case Types.SQLXML:
@@ -479,7 +584,12 @@ public class JdbcUtil {
               case STOP_PIPELINE:
                 throw new StageException(JdbcErrors.JDBC_37, md.getColumnType(columnIndex), md.getColumnLabel(columnIndex));
               case CONVERT_TO_STRING:
-                field = Field.create(Field.Type.STRING, rs.getObject(columnIndex).toString());
+                Object value = rs.getObject(columnIndex);
+                if(value != null) {
+                  field = Field.create(Field.Type.STRING, rs.getObject(columnIndex).toString());
+                } else {
+                  field = Field.create(Field.Type.STRING, null);
+                }
                 break;
               default:
                 throw new IllegalStateException("Unknown action: " + unknownTypeAction);
@@ -494,16 +604,56 @@ public class JdbcUtil {
       ResultSet rs,
       int maxClobSize,
       int maxBlobSize,
+      Map<String, DataType> columnsToTypes,
       ErrorRecordHandler errorRecordHandler,
       UnknownTypeAction unknownTypeAction
   ) throws SQLException, StageException {
     return resultSetToFields(
-      rs,
-      maxClobSize,
-      maxBlobSize,
-      Collections.emptyMap(),
-      errorRecordHandler,
-      unknownTypeAction
+        rs,
+        maxClobSize,
+        maxBlobSize,
+        columnsToTypes,
+        errorRecordHandler,
+        unknownTypeAction,
+        null,
+        false
+    );
+  }
+
+  public static LinkedHashMap<String, Field> resultSetToFields(
+      ResultSet rs,
+      CommonSourceConfigBean commonSourceBean,
+      ErrorRecordHandler errorRecordHandler,
+      UnknownTypeAction unknownTypeAction
+  ) throws SQLException, StageException {
+    return resultSetToFields(
+        rs,
+        commonSourceBean.maxClobSize,
+        commonSourceBean.maxBlobSize,
+        Collections.emptyMap(),
+        errorRecordHandler,
+        unknownTypeAction,
+        null,
+        commonSourceBean.convertTimestampToString
+    );
+  }
+
+  public static LinkedHashMap<String, Field> resultSetToFields(
+      ResultSet rs,
+      CommonSourceConfigBean commonSourceBean,
+      ErrorRecordHandler errorRecordHandler,
+      UnknownTypeAction unknownTypeAction,
+      Set<String> recordHeader
+  ) throws SQLException, StageException {
+    return resultSetToFields(
+        rs,
+        commonSourceBean.maxClobSize,
+        commonSourceBean.maxBlobSize,
+        Collections.emptyMap(),
+        errorRecordHandler,
+        unknownTypeAction,
+        recordHeader,
+        commonSourceBean.convertTimestampToString
     );
   }
 
@@ -513,24 +663,29 @@ public class JdbcUtil {
       int maxBlobSize,
       Map<String, DataType> columnsToTypes,
       ErrorRecordHandler errorRecordHandler,
-      UnknownTypeAction unknownTypeAction
+      UnknownTypeAction unknownTypeAction,
+      Set<String> recordHeader,
+      boolean timestampToString
   ) throws SQLException, StageException {
     ResultSetMetaData md = rs.getMetaData();
     LinkedHashMap<String, Field> fields = new LinkedHashMap<>(md.getColumnCount());
 
     for (int i = 1; i <= md.getColumnCount(); i++) {
       try {
-        DataType dataType = columnsToTypes.get(md.getColumnName(i));
-        Field field = resultToField(
-          md,
-          rs,
-          i,
-          maxClobSize,
-          maxBlobSize,
-          dataType == null ? DataType.USE_COLUMN_TYPE : dataType,
-          unknownTypeAction
-        );
-        fields.put(md.getColumnLabel(i), field);
+        if (recordHeader == null || !recordHeader.contains(md.getColumnName(i))) {
+          DataType dataType = columnsToTypes.get(md.getColumnName(i));
+          Field field = resultToField(
+              md,
+              rs,
+              i,
+              maxClobSize,
+              maxBlobSize,
+              dataType == null ? DataType.USE_COLUMN_TYPE : dataType,
+              unknownTypeAction,
+              timestampToString
+          );
+          fields.put(md.getColumnLabel(i), field);
+        }
       } catch (SQLException e) {
         errorRecordHandler.onError(JdbcErrors.JDBC_13, e.getMessage(), e);
       } catch (IOException e) {
@@ -543,10 +698,9 @@ public class JdbcUtil {
 
   private static HikariConfig createDataSourceConfig(
     HikariPoolConfigBean hikariConfigBean,
-    Properties driverProperties,
     boolean autoCommit,
     boolean readOnly
-  ) {
+  ) throws StageException {
     HikariConfig config = new HikariConfig();
 
     // Log all registered drivers
@@ -555,9 +709,11 @@ public class JdbcUtil {
       LOG.info("Driver class {} (version {}.{})", driver.getClass().getName(), driver.getMajorVersion(), driver.getMinorVersion());
     });
 
-    config.setJdbcUrl(hikariConfigBean.connectionString);
-    config.setUsername(hikariConfigBean.username);
-    config.setPassword(hikariConfigBean.password);
+    config.setJdbcUrl(hikariConfigBean.getConnectionString());
+    if (hikariConfigBean.useCredentials){
+       config.setUsername(hikariConfigBean.username.get());
+       config.setPassword(hikariConfigBean.password.get());
+    }
     config.setAutoCommit(autoCommit);
     config.setReadOnly(readOnly);
     config.setMaximumPoolSize(hikariConfigBean.maximumPoolSize);
@@ -578,30 +734,27 @@ public class JdbcUtil {
       config.setTransactionIsolation(hikariConfigBean.transactionIsolation.name());
     }
 
-    config.setDataSourceProperties(driverProperties);
+    if(StringUtils.isNotEmpty(hikariConfigBean.initialQuery)) {
+      config.setConnectionInitSql(hikariConfigBean.initialQuery);
+    }
+
+    config.setDataSourceProperties(hikariConfigBean.getDriverProperties());
 
     return config;
   }
 
   public static HikariDataSource createDataSourceForWrite(
-      HikariPoolConfigBean hikariConfigBean,
-      Properties driverProperties,
-      String schema,
+      HikariPoolConfigBean hikariConfigBean, String schema,
       String tableNameTemplate,
       boolean caseSensitive,
       List<Stage.ConfigIssue> issues,
       List<JdbcFieldColumnParamMapping> customMappings,
       Stage.Context context
-  ) throws SQLException {
-    HikariDataSource dataSource = new HikariDataSource(createDataSourceConfig(
-      hikariConfigBean,
-      driverProperties,
-      false,
-      false
-    ));
+  ) throws SQLException, StageException {
+    HikariDataSource dataSource = new HikariDataSource(createDataSourceConfig(hikariConfigBean, false, false));
 
     // Can only validate schema if the user specified a single table.
-    if (!tableNameTemplate.contains(EL_PREFIX)) {
+    if (tableNameTemplate != null && !tableNameTemplate.contains(EL_PREFIX)) {
       try (
         Connection connection = dataSource.getConnection();
         ResultSet res = JdbcUtil.getTableMetadata(connection, schema, tableNameTemplate, caseSensitive);
@@ -633,16 +786,14 @@ public class JdbcUtil {
   }
 
   public static HikariDataSource createDataSourceForRead(
-      HikariPoolConfigBean hikariConfigBean,
-      Properties driverProperties
+      HikariPoolConfigBean hikariConfigBean
   ) throws StageException {
     HikariDataSource dataSource;
     try {
       dataSource = new HikariDataSource(createDataSourceConfig(
-        hikariConfigBean,
-        driverProperties,
-        hikariConfigBean.autoCommit,
-        hikariConfigBean.readOnly
+          hikariConfigBean,
+          hikariConfigBean.autoCommit,
+          hikariConfigBean.readOnly
       ));
     } catch (RuntimeException e) {
       LOG.error(JdbcErrors.JDBC_06.getMessage(), e);
@@ -669,7 +820,8 @@ public class JdbcUtil {
       String tableNameTemplate,
       boolean caseSensitive,
       LoadingCache<String, JdbcRecordWriter> recordWriters,
-      ErrorRecordHandler errorRecordHandler
+      ErrorRecordHandler errorRecordHandler,
+      boolean perRecord
   ) throws StageException {
     Multimap<String, Record> partitions = ELUtils.partitionBatchByExpression(
         tableNameEval,
@@ -681,18 +833,29 @@ public class JdbcUtil {
     for (String tableName : tableNames) {
       try {
         JdbcRecordWriter jdbcRecordWriter = recordWriters.getUnchecked(tableName);
-        List<OnRecordErrorException> errors = jdbcRecordWriter.writeBatch(partitions.get(tableName));
+
+        List<OnRecordErrorException> errors;
+        if (perRecord) {
+          errors = jdbcRecordWriter.writePerRecord(partitions.get(tableName));
+        } else {
+          errors = jdbcRecordWriter.writeBatch(partitions.get(tableName));
+        }
         for (OnRecordErrorException error : errors) {
           errorRecordHandler.onError(error);
         }
       } catch (UncheckedExecutionException ex) {
         Throwable throwable = ex.getCause();
         if (throwable instanceof StageException) {
-          if (((StageException) ex.getCause()).getErrorCode() == JdbcErrors.JDBC_16) {
+          StageException stageEx = (StageException) ex.getCause();
+          if (stageEx.getErrorCode() == JdbcErrors.JDBC_16) {
             for (Record record : partitions.get(tableName)) {
-              errorRecordHandler.onError(new OnRecordErrorException(record, ((StageException) throwable).getErrorCode(), tableName, ex.getCause()));
+              errorRecordHandler.onError(new OnRecordErrorException(record, JdbcErrors.JDBC_16, tableName, ex.getCause()));
             }
+          } else {
+            errorRecordHandler.onError(stageEx.getErrorCode(), stageEx.getParams());
           }
+        } else {
+          errorRecordHandler.onError(JdbcErrors.JDBC_301, ex.getMessage(), ex.getCause());
         }
       }
     }
@@ -838,5 +1001,21 @@ public class JdbcUtil {
       statement = connection.prepareStatement(query);
     }
     return statement;
+  }
+
+  public static String logError(SQLException e) {
+    String formattedError = JdbcUtil.formatSqlException(e);
+    LOG.error(formattedError, e);
+    return formattedError;
+  }
+
+  /**
+   * Generates the no-more-data event
+   */
+  public static void generateNoMoreDataEvent(PushSource.Context context) {
+    LOG.info("No More data to process, Triggered No More Data Event");
+    BatchContext batchContext = context.startBatch();
+    CommonEvents.NO_MORE_DATA.create(context, batchContext).createAndSend();
+    context.processBatch(batchContext);
   }
 }

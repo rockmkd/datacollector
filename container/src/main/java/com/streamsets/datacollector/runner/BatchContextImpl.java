@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,9 @@ import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
+
+import java.util.Collection;
+import java.util.List;
 
 /**
  * BatchContext implementation keeping all the state for given Batch while the pipeline is running the origin's code.
@@ -110,6 +113,16 @@ public class BatchContextImpl implements BatchContext {
   }
 
   @Override
+  public void complete(Record record) {
+    pipeBatch.getProcessedSink().addRecord(originStageName, record);
+  }
+
+  @Override
+  public void complete(Collection<Record> records) {
+    pipeBatch.getProcessedSink().addRecords(originStageName, records);
+  }
+
+  @Override
   public BatchMaker getBatchMaker() {
     return batchMaker;
   }
@@ -129,5 +142,10 @@ public class BatchContextImpl implements BatchContext {
 
   public long getStartTime() {
     return startTime;
+  }
+
+  @Override
+  public List<Record> getSourceResponseRecords() {
+    return pipeBatch.getSourceResponseSink().getResponseRecords();
   }
 }

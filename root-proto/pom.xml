@@ -23,11 +23,10 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector</artifactId>
-    <version>2.7.0.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
   </parent>
-  <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-root-proto</artifactId>
-  <version>2.7.0.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Root Prototype POM</description>
   <name>StreamSets Data Collector Root Prototype POM</name>
   <packaging>pom</packaging>
@@ -49,35 +48,46 @@
          All dependency versions should be defined here to avoid version
          mismatches with multiple artifacts of the same logical dependency.
     -->
-    <bouncycastle.version>1.57</bouncycastle.version>
+    <awaitility.version>2.0.0</awaitility.version>
+    <aws-encryption-sdk.version>1.3.5</aws-encryption-sdk.version>
+    <bouncycastle.version>1.60</bouncycastle.version>
     <metrics.version>3.1.2</metrics.version>
     <log4j.version>1.2.17</log4j.version>
     <slf4j.version>1.7.7</slf4j.version>
-    <protobuf.version>3.0.0</protobuf.version>
+    <protobuf.version>3.3.1</protobuf.version>
     <surefire.version>2.19.1</surefire.version>
     <failsafe.version>2.19.1</failsafe.version>
     <junit.version>4.12</junit.version>
     <hamcrest.version>1.3</hamcrest.version>
     <mockito.version>1.10.19</mockito.version>
-    <powermock.version>1.6.3</powermock.version>
-    <jackson.version>2.4.3</jackson.version>
+    <powermock.version>1.7.3</powermock.version>
+    <jackson.version>2.8.9</jackson.version>
     <jacoco.version>0.7.7.201606060606</jacoco.version>
     <hikaricp.version>2.4.1</hikaricp.version>
-    <jersey.version>2.23.1</jersey.version>
-    <jackson.version>2.4.3</jackson.version>
+    <jersey.version>2.25.1</jersey.version>
     <!-- Sets the VM argument line used when unit and integration tests are run. -->
     <argLine>-Xmx2g</argLine>
-    <testcontainers.version>1.1.8</testcontainers.version>
-    <netty.version>4.0.41.Final</netty.version>
+    <testcontainers.version>1.4.3</testcontainers.version>
+    <netty.version>4.1.16.Final</netty.version>
+
+    <avro.version>1.7.7</avro.version>
 
     <!-- Platform encoding override -->
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <hive-storage-api.version>2.2.1</hive-storage-api.version>
+    <streamsets-datacollector-rbgen-maven-plugin.version>3.5.0-SNAPSHOT</streamsets-datacollector-rbgen-maven-plugin.version>
   </properties>
 
   <!-- API dependencies ONLY -->
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>org.awaitility</groupId>
+        <artifactId>awaitility</artifactId>
+        <version>${awaitility.version}</version>
+      </dependency>
       <dependency>
         <groupId>io.dropwizard.metrics</groupId>
         <artifactId>metrics-core</artifactId>
@@ -114,6 +124,16 @@
         <version>${mockito.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.powermock</groupId>
+        <artifactId>powermock-module-junit4</artifactId>
+        <version>${powermock.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.powermock</groupId>
+        <artifactId>powermock-api-mockito</artifactId>
+        <version>${powermock.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-testing</artifactId>
         <version>${project.version}</version>
@@ -122,6 +142,17 @@
       <dependency>
         <groupId>org.glassfish.jersey.core</groupId>
         <artifactId>jersey-client</artifactId>
+        <version>${jersey.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.core</groupId>
+        <artifactId>jersey-server</artifactId>
         <version>${jersey.version}</version>
       </dependency>
       <dependency>
@@ -135,9 +166,113 @@
         <version>${jersey.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.glassfish.jersey.test-framework</groupId>
+        <artifactId>jersey-test-framework-core</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.test-framework.providers</groupId>
+        <artifactId>jersey-test-framework-provider-grizzly2</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.test-framework.providers</groupId>
+        <artifactId>jersey-test-framework-provider-inmemory</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.media</groupId>
+        <artifactId>jersey-media-json-jackson</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.media</groupId>
+        <artifactId>jersey-media-multipart</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.containers</groupId>
+        <artifactId>jersey-container-servlet</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.containers</groupId>
+        <artifactId>jersey-container-servlet-core</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.glassfish.jersey.connectors</groupId>
+        <artifactId>jersey-apache-connector</artifactId>
+        <version>${jersey.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.fasterxml.jackson.jaxrs</groupId>
         <artifactId>jackson-jaxrs-json-provider</artifactId>
         <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-common</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-transport</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-buffer</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-handler</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-socks</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-codec-http</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>${netty.version}</version>
+      </dependency>
+
+      <!--
+          The necessary classes from this dependency (for ORC file writing) might also be provided under separate Hive
+          1.x dependencies (ex: hive-serde, hive-exec, etc.)
+
+          These were consolidated into hive-storage-api under https://issues.apache.org/jira/browse/HIVE-10171
+
+          Hadoop distros (ex: CDH) might provide the individual Hive 1.x libs instead, which we will assume should
+          provide the same set of required classes for ORC writing
+
+          So for purposes of compliation only, we will rely on hive-storage-api and hope that at runtime, the Hadoop
+          environment provides the same classes
+      -->
+      <dependency>
+        <groupId>org.apache.hive</groupId>
+        <artifactId>hive-storage-api</artifactId>
+        <version>${hive-storage-api.version}</version>
+        <scope>compile</scope>
       </dependency>
 
     </dependencies>
@@ -147,26 +282,6 @@
     <!-- ALL Maven plugin dependencies -->
     <pluginManagement>
       <plugins>
-        <plugin>
-          <groupId>org.owasp</groupId>
-          <artifactId>dependency-check-maven</artifactId>
-          <version>1.4.5</version>
-          <configuration>
-            <!-- skip non-bundled jars -->
-            <skipProvidedScope>true</skipProvidedScope>
-            <skipRuntimeScope>true</skipRuntimeScope>
-            <!-- We want HTML for easy viewing, but XML for reporting via SonarQube -->
-            <format>ALL</format>
-            <suppressionFile>${basedir}/../dependency-check-suppression.xml</suppressionFile>
-          </configuration>
-          <executions>
-            <execution>
-              <goals>
-                <goal>check</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
@@ -394,9 +509,13 @@
         <plugin>
           <groupId>com.streamsets</groupId>
           <artifactId>streamsets-datacollector-rbgen-maven-plugin</artifactId>
-          <version>2.7.0.0-SNAPSHOT</version>
+          <version>${streamsets-datacollector-rbgen-maven-plugin.version}</version>
         </plugin>
-
+        <plugin>
+          <groupId>net.alchim31.maven</groupId>
+          <artifactId>scala-maven-plugin</artifactId>
+          <version>3.3.2</version>
+        </plugin>
       </plugins>
     </pluginManagement>
 
@@ -496,43 +615,6 @@
                 </goals>
               </execution>
             </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
-      <id>dependency-check</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <property>
-          <name>release</name>
-        </property>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.owasp</groupId>
-            <artifactId>dependency-check-maven</artifactId>
-            <configuration>
-              <skip>false</skip>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
-      <id>dependency-check-disabled</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.owasp</groupId>
-            <artifactId>dependency-check-maven</artifactId>
-            <configuration>
-              <skip>true</skip>
-            </configuration>
           </plugin>
         </plugins>
       </build>

@@ -13,10 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Home module for displaying home page content.
- */
 
+// Home module for displaying home page content.
 angular
   .module('dataCollectorApp.home')
   .config(['$routeProvider', function ($routeProvider) {
@@ -34,15 +32,16 @@ angular
         }
       });
   }])
-  .controller('HomeController', function ($scope, $rootScope, $routeParams, $q, $modal, $location, pipelineService, api,
-                                          configuration, pipelineConstant, Analytics, $route, $translate) {
+  .controller('HomeController', function (
+    $scope, $rootScope, $routeParams, $q, $modal, $location, pipelineService, api, configuration, pipelineConstant,
+    Analytics, $route, $translate
+  ) {
     $location.search('auth_token', null);
     $location.search('auth_user', null);
     $rootScope.common.successList = [];
 
     if ($routeParams.errors) {
       $rootScope.common.errors = [$routeParams.errors];
-      //$location.search('errors', null);
     } else {
       $rootScope.common.errors = [];
     }
@@ -66,7 +65,7 @@ angular
       header: {
         pipelineGridView: $rootScope.$storage.pipelineListState.gridView,
         sortColumn: 'LAST_MODIFIED',
-        sortReverse: true,
+        sortReverse: false,
         searchInput: $scope.$storage.pipelineListState.searchInput,
         showNameColumn: $scope.$storage.pipelineListState.showNameColumn
       },
@@ -98,7 +97,7 @@ angular
         var regex = new RegExp(searchInput, 'i');
         $scope.$storage.pipelineListState.searchInput = searchInput;
 
-        if (offset == 0) {
+        if (offset === 0) {
           $scope.filteredPipelines = [];
           $rootScope.common.pipelineStatusMap = {};
         }
@@ -117,7 +116,6 @@ angular
             var statusList = res.data[1];
 
             $scope.filteredPipelines.push.apply($scope.filteredPipelines, pipelineInfoList);
-
 
             angular.forEach(statusList, function (status) {
               $rootScope.common.pipelineStatusMap[status.pipelineId] = status;
@@ -149,8 +147,8 @@ angular
       /**
        * Add New Pipeline Configuration
        */
-      addPipelineConfig: function() {
-        pipelineService.addPipelineConfigCommand();
+      addPipelineConfig: function(pipelineType) {
+        pipelineService.addPipelineConfigCommand(pipelineType);
       },
 
       /**
@@ -227,7 +225,7 @@ angular
       duplicatePipelines: function() {
         if ($scope.selectedPipelineList && $scope.selectedPipelineList.length > 0) {
           var selectedPipeline = _.find($scope.filteredPipelines, function(pipeline) {
-            return $scope.selectedPipelineList[0] === pipeline.pipelineId
+            return $scope.selectedPipelineList[0] === pipeline.pipelineId;
           });
           pipelineService.duplicatePipelineConfigCommand(selectedPipeline)
             .then(function(pipelines) {
@@ -249,7 +247,7 @@ angular
       shareSelectedPipelineConfig: function () {
         if ($scope.selectedPipelineList && $scope.selectedPipelineList.length > 0) {
           var selectedPipeline = _.find($scope.filteredPipelines, function(pipeline) {
-            return $scope.selectedPipelineList[0] === pipeline.pipelineId
+            return $scope.selectedPipelineList[0] === pipeline.pipelineId;
           });
           pipelineService.sharePipelineConfigCommand(selectedPipeline);
         }
@@ -260,10 +258,10 @@ angular
        */
       resetOffsetForSelectedPipelines: function() {
         $rootScope.common.trackEvent(
-            pipelineConstant.BUTTON_CATEGORY,
-            pipelineConstant.CLICK_ACTION,
-            'Reset Offsets',
-            1
+          pipelineConstant.BUTTON_CATEGORY,
+          pipelineConstant.CLICK_ACTION,
+          'Reset Offsets',
+          1
         );
 
         var selectedPipelineList = $scope.selectedPipelineList;
@@ -273,9 +271,9 @@ angular
           if (selectedPipelineList.indexOf(pipelineInfo.pipelineId) !== -1) {
             var pipelineStatus = $rootScope.common.pipelineStatusMap[pipelineInfo.pipelineId];
             if (pipelineStatus && pipelineStatus.pipelineId === pipelineInfo.pipelineId &&
-                _.contains(PIPELINE_ACTIVE_STATUSES, pipelineStatus.status)) {
+              _.contains(PIPELINE_ACTIVE_STATUSES, pipelineStatus.status)) {
               validationIssues.push('Reset Origin operation is not supported for Pipeline "' +
-                  pipelineInfo.pipelineId + '" with state ' +  pipelineStatus.status);
+                pipelineInfo.pipelineId + '" with state ' +  pipelineStatus.status);
             }
             selectedPipelineInfoList.push(pipelineInfo);
           }
@@ -308,10 +306,10 @@ angular
        */
       addLabelsToSelectedPipelines: function() {
         $rootScope.common.trackEvent(
-            pipelineConstant.BUTTON_CATEGORY,
-            pipelineConstant.CLICK_ACTION,
-            'Add labels to selected pipelines',
-            1
+          pipelineConstant.BUTTON_CATEGORY,
+          pipelineConstant.CLICK_ACTION,
+          'Add labels to selected pipelines',
+          1
         );
 
         var selectedPipelineList = $scope.selectedPipelineList;
@@ -321,9 +319,9 @@ angular
           if (selectedPipelineList.indexOf(pipelineInfo.pipelineId) !== -1) {
             var pipelineStatus = $rootScope.common.pipelineStatusMap[pipelineInfo.pipelineId];
             if (pipelineStatus && pipelineStatus.pipelineId === pipelineInfo.pipelineId &&
-                _.contains(PIPELINE_ACTIVE_STATUSES, pipelineStatus.status)) {
+              _.contains(PIPELINE_ACTIVE_STATUSES, pipelineStatus.status)) {
               validationIssues.push('Add Label is not supported for Pipeline "' +
-                  pipelineInfo.pipelineId + '" with state ' +  pipelineStatus.status );
+                pipelineInfo.pipelineId + '" with state ' +  pipelineStatus.status );
             }
             selectedPipelineInfoList.push(pipelineInfo);
           }
@@ -349,7 +347,7 @@ angular
 
         modalInstance.result.then(function(res) {
           angular.forEach(res.successEntities, function(pipelineName) {
-            var pipeline = _.find($scope.filteredPipelines, function(p) { return p.pipelineId === pipelineName });
+            var pipeline = _.find($scope.filteredPipelines, function(p) { return p.pipelineId === pipelineName; });
             var mergedLabels = (pipeline.metadata.labels || []).concat(res.labels);
             pipeline.metadata.labels = _(mergedLabels).uniq();
           });
@@ -370,7 +368,7 @@ angular
       exportSelectedPipelines: function(includeDefinitions) {
         var selectedPipelineList = $scope.selectedPipelineList;
         if (includeDefinitions) {
-          // Export for DPM supports only for valid pipelines
+          // Export for Control Hub supports only for valid pipelines
           var validationIssues = [];
           angular.forEach($scope.filteredPipelines, function(pipelineInfo) {
             if (selectedPipelineList.indexOf(pipelineInfo.pipelineId) !== -1 && !pipelineInfo.valid) {
@@ -385,6 +383,45 @@ angular
           $rootScope.common.errors = [];
         }
         api.pipelineAgent.exportSelectedPipelines(selectedPipelineList, includeDefinitions);
+      },
+
+      publishPipelinesToEdge: function($event) {
+        var selectedPipelineList = $scope.selectedPipelineList;
+        var validationIssues = [];
+        angular.forEach($scope.filteredPipelines, function(pipelineInfo) {
+          if (selectedPipelineList.indexOf(pipelineInfo.pipelineId) !== -1) {
+            var pipelineStatus = $rootScope.common.pipelineStatusMap[pipelineInfo.pipelineId];
+            if (pipelineStatus && pipelineStatus.executionMode !== 'EDGE') {
+              validationIssues.push('Publish to Data Collector Edge  is not supported for Pipeline "' +
+                pipelineInfo.pipelineId + '" with execution mode ' +  pipelineStatus.executionMode );
+            }
+
+            if (!pipelineInfo.valid) {
+              validationIssues.push('Publish to Data Collector Edge  is not supported for invalid Pipeline "' +
+                pipelineInfo.pipelineId);
+            }
+          }
+        });
+
+        if (validationIssues.length > 0) {
+          $rootScope.common.errors = validationIssues;
+          return;
+        }
+
+        $rootScope.common.errors = [];
+
+        pipelineService.publishEdgePipelinesCommand($event, selectedPipelineList)
+          .then(function() {
+            $route.reload();
+          });
+
+      },
+
+      downloadEdgePipelines: function($event) {
+        pipelineService.downloadEdgePipelinesCommand($event)
+          .then(function() {
+            $route.reload();
+          });
       },
 
       /**
@@ -465,7 +502,8 @@ angular
         var selectedPipelineList = $scope.selectedPipelineList;
         $rootScope.common.errors = [];
 
-        api.pipelineAgent.startPipelines(selectedPipelineList).success(function(res) {
+        api.pipelineAgent.startPipelines(selectedPipelineList).then(function(response) {
+          var res = response.data;
           angular.forEach(res.successEntities, function(pipelineState) {
             var currentStatus = $rootScope.common.pipelineStatusMap[pipelineState.pipelineId];
             if (!currentStatus || currentStatus.timeStamp < pipelineState.timeStamp) {
@@ -474,8 +512,8 @@ angular
           });
 
           $rootScope.common.errors = res.errorMessages;
-        }).error(function(data) {
-          $rootScope.common.errors = [data];
+        }).catch(function(res) {
+          $rootScope.common.errors = [res.data];
         });
       },
 
@@ -677,7 +715,7 @@ angular
           var index = _.findIndex(filteredPipelines, function(p) {
             return pipeline.pipelineId === p.pipelineId;
           });
-          if (index != -1) {
+          if (index !== -1) {
             while (index > 0) {
               var prevPipeline = $scope.filteredPipelines[--index];
               if ($scope.selectedPipelineMap[prevPipeline.pipelineId]) {
@@ -699,7 +737,7 @@ angular
       unSelectPipeline: function(pipeline) {
         $scope.selectedPipelineMap[pipeline.pipelineId] = false;
         var index = $scope.selectedPipelineList.indexOf(pipeline.pipelineId);
-        if (index != -1) {
+        if (index !== -1) {
           $scope.selectedPipelineList.splice(index, 1);
         }
         $scope.allSelected = false;
@@ -743,7 +781,7 @@ angular
       },
 
       /**
-       * Returns true if pipeline is DPM controlled system pipeline
+       * Returns true if pipeline is Control Hub controlled system pipeline
        * @param pipelineInfo
        */
       isSystemPipeline: function(pipelineInfo) {
@@ -756,7 +794,7 @@ angular
       },
 
       /**
-       * Returns true if pipeline is DPM controlled pipeline
+       * Returns true if pipeline is Control Hub controlled pipeline
        * @param pipelineInfo
        */
       isDpmControlledPipeline: function(pipelineInfo) {
@@ -766,6 +804,16 @@ angular
           pipelineInfo.pipelineId.indexOf('System Pipeline for Job') !== 0 &&
           pipelineStatus.attributes && pipelineStatus.attributes.IS_REMOTE_PIPELINE
         );
+      },
+
+      /**
+       * Returns true if pipeline is Edge pipeline
+       * @param pipelineInfo
+       */
+      isEdgePipeline: function(pipelineInfo) {
+        var pipelineStatus = $rootScope.common.pipelineStatusMap[pipelineInfo.pipelineId];
+        return (pipelineStatus && pipelineStatus.pipelineId === pipelineInfo.pipelineId &&
+          pipelineStatus.executionMode === 'EDGE');
       },
 
       /**
@@ -826,17 +874,12 @@ angular
       api.pipelineAgent.getPipelineLabels()
     ]).then(
       function (results) {
-
-        /**
-         * Labels are loaded only once so they're sent to library.js
-         */
+        // Labels are loaded only once so they're sent to library.js
         if (_.isFunction($scope.onLabelsLoadedCallback)) {
           $scope.onLabelsLoadedCallback(results[0].data, results[1].data);
         }
 
-        /**
-         * Make sure we only keep selection of still-existing labels
-         */
+        // Make sure we only keep selection of still-existing labels
         var labels = results[0].data.concat(results[1].data);
         if (labels.indexOf($scope.$storage.pipelineListState.selectedLabel) !== -1) {
           $scope.selectedPipelineLabel = $scope.$storage.pipelineListState.selectedLabel;

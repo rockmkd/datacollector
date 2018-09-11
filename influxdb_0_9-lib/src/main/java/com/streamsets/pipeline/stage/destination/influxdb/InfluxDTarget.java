@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,14 +20,14 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @StageDef(
     version = 1,
     label = "InfluxDB",
     description = "Writes data to InfluxDB",
     icon = "influxdb.png",
-    onlineHelpRefUrl = "index.html#Destinations/InfluxDB.html#task_fgx_vcc_fv"
+    onlineHelpRefUrl ="index.html?contextID=task_fgx_vcc_fv"
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle

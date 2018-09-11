@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +18,6 @@ package com.streamsets.pipeline.stage.destination.salesforce;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
-import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
-import com.streamsets.pipeline.lib.salesforce.ForceTargetConfigBean;
-import com.streamsets.pipeline.lib.salesforce.SalesforceOperationType;
 
 import java.util.Collection;
 import java.util.List;

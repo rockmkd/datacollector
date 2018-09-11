@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,15 +19,15 @@ import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Record;
-import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.Utils;
-import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.api.service.dataformats.DataFormatParserService;
+import com.streamsets.pipeline.lib.jms.config.InitialContextFactory;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.sdk.service.SdkJsonDataFormatParserService;
 import com.streamsets.pipeline.stage.origin.lib.BasicConfig;
 import com.streamsets.pipeline.stage.common.CredentialsConfig;
-import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 import com.streamsets.pipeline.stage.origin.lib.MessageConfig;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.broker.BrokerPlugin;
@@ -75,10 +75,8 @@ public class TestJmsSource {
   private BrokerService broker;
   private BasicConfig basicConfig;
   private CredentialsConfig credentialsConfig;
-  private DataParserFormatConfig dataFormatConfig;
   private MessageConfig messageConfig;
-  private JmsConfig jmsConfig;
-  private DataFormat dataFormat;
+  private JmsSourceConfig jmsSourceConfig;
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -105,18 +103,15 @@ public class TestJmsSource {
 
     basicConfig = new BasicConfig();
     credentialsConfig = new CredentialsConfig();
-    dataFormatConfig = new DataParserFormatConfig();
     messageConfig = new MessageConfig();
-    jmsConfig = new JmsConfig();
+    jmsSourceConfig = new JmsSourceConfig();
     credentialsConfig.useCredentials = true;
-    credentialsConfig.username = USERNAME;
-    credentialsConfig.password = PASSWORD;
-    dataFormat = DataFormat.JSON;
-    dataFormatConfig.removeCtrlChars = true;
-    jmsConfig.initialContextFactory = INITIAL_CONTEXT_FACTORY;
-    jmsConfig.connectionFactory = CONNECTION_FACTORY;
-    jmsConfig.destinationName = JNDI_PREFIX + DESTINATION_NAME;
-    jmsConfig.providerURL = BROKER_BIND_URL;
+    credentialsConfig.username = () -> USERNAME;
+    credentialsConfig.password = () -> PASSWORD;
+    jmsSourceConfig.initialContextFactory = INITIAL_CONTEXT_FACTORY;
+    jmsSourceConfig.connectionFactory = CONNECTION_FACTORY;
+    jmsSourceConfig.destinationName = JNDI_PREFIX + DESTINATION_NAME;
+    jmsSourceConfig.providerURL = BROKER_BIND_URL;
     // Create a connection and start
     ConnectionFactory factory = new ActiveMQConnectionFactory(USERNAME,
         PASSWORD, BROKER_BIND_URL);
@@ -143,18 +138,14 @@ public class TestJmsSource {
 
     int i = 0;
     for(String event : events) {
-      int remainder = i++ % 3;
+      int remainder = i++ % 2;
       if (remainder == 0) {
         TextMessage message = session.createTextMessage();
         message.setText(event);
         producer.send(message);
-      } else if (remainder == 1) {
+      } else  {
         BytesMessage message = session.createBytesMessage();
         message.writeBytes(event.getBytes(StandardCharsets.UTF_8));
-        producer.send(message);
-      } else {
-        BytesMessage message = session.createBytesMessage();
-        message.writeUTF(event); //causes control characters to be included
         producer.send(message);
       }
     }
@@ -163,12 +154,13 @@ public class TestJmsSource {
   }
 
   private SourceRunner createRunner() {
-    JmsSource origin = new JmsSource(basicConfig, credentialsConfig, jmsConfig,
-      new JmsMessageConsumerFactoryImpl(), new JmsMessageConverterImpl(dataFormat, dataFormatConfig, messageConfig),
+    JmsSource origin = new JmsSource(basicConfig, credentialsConfig, jmsSourceConfig,
+      new JmsMessageConsumerFactoryImpl(), new JmsMessageConverterImpl(messageConfig),
       new InitialContextFactory());
-    SourceRunner runner = new SourceRunner.Builder(JmsSource.class, origin)
+    SourceRunner runner = new SourceRunner.Builder(JmsDSource.class, origin)
       .addOutputLane("lane")
       .setOnRecordError(OnRecordError.TO_ERROR)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
       .build();
     return runner;
   }
@@ -186,25 +178,25 @@ public class TestJmsSource {
 
   @Test
   public void testInvalidInitialContext() throws Exception {
-    jmsConfig.initialContextFactory = "invalid";
+    jmsSourceConfig.initialContextFactory = "invalid";
     runInit("JMS_00");
   }
 
   @Test
   public void testInvalidConnectionFactory() throws Exception {
-    jmsConfig.connectionFactory = "invalid";
+    jmsSourceConfig.connectionFactory = "invalid";
     runInit("JMS_01");
   }
 
   @Test
   public void testInvalidDestination() throws Exception {
-    jmsConfig.destinationName = "invalid";
+    jmsSourceConfig.destinationName = "invalid";
     runInit("JMS_05");
   }
 
   @Test
   public void testInvalidCreds() throws Exception {
-    credentialsConfig.username = "invalid";
+    credentialsConfig.username = () -> "invalid";
     runInit("JMS_04");
   }
 
@@ -264,70 +256,6 @@ public class TestJmsSource {
       Map<String, List<Record>> recordMap = output.getRecords();
       List<Record> parsedRecords = recordMap.get("lane");
       Assert.assertEquals(2, parsedRecords.size());
-    } finally {
-      runner.runDestroy();
-    }
-  }
-
-  @Test
-  public void testBinaryMessageSuccess() throws Exception {
-    Session session = connection.createSession(true,
-        Session.AUTO_ACKNOWLEDGE);
-    Destination destination = session.createQueue(DESTINATION_NAME);
-    MessageProducer producer = session.createProducer(destination);
-
-    String str = "this is a binary message\n";
-    byte[] bytesArray = str.getBytes();
-    BytesMessage msg = session.createBytesMessage();
-    msg.writeBytes(bytesArray);
-    producer.send(msg);
-    session.commit();
-    session.close();
-
-    dataFormat = DataFormat.BINARY;
-    dataFormatConfig.binaryMaxObjectLen = 1024;
-    SourceRunner runner = createRunner();
-    runner.runInit();
-    try {
-      StageRunner.Output output = runner.runProduce(null, 2);
-      Map<String, List<Record>> recordMap = output.getRecords();
-      List<Record> parsedRecords = recordMap.get("lane");
-      Assert.assertEquals(1, parsedRecords.size());
-      Field field = parsedRecords.get(0).get();
-      Assert.assertEquals(Field.Type.BYTE_ARRAY, field.getType());
-      Assert.assertEquals(str, new String(field.getValueAsByteArray()));
-    } finally {
-      runner.runDestroy();
-    }
-  }
-
-  @Test
-  public void testBinaryMessageMaxSizeError() throws Exception {
-    Session session = connection.createSession(true,
-        Session.AUTO_ACKNOWLEDGE);
-    Destination destination = session.createQueue(DESTINATION_NAME);
-    MessageProducer producer = session.createProducer(destination);
-
-    String str = "another message\n";
-    byte[] bytesArray = str.getBytes();
-    BytesMessage msg = session.createBytesMessage();
-    msg.writeBytes(bytesArray);
-    producer.send(msg);
-    session.commit();
-    session.close();
-    connection.close();
-
-    dataFormat = DataFormat.BINARY;
-    //Max size is tiny. Record should be sent to error.
-    dataFormatConfig.binaryMaxObjectLen = 1;
-    SourceRunner runner = createRunner();
-    runner.runInit();
-    try {
-      StageRunner.Output output = runner.runProduce(null, 2);
-      Map<String, List<Record>> recordMap = output.getRecords();
-      List<Record> parsedRecords = recordMap.get("lane");
-      Assert.assertEquals(0, parsedRecords.size());
-      Assert.assertEquals(1, runner.getErrorRecords().size());
     } finally {
       runner.runDestroy();
     }

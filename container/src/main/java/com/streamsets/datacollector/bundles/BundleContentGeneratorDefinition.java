@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,16 +15,22 @@
  */
 package com.streamsets.datacollector.bundles;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Internal representation of the bundle content creator.
  */
 public class BundleContentGeneratorDefinition {
+  private static final Logger LOG = LoggerFactory.getLogger(BundleContentGeneratorDefinition.class);
+
   private Class<? extends BundleContentGenerator> klass;
   private String name;
   private String id;
   private String description;
   private int version;
   private boolean enabledByDefault;
+  private int order;
 
   public BundleContentGeneratorDefinition(
     Class<? extends BundleContentGenerator> klass,
@@ -32,7 +38,8 @@ public class BundleContentGeneratorDefinition {
     String id,
     String description,
     int version,
-    boolean enabledByDefault
+    boolean enabledByDefault,
+    int order
   ) {
     this.klass = klass;
     this.name = name;
@@ -40,6 +47,7 @@ public class BundleContentGeneratorDefinition {
     this.description = description;
     this.version = version;
     this.enabledByDefault = enabledByDefault;
+    this.order = order;
   }
 
   public Class<? extends BundleContentGenerator> getKlass() {
@@ -65,4 +73,18 @@ public class BundleContentGeneratorDefinition {
   public boolean isEnabledByDefault() {
     return enabledByDefault;
   }
+
+  public int getOrder() {
+    return order;
+  }
+
+  public BundleContentGenerator createInstance() {
+    try {
+      return getKlass().newInstance();
+    } catch (Exception ex) {
+      LOG.warn("Could not create instance for generator '{}', error: {}", getKlass().getName(), ex);
+      return (context, writer) -> {};
+    }
+  }
+
 }

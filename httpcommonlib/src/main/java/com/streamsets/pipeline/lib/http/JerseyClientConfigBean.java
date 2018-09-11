@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.lib.http.logging.RequestLoggingConfigBean;
 import com.streamsets.pipeline.lib.http.oauth2.OAuth2ConfigBean;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 import org.apache.commons.lang.StringUtils;
@@ -31,7 +32,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 
-import static org.glassfish.jersey.client.RequestEntityProcessing.CHUNKED;
+import static org.glassfish.jersey.client.RequestEntityProcessing.BUFFERED;
 
 public class JerseyClientConfigBean {
   private static final Logger LOG = LoggerFactory.getLogger(JerseyClientConfigBean.class);
@@ -40,12 +41,12 @@ public class JerseyClientConfigBean {
       required = false,
       type = ConfigDef.Type.MODEL,
       label = "Request Transfer Encoding",
-      defaultValue = "CHUNKED",
+      defaultValue = "BUFFERED",
       displayPosition = 100,
       group = "#0"
   )
   @ValueChooserModel(RequestEntityProcessingChooserValues.class)
-  public RequestEntityProcessing transferEncoding = CHUNKED;
+  public RequestEntityProcessing transferEncoding = BUFFERED;
 
 
   @ConfigDef(
@@ -140,6 +141,9 @@ public class JerseyClientConfigBean {
 
   @ConfigDefBean(groups = "TLS")
   public TlsConfigBean tlsConfig = new TlsConfigBean();
+
+  @ConfigDefBean(groups = "LOGGING")
+  public RequestLoggingConfigBean requestLoggingConfig = new RequestLoggingConfigBean();
 
   public void init(Stage.Context context, String groupName, String prefix, List<Stage.ConfigIssue> issues) {
     if (useProxy && !StringUtils.isEmpty(proxy.uri)) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,18 +25,25 @@ public class SDCInfoEvent implements Event {
   private List<StageInfo> stageInfoList;
   private SDCBuildInfo sdcBuildInfo;
   private List<String> labels;
+  private boolean edge = false;
   private int offsetProtocolVersion;
+  private String deploymentId;
+  private long totalMemory;
 
   public SDCInfoEvent() {
   }
 
-  public SDCInfoEvent(String id,
-    String httpUrl,
-    String javaVersion,
-    List<StageInfo> stageInfoList,
-    SDCBuildInfo sdcBuildInfo,
-    List<String> labels,
-    int offsetProtocolVersion) {
+  public SDCInfoEvent(
+      String id,
+      String httpUrl,
+      String javaVersion,
+      List<StageInfo> stageInfoList,
+      SDCBuildInfo sdcBuildInfo,
+      List<String> labels,
+      int offsetProtocolVersion,
+      String deploymentId,
+      long totalMemory
+  ) {
     this.sdcId = id;
     this.httpUrl = httpUrl;
     this.javaVersion = javaVersion;
@@ -44,6 +51,8 @@ public class SDCInfoEvent implements Event {
     this.sdcBuildInfo = sdcBuildInfo;
     this.labels = labels;
     this.offsetProtocolVersion = offsetProtocolVersion;
+    this.deploymentId = deploymentId;
+    this.totalMemory = totalMemory;
   }
 
   public String getSdcId() {
@@ -102,11 +111,35 @@ public class SDCInfoEvent implements Event {
     this.labels = labels;
   }
 
+  public boolean isEdge() {
+    return edge;
+  }
+
+  public void setEdge(boolean edge) {
+    this.edge = edge;
+  }
+
   public int getOffsetProtocolVersion() {
     return offsetProtocolVersion;
   }
 
   public void setOffsetProtocolVersion(int offsetProtocolVersion) {
     this.offsetProtocolVersion = offsetProtocolVersion;
+  }
+
+  public String getDeploymentId() {
+    return deploymentId;
+  }
+
+  public void setDeploymentId(String deploymentId) {
+    this.deploymentId = deploymentId;
+  }
+
+  public long getTotalMemory() {
+    return totalMemory;
+  }
+
+  public void setTotalMemory(long totalMemory) {
+    this.totalMemory = totalMemory;
   }
 }

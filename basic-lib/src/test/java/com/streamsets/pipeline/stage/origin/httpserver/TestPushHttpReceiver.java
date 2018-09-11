@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +33,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.InputStream;
 import java.util.List;
 
@@ -83,9 +84,9 @@ public class TestPushHttpReceiver {
   }
 
     @Test
-  public void testGetters() {
+  public void testGetters() throws Exception {
     HttpConfigs httpConfigs = Mockito.mock(HttpConfigs.class);
-    Mockito.when(httpConfigs.getAppId()).thenReturn("id");
+    Mockito.when(httpConfigs.getAppId()).thenReturn(() -> "id");
 
     DataParserFactory parserFactory = Mockito.mock(DataParserFactory.class);
     DataParserFormatConfig dataConfigs = Mockito.mock(DataParserFormatConfig.class);
@@ -99,7 +100,7 @@ public class TestPushHttpReceiver {
     Assert.assertEquals(context, receiver.getContext());
     Assert.assertEquals(parserFactory, receiver.getParserFactory());
 
-    Assert.assertEquals("id", receiver.getAppId());
+    Assert.assertEquals("id", receiver.getAppId().get());
     Mockito.verify(httpConfigs, Mockito.times(1)).getAppId();
 
     Assert.assertEquals("/", receiver.getUriPath());
@@ -131,14 +132,14 @@ public class TestPushHttpReceiver {
     DataParserFactory parserFactory = Mockito.mock(DataParserFactory.class);
     DataParser parser = Mockito.mock(DataParser.class);
     Record record = Mockito.mock(Record.class);
+    Mockito.when(record.getHeader()).thenReturn(Mockito.mock(Record.Header.class));
     Mockito.when(parser.parse()).thenReturn(record).thenReturn(null);
-    Mockito
-        .when(parserFactory.getParser(Mockito.anyString(), Mockito.any(InputStream.class), Mockito.eq("0")))
+    Mockito.when(parserFactory.getParser(Mockito.anyString(), Mockito.any(InputStream.class), Mockito.eq("0")))
         .thenReturn(parser);
 
     Mockito.doReturn(parserFactory).when(receiver).getParserFactory();
 
-    receiver.process(null, is);
+    receiver.process(Mockito.mock(HttpServletRequest.class), is, null);
 
     Mockito.verify(receiver, Mockito.times(1)).createBoundInputStream(Mockito.eq(is));
     Mockito.verify(receiver, Mockito.times(1)).getMaxRequestSize();

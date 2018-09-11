@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,7 +71,7 @@ public enum ContainerError implements ErrorCode {
   CONTAINER_0155("Instance '{}' required fields configuration must be a list instead of a '{}'"),
   CONTAINER_0156("Invalid instance '{}'"),
   CONTAINER_0157("Cannot do a preview stage run on an origin, instance '{}'"),
-  CONTAINER_0158("Cannot run the pipeline: {}"),
+  CONTAINER_0158("Cannot run the pipeline due to validation issues ({} issues)"),
   CONTAINER_0159("Cannot perform raw source preview because pipeline '{}' is empty"),
   CONTAINER_0160("Cannot perform raw source preview until the following required parameters are configured: '{}'"),
   CONTAINER_0161("Stage '{}', instance '{}', variable '{}', configuration injection error: Value List has non-string elements"),
@@ -97,6 +97,7 @@ public enum ContainerError implements ErrorCode {
   CONTAINER_0212("Cannot save state of pipeline '{}::{}' in execution mode: '{}' as there is already an existing"
     + "pipeline '{}::{}'"),
   CONTAINER_0213("Could not retrieve pipelines from Pipeline Store. See stacktrace for additional details: '{}'"),
+  CONTAINER_0214("Can't store new pipeline state: {}"),
 
   //Previewr
   CONTAINER_0250("Cannot create previewer: '{}'"),
@@ -130,14 +131,23 @@ public enum ContainerError implements ErrorCode {
   CONTAINER_0704("Can't create additional pipeline runners: {}"),
   CONTAINER_0705("Requested number of runners {} is higher than allowed maximum of {}"),
 
+  //Pipeline Lifecycle events
+  CONTAINER_0790("Pipeline lifecycle event stage initialization error: {}"),
+  CONTAINER_0791("Pipeline lifecycle event stage run error: {}"),
+  CONTAINER_0792("Pipeline lifecycle event stage generated error record: {}"),
+
   //Runner
   CONTAINER_0800("Pipeline '{}' validation error : {}"),
   CONTAINER_0801("Thread unexpectedly interrupted"),
+  CONTAINER_0802("Detected run away pipeline runners (only {} out of {} runners have finished)"),
+  CONTAINER_0803("Trying to acquire pipeline runner after the pool was destroyed."),
 
   //PipelineConfigurationUpgrader
   CONTAINER_0900("Error while upgrading stage configuration from version '{}' to version '{}': {}"),
   CONTAINER_0901("Could not find stage definition for '{}:{}'"),
-  CONTAINER_0902("Stage definition '{}:{}' version '{}' is older than the version specified in the configuration '{}' for stage '{}'"),
+  CONTAINER_0902("Definition requires at least version {} which is higher then available library supports ({})"),
+  CONTAINER_0903("Could not find service definition for '{}'"),
+  CONTAINER_0904("Service Upgrader can't register another service."),
 
   //Email Notifier
   CONTAINER_01000("Error loading email template, reason : {}"),
@@ -155,6 +165,22 @@ public enum ContainerError implements ErrorCode {
   CONTAINER_01300("Environment variable 'STREAMSETS_LIBRARIES_EXTRA_DIR' is not set"),
   CONTAINER_01301("Invalid library name '{}'"),
 
+  //LineageEvent problems:
+  CONTAINER_01401("Cannot create framework-level event '{}' in a stage"),
+  CONTAINER_01402("Cannot create stage-level event '{}' in the framework"),
+  CONTAINER_01403("Missing or Empty SpecificAttributes '{}'"),
+  CONTAINER_01404("Unknown LineageEventType passed to missingSpecificAttributes() '{}'"),
+
+  CONTAINER_01500("Stage '{}' configuration '{}', EL must resolve to String or to a CredentialValue resolved to '{}'"),
+
+
+  CONTAINER_01600("Not supported for pipeline execution mode: '{}'"),
+  CONTAINER_01601("Start operation is not supported for pipeline '{}' with execution mode: '{}'"),
+  CONTAINER_01602("Data Collector cannot connect to Data Collector Edge URL '{}'. Verify that Data Collector Edge is " +
+      "running and that the URL is correctly configured in the pipeline general properties."),
+  CONTAINER_01603("Starting Edge pipeline failed, status code '{}': {}"),
+  CONTAINER_01604("Reset Offset for Edge pipeline failed, status code '{}': {}"),
+  CONTAINER_01605("Publishing Edge pipeline failed, status code '{}': {}"),
   ;
 
   private final String msg;

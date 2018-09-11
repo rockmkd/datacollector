@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,7 @@ public abstract class AbstractWebSocketServerProtoSource<R extends WebSocketRece
   private final HttpConfigs httpConfigs;
 
   private R receiver;
-  private WebSocketReceiverServer server;
+  protected WebSocketReceiverServer server;
 
   private BlockingQueue<Exception> errorQueue;
   private List<Exception> errorList;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,14 +43,14 @@ import java.util.UUID;
 public class TestConfigs {
 
   private void injectConfigsHttp(ForTestConfigs config) {
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 100;
     config.readTimeOutMs = 200;
     config.hostPorts = Arrays.asList("localhost:10000");
     config.retriesPerBatch = 2;
     config.tlsConfigBean.tlsEnabled = false;
     config.tlsConfigBean.trustStoreFilePath = "";
-    config.tlsConfigBean.trustStorePassword = "";
+    config.tlsConfigBean.trustStorePassword = () -> "";
     config.hostVerification = true;
   }
 
@@ -65,7 +65,7 @@ public class TestConfigs {
     Mockito.verify(conn).setConnectTimeout(Mockito.eq(config.connectionTimeOutMs));
     Mockito.verify(conn).setReadTimeout(Mockito.eq(config.readTimeOutMs));
     Mockito.verify(conn).setRequestProperty(Mockito.eq(Constants.X_SDC_APPLICATION_ID_HEADER),
-                                            Mockito.eq(config.appId));
+                                            Mockito.eq(config.appId.get()));
 
     // HTTPS
     HttpsURLConnection sconn = Mockito.mock(MockHttpsURLConnection.class);
@@ -76,7 +76,7 @@ public class TestConfigs {
     Mockito.verify(sconn).setConnectTimeout(Mockito.eq(config.connectionTimeOutMs));
     Mockito.verify(sconn).setReadTimeout(Mockito.eq(config.readTimeOutMs));
     Mockito.verify(sconn).setRequestProperty(Mockito.eq(Constants.X_SDC_APPLICATION_ID_HEADER),
-                                             Mockito.eq(config.appId));
+                                             Mockito.eq(config.appId.get()));
     Mockito.verify(sconn).setSSLSocketFactory(Mockito.any(SSLSocketFactory.class));
     Mockito.verify(sconn, Mockito.never()).setHostnameVerifier(Mockito.any(HostnameVerifier.class));
 
@@ -92,14 +92,14 @@ public class TestConfigs {
 
   private void injectConfigsHttps(ForTestConfigs config, String trustStoreFile, String trustStorePassword,
       boolean hostnameVerification) {
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 100;
     config.readTimeOutMs = 200;
     config.hostPorts = Arrays.asList("localhost:10000");
     config.retriesPerBatch = 2;
     config.tlsConfigBean.tlsEnabled = true;
     config.tlsConfigBean.trustStoreFilePath = trustStoreFile;
-    config.tlsConfigBean.trustStorePassword = trustStorePassword;
+    config.tlsConfigBean.trustStorePassword = () -> trustStorePassword;
     config.hostVerification = hostnameVerification;
   }
 
@@ -243,13 +243,13 @@ public class TestConfigs {
     TLSTestUtils.createTrustStore(trustStoreLocation, "password", "cert1", cert1);
 
     config.tlsConfigBean.trustStoreFilePath = trustStoreLocation;
-    config.tlsConfigBean.trustStorePassword = "password";
+    config.tlsConfigBean.trustStorePassword = () -> "password";
     config.validateSecurity(getContext(), issues);
     Assert.assertEquals(0, issues.size());
 
     // valid trust store file, invalid password
     config.tlsConfigBean.trustStoreFilePath = trustStoreLocation;
-    config.tlsConfigBean.trustStorePassword = "invalid";
+    config.tlsConfigBean.trustStorePassword = () -> "invalid";
     config.validateSecurity(getContext(), issues);
     Assert.assertEquals(1, issues.size());
     issues.clear();

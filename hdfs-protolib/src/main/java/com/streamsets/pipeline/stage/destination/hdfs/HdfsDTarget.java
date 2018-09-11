@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +15,13 @@
  */
 package com.streamsets.pipeline.stage.destination.hdfs;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedTarget;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @StageDef(
     version = 4,
@@ -32,7 +31,7 @@ import com.streamsets.pipeline.configurablestage.DTarget;
     privateClassLoader = true,
     upgrader = HdfsTargetUpgrader.class,
     producesEvents = true,
-    onlineHelpRefUrl = "index.html#Destinations/HadoopFS-destination.html#task_m2m_skm_zq"
+    onlineHelpRefUrl ="index.html?contextID=task_m2m_skm_zq"
 )
 @ConfigGroups(Groups.class)
 @HideConfigs(value = {"hdfsTargetConfigBean.dataGeneratorFormatConfig.includeSchema"})
@@ -44,7 +43,7 @@ public class HdfsDTarget extends DTarget {
 
   @Override
   protected Target createTarget() {
-    return new HadoopConfigurationSynchronizedTarget(new HdfsTarget(hdfsTargetConfigBean));
+    return new HdfsTarget(hdfsTargetConfigBean);
   }
 
 }

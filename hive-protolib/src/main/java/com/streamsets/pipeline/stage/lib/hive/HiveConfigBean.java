@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +18,11 @@ package com.streamsets.pipeline.stage.lib.hive;
 import com.google.common.base.Joiner;
 import com.streamsets.datacollector.security.HadoopSecurityUtil;
 import com.streamsets.pipeline.api.ConfigDef;
+import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.impl.Utils;
-import com.streamsets.pipeline.lib.el.StringEL;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.fs.Path;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.sql.Connection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +51,6 @@ public class HiveConfigBean {
       defaultValue = "jdbc:hive2://<host>:<port>/default",
       displayPosition= 10,
       evaluation = ConfigDef.Evaluation.IMPLICIT,
-      elDefs = {StringEL.class},
       group = "HIVE"
   )
   public String hiveJDBCUrl;
@@ -64,6 +65,50 @@ public class HiveConfigBean {
       group = "HIVE"
   )
   public String hiveJDBCDriver;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Use Credentials",
+      displayPosition = 21,
+      group = "HIVE"
+  )
+  public boolean useCredentials;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.CREDENTIAL,
+      dependsOn = "useCredentials",
+      triggeredByValue = "true",
+      label = "Username",
+      displayPosition = 22,
+      group = "HIVE"
+  )
+  public CredentialValue username;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.CREDENTIAL,
+      dependsOn = "useCredentials",
+      triggeredByValue = "true",
+      label = "Password",
+      displayPosition = 23,
+      group = "HIVE"
+  )
+  public CredentialValue password;
+
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.MODEL,
+      defaultValue = "[]",
+      label = "Additional JDBC Configuration Properties",
+      description = "Additional properties to pass to the underlying JDBC driver.",
+      displayPosition = 30,
+      group = "HIVE"
+  )
+  @ListBeanModel
+  public List<ConnectionPropertyBean> driverProperties = new ArrayList<>();
 
   @ConfigDef(
       required = false,
@@ -122,7 +167,7 @@ public class HiveConfigBean {
   public Connection getHiveConnection() throws StageException {
     if(!HiveMetastoreUtil.isHiveConnectionValid(hiveConnection, loginUgi)) {
       LOG.info("Connection to Hive become stale, reconnecting.");
-      hiveConnection = HiveMetastoreUtil.getHiveConnection(hiveJDBCUrl, loginUgi);
+      hiveConnection = HiveMetastoreUtil.getHiveConnection(hiveJDBCUrl, loginUgi, driverProperties);
     }
     return hiveConnection;
   }
@@ -251,6 +296,20 @@ public class HiveConfigBean {
           jdbcUrlSafeForUser(),
           e.getMessage()
       ));
+    }
+
+    // If user wants to enter credentials we will propagate them to the properties - which is "official" way of JDBC
+    // spec. The method call Driver.getDriver(url, username, password) does exactly the same for example.
+    if(useCredentials) {
+      ConnectionPropertyBean userBean = new ConnectionPropertyBean();
+      userBean.property = "user";
+      userBean.value = this.username;
+      driverProperties.add(userBean);
+
+      ConnectionPropertyBean passwordBean = new ConnectionPropertyBean();
+      userBean.property = "password";
+      userBean.value = this.password;
+      driverProperties.add(passwordBean);
     }
   }
 

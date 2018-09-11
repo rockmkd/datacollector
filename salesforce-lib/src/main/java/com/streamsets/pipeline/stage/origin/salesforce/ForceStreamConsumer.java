@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ import com.sforce.soap.partner.PartnerConnection;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.lib.salesforce.Errors;
 import com.streamsets.pipeline.lib.salesforce.ForceSourceConfigBean;
+import com.streamsets.pipeline.lib.salesforce.ForceUtils;
+import com.streamsets.pipeline.lib.salesforce.SubscriptionType;
 import org.cometd.bayeux.Channel;
 import org.cometd.bayeux.Message;
 import org.cometd.bayeux.client.ClientSession;
@@ -27,22 +29,16 @@ import org.cometd.client.BayeuxClient;
 import org.cometd.client.transport.ClientTransport;
 import org.cometd.client.transport.LongPollingTransport;
 import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.HttpProxy;
-import org.eclipse.jetty.client.api.Authentication;
 import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.client.util.BasicAuthentication;
 import org.eclipse.jetty.http.HttpHeader;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +47,8 @@ public class ForceStreamConsumer {
   private static final Logger LOG = LoggerFactory.getLogger(ForceStreamConsumer.class);
   private static final String REPLAY_ID_EXPIRED = "400::The replayId \\{\\d+} you provided was invalid.  "
       + "Please provide a valid ID, -2 to replay all events, or -1 to replay only new events.";
+  private static final String TOPIC_PATH = "/topic/";
+  private static final String EVENT_PATH = "/event/";
   private final BlockingQueue<Message> messageQueue;
 
   // The long poll duration.
@@ -78,7 +76,9 @@ public class ForceStreamConsumer {
     this.conf = conf;
     this.messageQueue = messageQueue;
     this.connection = connection;
-    this.bayeuxChannel = "/topic/" + conf.pushTopic;
+    this.bayeuxChannel = (conf.subscriptionType == SubscriptionType.PUSH_TOPIC)
+      ? TOPIC_PATH + conf.pushTopic
+      : EVENT_PATH + conf.platformEvent;
     String streamingEndpointPrefix = conf.apiVersion.equals("36.0") ? "/cometd/replay/" : "/cometd/";
     this.streamingEndpointPath = streamingEndpointPrefix + conf.apiVersion;
   }
@@ -195,19 +195,11 @@ public class ForceStreamConsumer {
   }
 
   private BayeuxClient makeClient() throws Exception {
-    httpClient = new HttpClient(new SslContextFactory());
+    httpClient = new HttpClient(ForceUtils.makeSslContextFactory(conf));
     httpClient.setConnectTimeout(CONNECTION_TIMEOUT);
     httpClient.setIdleTimeout(READ_TIMEOUT);
     if (conf.useProxy) {
-      httpClient.getProxyConfiguration().getProxies().add(
-          new HttpProxy(conf.proxyHostname, conf.proxyPort));
-      if (conf.useProxyCredentials) {
-        URI proxyURI = new URI("http", null, conf.proxyHostname,
-            conf.proxyPort, null, null, null);
-        httpClient.getAuthenticationStore().addAuthentication(
-            new BasicAuthentication(proxyURI, conf.proxyRealm,
-                conf.proxyUsername, conf.proxyPassword));
-      }
+      ForceUtils.setProxy(httpClient, conf);
     }
     httpClient.start();
 

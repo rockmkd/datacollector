@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -367,6 +367,38 @@ public class ProtobufTestUtil {
       records.add(r);
     }
     return records;
+  }
+
+  public static void checkSingleNonDelimitedMessage(byte[] bytes) throws IOException {
+    ByteArrayInputStream bIn = new ByteArrayInputStream(bytes);
+    EmployeeProto.Employee.Builder builder = EmployeeProto.Employee.newBuilder();
+
+    builder.mergeFrom(bIn);
+    EmployeeProto.Employee employee = builder.build();
+
+    PersonProto.Person person;
+
+    EngineerProto.Engineer engineer = employee.getEngineer();
+    Assert.assertNotNull(engineer);
+
+    Assert.assertEquals(String.valueOf(0), engineer.getEmployeeId());
+    Assert.assertEquals("r&d", engineer.getDepName());
+    Assert.assertNotNull(engineer.getDepid());
+
+    person = engineer.getPerson();
+
+    Assert.assertNotNull(person);
+
+    Assert.assertEquals("John Doe0", person.getName());
+    Assert.assertEquals(0, person.getId());
+    List<PersonProto.Person.PhoneNumber> phoneList = person.getPhoneList();
+    Assert.assertEquals(1, phoneList.size());
+    Assert.assertEquals("555-4321", phoneList.get(0).getNumber());
+    Assert.assertEquals(PersonProto.Person.PhoneType.HOME, phoneList.get(0).getType());
+
+    List<String> emailList = person.getEmailList();
+    Assert.assertEquals(1, emailList.size());
+    Assert.assertEquals("jdoe0@example.com", emailList.get(0));
   }
 
   public static void checkProtobufDataFields(byte[] bytes) throws IOException {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 package com.streamsets.pipeline.stage.processor.kv.redis;
 
 import com.google.common.base.Optional;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.streamsets.pipeline.api.Batch;
@@ -35,7 +34,6 @@ import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.redis.DataType;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
-import com.streamsets.pipeline.stage.processor.kv.EvictionPolicyType;
 import com.streamsets.pipeline.stage.processor.kv.LookupUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -83,7 +81,7 @@ public class RedisLookupProcessor extends BaseProcessor {
     JedisPool pool = null;
 
     try {
-      pool = new JedisPool(poolConfig, URI.create(conf.uri), conf.connectionTimeout);
+      pool = new JedisPool(poolConfig, URI.create(conf.uri), conf.connectionTimeout * 1000); // connectionTimeout value is in seconds
       Jedis jedis = pool.getResource();
       jedis.ping();
       jedis.close();

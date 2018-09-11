@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,6 +42,7 @@ import java.util.List;
 
 @Path("/v1/cluster")
 @DenyAll
+@RequiresCredentialsDeployed
 public class ClusterResource {
 
   private final Manager manager;

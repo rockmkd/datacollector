@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
 package com.streamsets.pipeline.stage.origin.coapserver;
 
 import com.streamsets.pipeline.api.ConfigDef;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 
 import java.util.Collections;
 import java.util.Map;
@@ -52,15 +52,14 @@ public class CoapServerConfigs {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       defaultValue = "sdc",
       label = "Resource Name",
       description = "CoAP Resource Name",
       displayPosition = 20,
-      elDefs = VaultEL.class,
       group = "COAP"
   )
-  public String resourceName;
+  public CredentialValue resourceName;
 
   @ConfigDef(
       required = false,

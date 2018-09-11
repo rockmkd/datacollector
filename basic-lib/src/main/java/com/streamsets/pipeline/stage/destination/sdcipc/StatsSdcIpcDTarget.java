@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,12 @@ import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.HideStage;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.StatsAggregatorStage;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 
 import java.util.Arrays;
 
@@ -38,6 +39,7 @@ import java.util.Arrays;
 )
 @ConfigGroups(Groups.class)
 @StatsAggregatorStage
+@HideStage(HideStage.Type.STATS_AGGREGATOR_STAGE)
 @HideConfigs(
     preconditions = true,
     onErrorRecord = true,
@@ -58,14 +60,13 @@ public class StatsSdcIpcDTarget extends DTarget {
 
   @ConfigDef(
     required = true,
-    type = ConfigDef.Type.STRING,
+    type = ConfigDef.Type.CREDENTIAL,
     label = "SDC RPC ID",
     description = "The id to be assigned to the system pipeline.",
     displayPosition = 20,
-    elDefs = VaultEL.class,
     group = "RPC"
   )
-  public String appId;
+  public CredentialValue appId;
 
   @ConfigDefBean
   public Configs config;

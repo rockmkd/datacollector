@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,7 +54,12 @@ public class FieldZipProcessor extends SingleLaneRecordProcessor {
 
   @Override
   protected void process(Record record, SingleLaneBatchMaker batchMaker) throws StageException {
-    checkConfigs(record);
+    // If the record does not correspond to configuration either throw an exception or return and do not continue
+    if(!checkConfigs(record)) {
+      batchMaker.addRecord(record);
+      return;
+    }
+
 
     for (FieldZipConfig zipConfig : fieldZipConfigs) {
       String firstFieldPath = zipConfig.firstField;
@@ -96,7 +101,7 @@ public class FieldZipProcessor extends SingleLaneRecordProcessor {
     return zipEntries;
   }
 
-  private void checkConfigs(Record record) throws OnRecordErrorException {
+  private boolean checkConfigs(Record record) throws OnRecordErrorException {
     for (FieldZipConfig zipConfig : fieldZipConfigs) {
       List<String> missingFields = Lists.newArrayList();
       List<String> nonListFields = Lists.newArrayList();
@@ -115,16 +120,21 @@ public class FieldZipProcessor extends SingleLaneRecordProcessor {
       switch (onStagePreConditionFailure) {
         case TO_ERROR:
           if (!missingFields.isEmpty()) {
-            throw new OnRecordErrorException(Errors.ZIP_01, record.getHeader().getSourceId(), missingFields);
+            throw new OnRecordErrorException(Errors.ZIP_01, missingFields);
           } else if (!nonListFields.isEmpty()) {
-            throw new OnRecordErrorException(Errors.ZIP_00, record.getHeader().getSourceId(), nonListFields);
+            throw new OnRecordErrorException(Errors.ZIP_00, nonListFields);
           }
-          // fall through
+          break;
         case CONTINUE:
-          continue;
+          if(!missingFields.isEmpty() || !nonListFields.isEmpty()) {
+            return false;
+          }
+          break;
         default:
           throw new IllegalStateException("Invalid value for on stage pre-condition failure");
       }
     }
+
+    return true;
   }
 }

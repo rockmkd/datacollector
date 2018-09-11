@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 @GenerateResourceBundle
 public enum CreationError implements ErrorCode {
 
-  CREATION_000("Failed to instantiate stage '{}' [ERROR]: {}"),
+  CREATION_000("Failed to instantiate {} '{}' [ERROR]: {}"),
   CREATION_001("Failed to instantiate config bean '{}' [ERROR]: {}"),
   CREATION_002("Configuration definition missing '{}', there is a library/stage mismatch [ERROR]"),
   CREATION_003("Failed to access config bean [ERROR]: {}"),
@@ -45,6 +45,8 @@ public enum CreationError implements ErrorCode {
   CREATION_015("Configuration value '{}' cannot be converted to '{}': {}"),
 
   CREATION_016("Could not obtain Java default value: {}"),
+  CREATION_017("Stage definition Library '{}' Stage '{}' Version '{}' can not be used for pipeline lifecycle event handling"),
+  CREATION_018("Configuration value '{}' should be a String or a CredentialValue, it is a '{}'"),
 
   CREATION_020("Configuration value is not a LIST"),
   CREATION_021("LIST configuration has a NULL value"),
@@ -68,6 +70,9 @@ public enum CreationError implements ErrorCode {
   CREATION_071("Execution mode not set"),
 
   CREATION_080("Configuration value is required for Webhook URL"),
+
+  // Detached stage support
+  CREATION_0900("Can't parse stage definition: {}"),
   ;
 
   private final String msg;

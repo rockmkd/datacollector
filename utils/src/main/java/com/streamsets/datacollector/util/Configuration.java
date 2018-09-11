@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +18,8 @@ package com.streamsets.datacollector.util;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
-import com.streamsets.datacollector.vault.Vault;
-import com.streamsets.datacollector.vault.VaultRuntimeException;
-import com.streamsets.pipeline.api.ext.DataCollectorServices;
 import com.streamsets.pipeline.api.impl.Utils;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -33,18 +31,21 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class Configuration {
-  private static final String VAULT_SERVICE_KEY = "com.streamsets.datacollector.vault";
-
   private static File fileRefsBaseDir;
+
+  private static final String SENSITIVE_PROPERTIES = "sensitive.properties";
+  private static final String SENSITIVE_PROPERTIES_DEFAULT = ".*password.*";
+  static final String SENSITIVE_MASK = "-- MASKED --";
 
   // Only RuntimeModules should be calling this
   public static void setFileRefsBaseDir(File dir) {
     fileRefsBaseDir = dir;
   }
 
-  private abstract static class Ref {
+  public abstract static class Ref {
     private String unresolvedValue;
 
     protected Ref(String unresolvedValue) {
@@ -177,52 +178,6 @@ public class Configuration {
 
   }
 
-  public static class VaultRef extends Ref {
-    private static final String PREFIX = "${vault(";
-    private static final String SUFFIX = ")}";
-
-    protected VaultRef(String unresolvedValue) {
-      super(unresolvedValue);
-    }
-
-    @Override
-    public String getPrefix() {
-      return PREFIX;
-    }
-
-    @Override
-    public String getSuffix() {
-      return SUFFIX;
-    }
-
-    @Override
-    public String getDelimiter() {
-      throw new UnsupportedOperationException();
-    }
-
-    public static boolean isValueMyRef(String value) {
-      String trimmed = value.trim();
-      return trimmed.startsWith(PREFIX) && trimmed.endsWith(SUFFIX);
-    }
-
-    @Override
-    protected String getUnresolvedValueWithoutDelimiter() {
-      return getUnresolvedValue().substring(PREFIX.length(), getUnresolvedValue().length() - SUFFIX.length());
-    }
-
-    @Override
-    public String getValue() {
-      String[] params = getUnresolvedValueWithoutDelimiter().replace("\"", "").replace("'", "").split(",");
-      if (params.length != 2) {
-        throw new VaultRuntimeException(getUnresolvedValue() + " does not comply with format vault(path, key)");
-      }
-      Vault vault = DataCollectorServices.instance().get(VAULT_SERVICE_KEY);
-      final String path = params[0].trim();
-      final String key = params[1].trim();
-      return vault.read(path, key);
-    }
-  }
-
   private static class EnvRef extends Ref {
     @Deprecated
     private static final String DELIMITER = "$";
@@ -256,14 +211,12 @@ public class Configuration {
     }
   }
 
-  private static Ref createRef(String value) {
+  public static Ref createRef(String value) {
     Ref ref;
     if (FileRef.isValueMyRef(value)) {
       ref = new FileRef(value);
     } else if (EnvRef.isValueMyRef(value)) {
       ref = new EnvRef(value);
-    } else if (VaultRef.isValueMyRef(value)) {
-      ref = new VaultRef(value);
     } else {
       ref = new StringRef(value);
     }
@@ -284,6 +237,24 @@ public class Configuration {
     Map<String, Ref> subSetMap = new LinkedHashMap<>();
     for (Map.Entry<String, Ref> entry : map.entrySet()) {
       subSetMap.put(entry.getKey(), new StringRef(entry.getValue().getUnresolvedValue()));
+    }
+    return new Configuration(subSetMap);
+  }
+
+  public Configuration maskSensitiveConfigs() {
+    Pattern sensitiveProperties = Pattern.compile(
+      get(SENSITIVE_PROPERTIES, SENSITIVE_PROPERTIES_DEFAULT),
+      Pattern.CASE_INSENSITIVE
+    );
+
+    Map<String, Ref> subSetMap = new LinkedHashMap<>();
+    for (Map.Entry<String, Ref> entry : map.entrySet()) {
+      String key = entry.getKey();
+      Ref value = new StringRef(
+        sensitiveProperties.matcher(key).matches() ? SENSITIVE_MASK : entry.getValue().getUnresolvedValue()
+      );
+
+      subSetMap.put(key, value);
     }
     return new Configuration(subSetMap);
   }
@@ -319,7 +290,7 @@ public class Configuration {
 
   public void set(String name, String value) {
     Preconditions.checkNotNull(name, "name cannot be null");
-    Preconditions.checkNotNull(value, "value cannot be null, use unset");
+    Preconditions.checkNotNull(value, Utils.format("value cannot be null for key {}, use unset", name));
     map.put(name, createRef(value));
   }
 
@@ -365,15 +336,21 @@ public class Configuration {
     return (value != null) ? Boolean.parseBoolean(value) : defaultValue;
   }
 
-  public void load(Reader reader) throws IOException {
+  public void load(Reader reader, boolean loadIncludes) throws IOException {
     Preconditions.checkNotNull(reader, "reader cannot be null");
     Properties props = new Properties();
     props.load(reader);
     for (Map.Entry entry : props.entrySet()) {
       map.put((String) entry.getKey(), createRef((String) entry.getValue()));
     }
-    loadConfigIncludes();
+    if (loadIncludes) {
+      loadConfigIncludes();
+    }
     reader.close();
+  }
+
+  public void load(Reader reader) throws IOException {
+    load(reader, true);
   }
 
   public static final String CONFIG_INCLUDES = "config.includes";
@@ -416,4 +393,18 @@ public class Configuration {
     return Utils.format("Configuration['{}']", map);
   }
 
+  /**
+   * Set multiple configs at once.
+   *
+   * If a value of given config is 'null', then this config key will be un-set.
+   */
+  public void set(Map<String, String> newConfiguration) {
+    for(Map.Entry<String, String> entry : newConfiguration.entrySet()) {
+      if(entry.getValue() == null) {
+        this.unset(entry.getKey());
+      } else {
+        this.set(entry.getKey(), entry.getValue());
+      }
+    }
+  }
 }

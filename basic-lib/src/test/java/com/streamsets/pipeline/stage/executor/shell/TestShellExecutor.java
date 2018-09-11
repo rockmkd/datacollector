@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,6 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.sdk.ExecutorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.stage.executor.shell.config.ShellConfig;
-import com.streamsets.pipeline.stage.executor.shell.config.ShellConfigConstants;
 import org.apache.commons.io.IOUtils;
 import org.junit.After;
 import org.junit.Assert;

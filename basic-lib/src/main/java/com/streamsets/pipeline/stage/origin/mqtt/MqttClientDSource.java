@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DPushSource;
+import com.streamsets.pipeline.api.base.configurablestage.DPushSource;
 import com.streamsets.pipeline.lib.mqtt.Groups;
 import com.streamsets.pipeline.lib.mqtt.MqttClientConfigBean;
 
@@ -31,9 +31,9 @@ import com.streamsets.pipeline.lib.mqtt.MqttClientConfigBean;
     label = "MQTT Subscriber",
     description = "Uses an MQTT client to subscribe to a topic on the MQTT Broker",
     icon = "mqtt_multithreaded.png",
-    execution = ExecutionMode.STANDALONE,
+    execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/MQTTSubscriber.html#task_wnz_mxt_lz",
+    onlineHelpRefUrl ="index.html?contextID=task_wnz_mxt_lz",
     upgrader = MqttClientSourceUpgrader.class
 )
 @HideConfigs({

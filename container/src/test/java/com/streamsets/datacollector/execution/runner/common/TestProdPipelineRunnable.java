@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,12 +16,12 @@
 package com.streamsets.datacollector.execution.runner.common;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.MemoryLimitConfiguration;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.PipelineStateStore;
 import com.streamsets.datacollector.execution.PipelineStatus;
 import com.streamsets.datacollector.execution.Runner;
-import com.streamsets.datacollector.execution.StateListener;
 import com.streamsets.datacollector.execution.manager.standalone.StandaloneAndClusterPipelineManager;
 import com.streamsets.datacollector.execution.runner.common.TestProductionPipeline.MyStateListener;
 import com.streamsets.datacollector.execution.runner.standalone.StandaloneRunner;
@@ -31,16 +31,13 @@ import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.runner.MockStages;
-import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.SourceOffsetTracker;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.datacollector.util.TestUtil;
-import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.api.base.BaseSource;
 
 import dagger.ObjectGraph;
 
@@ -52,11 +49,9 @@ import org.mockito.Mockito;
 
 import java.io.File;
 import java.util.Collections;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
 public class TestProdPipelineRunnable {
@@ -92,7 +87,7 @@ public class TestProdPipelineRunnable {
     ProductionPipeline pipeline = createProductionPipeline(DeliveryGuarantee.AT_MOST_ONCE, true);
     pipeline.registerStatusListener(new MyStateListener());
     ProductionPipelineRunnable runnable =
-      new ProductionPipelineRunnable(null, (StandaloneRunner) ((AsyncRunner)runner).getRunner(), pipeline, TestUtil.MY_PIPELINE, "0",
+      new ProductionPipelineRunnable(null, runner.getRunner(StandaloneRunner.class), pipeline, TestUtil.MY_PIPELINE, "0",
         Collections.<Future<?>> emptyList());
     pipelineStateStore.saveState("admin", TestUtil.MY_PIPELINE, "0", PipelineStatus.RUNNING, null, null, null, null, 0, 0);
     runnable.run();
@@ -105,52 +100,13 @@ public class TestProdPipelineRunnable {
     TestUtil.captureMockStages();
     ProductionPipeline pipeline = createProductionPipeline(DeliveryGuarantee.AT_MOST_ONCE, false);
     ProductionPipelineRunnable runnable = new ProductionPipelineRunnable
-      (null, (StandaloneRunner) ((AsyncRunner)runner).getRunner(), pipeline, TestUtil.MY_PIPELINE, "0",
+      (null, runner.getRunner(StandaloneRunner.class), pipeline, TestUtil.MY_PIPELINE, "0",
       Collections.<Future<?>>emptyList());
     pipelineStateStore.saveState("admin", TestUtil.MY_PIPELINE, "0", PipelineStatus.RUNNING, null, null, null, null, 0, 0);
     //Stops after the first batch
     runnable.run();
     runnable.stop(false);
     Assert.assertTrue(pipeline.wasStopped());
-  }
-
-  private volatile CountDownLatch latch;
-  private volatile boolean stopInterrupted;
-
-  @Test
-  public void testStopInterrupt() throws Exception {
-    latch = new CountDownLatch(1);
-    stopInterrupted = false;
-    MockStages.setSourceCapture(new BaseSource() {
-      @Override
-      public String produce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
-        try {
-          latch.countDown();
-          Thread.currentThread().sleep(1000000);
-        } catch (InterruptedException ex) {
-          stopInterrupted = true;
-        }
-        return null;
-      }
-    });
-
-    ProductionPipeline pipeline = createProductionPipeline(DeliveryGuarantee.AT_MOST_ONCE, false);
-    pipeline.registerStatusListener(new StateListener() {
-      @Override
-      public void stateChanged(PipelineStatus pipelineStatus, String message, Map<String, Object> attributes) throws PipelineRuntimeException {
-
-      }
-    });
-    ProductionPipelineRunnable runnable =
-      new ProductionPipelineRunnable(null, (StandaloneRunner) ((AsyncRunner) runner).getRunner(), pipeline,
-        TestUtil.MY_PIPELINE, "0", Collections.<Future<?>> emptyList());
-
-    Thread t = new Thread(runnable);
-    t.start();
-    latch.await();
-    runnable.stop(false);
-    t.join();
-    Assert.assertTrue(stopInterrupted);
   }
 
   private ProductionPipeline createProductionPipeline(DeliveryGuarantee deliveryGuarantee, boolean captureNextBatch)
@@ -164,11 +120,11 @@ public class TestProdPipelineRunnable {
 
     Mockito.when(snapshotStore.getInfo(TestUtil.MY_PIPELINE, "0", SNAPSHOT_NAME)).
       thenReturn(new SnapshotInfoImpl("user", SNAPSHOT_NAME, "SNAPSHOT LABEL", TestUtil.MY_PIPELINE, "0",
-          System.currentTimeMillis(), false, 0));
+          System.currentTimeMillis(), false, 0, false));
     BlockingQueue<Object> productionObserveRequests = new ArrayBlockingQueue<>(100, true /*FIFO*/);
     Configuration conf = new Configuration();
     ProductionPipelineRunner runner =
-      new ProductionPipelineRunner(TestUtil.MY_PIPELINE, "0", conf, runtimeInfo, new MetricRegistry(), snapshotStore,
+      new ProductionPipelineRunner(TestUtil.MY_PIPELINE, "0", null, conf, runtimeInfo, new MetricRegistry(), snapshotStore,
         null);
     runner.setDeliveryGuarantee(deliveryGuarantee);
     runner.setMemoryLimitConfiguration(new MemoryLimitConfiguration());
@@ -183,8 +139,13 @@ public class TestProdPipelineRunnable {
       MockStages.createStageLibrary(),
       runner,
       null,
+      Mockito.mock(BlobStoreTask.class),
       Mockito.mock(LineagePublisherTask.class)
-    ).build(MockStages.userContext(), MockStages.createPipelineConfigurationSourceProcessorTarget());
+    ).build(
+      MockStages.userContext(),
+      MockStages.createPipelineConfigurationSourceProcessorTarget(),
+      System.currentTimeMillis()
+    );
 
     pipelineStateStore.saveState("admin", TestUtil.MY_PIPELINE, "0", PipelineStatus.STOPPED, null, null, null, null, 0, 0);
 

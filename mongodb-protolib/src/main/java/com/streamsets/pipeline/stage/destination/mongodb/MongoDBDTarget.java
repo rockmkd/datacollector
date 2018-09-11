@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,15 +21,15 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.stage.common.mongodb.Groups;
 
 @StageDef(
-    version = 2,
+    version = 3,
     label = "MongoDB",
     description = "Writes data to MongoDB",
     icon="mongodb.png",
-    onlineHelpRefUrl = "index.html#Destinations/MongoDB.html#task_mrc_k5n_4v",
+    onlineHelpRefUrl ="index.html?contextID=task_mrc_k5n_4v",
     upgrader = MongoDBTargetUpgrader.class
 )
 

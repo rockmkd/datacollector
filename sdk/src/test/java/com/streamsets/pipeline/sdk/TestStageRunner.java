@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,15 @@
  */
 package com.streamsets.pipeline.sdk;
 
-import com.streamsets.datacollector.config.StageType;
+import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Stage;
 
+import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.StageType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,7 +33,13 @@ import java.util.Map;
 
 public class TestStageRunner {
 
-  public static interface DummyStage extends Stage {
+
+  @StageDef(
+    version = 1,
+    label = "Test",
+    onlineHelpRefUrl = ""
+  )
+  public static abstract class DummyStage implements Stage {
   }
 
   public static class DummyStageRunner extends StageRunner<DummyStage> {
@@ -44,7 +52,9 @@ public class TestStageRunner {
       Map<String, Object> constants,
       Map<String, String> stageSdcConf,
       ExecutionMode executionMode,
-      String resourcesDir
+      String resourcesDir,
+      RuntimeInfo runtimeInfo,
+      List<ServiceRunner> services
     ) {
       super(
         stageClass,
@@ -57,7 +67,9 @@ public class TestStageRunner {
         stageSdcConf,
         executionMode,
         DeliveryGuarantee.AT_LEAST_ONCE,
-        resourcesDir
+        resourcesDir,
+        runtimeInfo,
+        services
       );
     }
 
@@ -70,7 +82,9 @@ public class TestStageRunner {
       Map<String, Object> constants,
       Map<String, String> stageSdcConf,
       ExecutionMode executionMode,
-      String resourcesDir
+      String resourcesDir,
+      RuntimeInfo runtimeInfo,
+      List<ServiceRunner> services
     ) {
       super(
         stageClass,
@@ -84,7 +98,9 @@ public class TestStageRunner {
         stageSdcConf,
         executionMode,
         DeliveryGuarantee.AT_LEAST_ONCE,
-        resourcesDir
+        resourcesDir,
+        runtimeInfo,
+        services
       );
     }
 
@@ -111,7 +127,9 @@ public class TestStageRunner {
             constants,
             stageSdcConf,
             executionMode,
-            resourcesDir
+            resourcesDir,
+            runtimeInfo,
+            services
           )
           : new DummyStageRunner(
             stageClass,
@@ -121,13 +139,20 @@ public class TestStageRunner {
             constants,
             stageSdcConf,
             executionMode,
-            resourcesDir
+            resourcesDir,
+            runtimeInfo,
+            services
           );
       }
     }
   }
 
-  public static class DummyStage1 implements DummyStage {
+  @StageDef(
+    version = 1,
+    label = "Test",
+    onlineHelpRefUrl = ""
+  )
+  public static class DummyStage1 extends DummyStage {
 
     public boolean initialized;
     public boolean destroyed;
@@ -145,7 +170,7 @@ public class TestStageRunner {
   }
 
   @Test
-  public void testBuilderWithClass() {
+  public void testBuilderWithClass() throws Exception {
     DummyStageRunner.Builder builder = new DummyStageRunner.Builder(DummyStage1.class);
     DummyStageRunner runner = builder.build();
     Assert.assertNotNull(runner);
@@ -205,7 +230,7 @@ public class TestStageRunner {
   }
 
   @Test
-  public void testBuilderWithInstance() {
+  public void testBuilderWithInstance() throws Exception {
     DummyStage1 stage = new DummyStage1();
     DummyStageRunner.Builder builder = new DummyStageRunner.Builder(stage);
     DummyStageRunner runner = builder.build();
@@ -253,14 +278,6 @@ public class TestStageRunner {
   }
 
   @Test(expected = RuntimeException.class)
-  public void testBuilderInvalidDestroy1() throws Exception {
-    DummyStage1 stage = new DummyStage1();
-    DummyStageRunner.Builder builder = new DummyStageRunner.Builder(stage);
-    DummyStageRunner runner = builder.build();
-    runner.runDestroy();
-  }
-
-  @Test(expected = RuntimeException.class)
   public void testBuilderInvalidDestroy2() throws Exception {
     DummyStage1 stage = new DummyStage1();
     DummyStageRunner.Builder builder = new DummyStageRunner.Builder(stage);
@@ -277,6 +294,11 @@ public class TestStageRunner {
     builder.build();
   }
 
+  @StageDef(
+    version = 1,
+    label = "Test",
+    onlineHelpRefUrl = ""
+  )
   public static class DummyStage2 extends DummyStage1 {
 
     @ConfigDef(type = ConfigDef.Type.BOOLEAN, label = "L", required = false)

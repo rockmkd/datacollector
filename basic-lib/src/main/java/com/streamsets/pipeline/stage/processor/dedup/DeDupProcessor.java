@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,8 +93,12 @@ public class DeDupProcessor extends RecordProcessor {
     if (issues.isEmpty()) {
       hasher = HashingUtil.getHasher(HashingUtil.HashType.MURMUR3_128);
 
-      funnel = (compareFields == SelectFields.ALL_FIELDS) ? HashingUtil.getRecordFunnel(Collections.EMPTY_LIST, false, true) :
-          HashingUtil.getRecordFunnel(fieldsToCompare, false, true);
+      funnel = (compareFields == SelectFields.ALL_FIELDS) ? HashingUtil.getRecordFunnel(
+          Collections.EMPTY_LIST,
+          false,
+          true,
+          '\u0000'
+      ) : HashingUtil.getRecordFunnel(fieldsToCompare, false, true, '\u0000');
 
       Map<String, Object> runnerSharedMap = getContext().getStageRunnerSharedMap();
       synchronized (runnerSharedMap) {

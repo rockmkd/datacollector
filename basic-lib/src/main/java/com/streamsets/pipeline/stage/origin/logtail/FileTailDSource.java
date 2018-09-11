@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,21 +22,21 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.RawSource;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.base.configurablestage.DSource;
 import com.streamsets.pipeline.config.FileRawSourcePreviewer;
-import com.streamsets.pipeline.configurablestage.DSource;
 
 @StageDef(
     version = 4,
     label = "File Tail",
     description = "Tails a file. It handles rolling files within the same directory",
     icon = "fileTail.png",
-    execution = ExecutionMode.STANDALONE,
+    execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
     outputStreams = FileTailOutputStreams.class,
     recordsByRef = true,
     upgrader = FileTailSourceUpgrader.class,
     resetOffset = true,
     producesEvents = true,
-    onlineHelpRefUrl = "index.html#Origins/FileTail.html#task_unq_wdw_yq"
+    onlineHelpRefUrl ="index.html?contextID=task_unq_wdw_yq"
 )
 @RawSource(rawSourcePreviewer = FileRawSourcePreviewer.class)
 @ConfigGroups(Groups.class)

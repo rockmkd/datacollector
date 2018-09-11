@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
  */
 package com.streamsets.pipeline.sdk;
 
-import com.streamsets.datacollector.config.StageType;
+import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
 import com.streamsets.pipeline.api.ExecutionMode;
@@ -23,6 +23,7 @@ import com.streamsets.pipeline.api.OffsetCommitter;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.impl.Utils;
 
 import org.slf4j.Logger;
@@ -45,7 +46,9 @@ public class SourceRunner extends StageRunner<Source> {
     Map<String, String> stageSdcConf,
     ExecutionMode executionMode,
     DeliveryGuarantee deliveryGuarantee,
-    String resourcesDir
+    String resourcesDir,
+    RuntimeInfo runtimeInfo,
+    List<ServiceRunner> services
   ) {
     super(
       sourceClass,
@@ -59,7 +62,9 @@ public class SourceRunner extends StageRunner<Source> {
       stageSdcConf,
       executionMode,
       deliveryGuarantee,
-      resourcesDir
+      resourcesDir,
+      runtimeInfo,
+      services
     );
   }
 
@@ -73,7 +78,9 @@ public class SourceRunner extends StageRunner<Source> {
     Map<String, String> stageSdcConf,
     ExecutionMode executionMode,
     DeliveryGuarantee deliveryGuarantee,
-    String resourcesDir
+    String resourcesDir,
+    RuntimeInfo runtimeInfo,
+    List<ServiceRunner> services
   ) {
     super(
       sourceClass,
@@ -86,7 +93,9 @@ public class SourceRunner extends StageRunner<Source> {
       stageSdcConf,
       executionMode,
       deliveryGuarantee,
-      resourcesDir
+      resourcesDir,
+      runtimeInfo,
+      services
     );
   }
 
@@ -131,7 +140,9 @@ public class SourceRunner extends StageRunner<Source> {
           stageSdcConf,
           executionMode,
           deliveryGuarantee,
-          resourcesDir
+          resourcesDir,
+          runtimeInfo,
+          services
         );
       } else {
         return new SourceRunner(
@@ -144,7 +155,9 @@ public class SourceRunner extends StageRunner<Source> {
           stageSdcConf,
           executionMode,
           deliveryGuarantee,
-          resourcesDir
+          resourcesDir,
+          runtimeInfo,
+          services
         );
       }
     }

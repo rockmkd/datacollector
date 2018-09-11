@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import com.streamsets.datacollector.callback.CallbackInfo;
 import com.streamsets.datacollector.callback.CallbackObjectType;
 import com.streamsets.datacollector.callback.CallbackServerErrorEventListener;
 import com.streamsets.datacollector.callback.CallbackServerMetricsEventListener;
+import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.PipelineInfo;
 import com.streamsets.datacollector.execution.PipelineState;
@@ -32,10 +33,10 @@ import com.streamsets.datacollector.execution.runner.common.SampledRecord;
 import com.streamsets.datacollector.execution.runner.standalone.StandaloneRunner;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.runner.Pipeline;
-import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.datacollector.util.LogUtil;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
@@ -44,8 +45,8 @@ import com.streamsets.pipeline.lib.log.LogConstants;
 import org.slf4j.MDC;
 
 import javax.inject.Inject;
-
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +78,16 @@ public class SlaveStandaloneRunner implements Runner, PipelineInfo  {
   }
 
   @Override
+  public String getPipelineTitle() throws PipelineException {
+    return standaloneRunner.getPipelineTitle();
+  }
+
+  @Override
+  public PipelineConfiguration getPipelineConfiguration() throws PipelineException {
+    return standaloneRunner.getPipelineConfiguration();
+  }
+
+  @Override
   public void resetOffset(String user) {
     throw new UnsupportedOperationException();
   }
@@ -103,14 +114,13 @@ public class SlaveStandaloneRunner implements Runner, PipelineInfo  {
   }
 
   @Override
-  public void onDataCollectorStart(String user) throws PipelineRunnerException, PipelineStoreException, PipelineRuntimeException,
-    StageException {
+  public void onDataCollectorStart(String user) throws PipelineException, StageException {
     throw new UnsupportedOperationException();
 
   }
 
   @Override
-  public void onDataCollectorStop(String user) throws PipelineStoreException, PipelineRunnerException {
+  public void onDataCollectorStop(String user) throws PipelineException {
     standaloneRunner.onDataCollectorStop(user);
   }
 
@@ -126,44 +136,38 @@ public class SlaveStandaloneRunner implements Runner, PipelineInfo  {
 
 
   @Override
-  public void prepareForStart(String user) throws PipelineStoreException, PipelineRunnerException {
+  public void prepareForStart(StartPipelineContext context) throws PipelineException {
     // no need for clear since slaves never run more than one pipeline
-    MDC.put(LogConstants.USER, user);
-    MDC.put(LogConstants.ENTITY, getName());
-    standaloneRunner.prepareForStart(user);
+    MDC.put(LogConstants.USER, context.getUser());
+    LogUtil.injectPipelineInMDC(getPipelineTitle(), getName());
+    standaloneRunner.prepareForStart(context);
   }
 
   @Override
-  public void start(String user) throws PipelineException, StageException {
-    start(user, null);
-  }
-
-  @Override
-  public void start(String user, Map<String, Object> runtimeParameters) throws PipelineException, StageException {
+  public void start(StartPipelineContext context) throws PipelineException, StageException {
     String callbackServerURL = configuration.get(Constants.CALLBACK_SERVER_URL_KEY, Constants.CALLBACK_SERVER_URL_DEFAULT);
     String clusterToken = configuration.get(Constants.PIPELINE_CLUSTER_TOKEN_KEY, null);
     if (callbackServerURL != null) {
-      eventListenerManager.addMetricsEventListener(this.getName(), new CallbackServerMetricsEventListener(user,
+      eventListenerManager.addMetricsEventListener(this.getName(), new CallbackServerMetricsEventListener(context.getUser(),
         getName(), getRev(), runtimeInfo, callbackServerURL, clusterToken, standaloneRunner.getToken()));
-      standaloneRunner.addErrorListener(new CallbackServerErrorEventListener(user,
+      standaloneRunner.addErrorListener(new CallbackServerErrorEventListener(context.getUser(),
           getName(), getRev(), runtimeInfo, callbackServerURL, clusterToken, standaloneRunner.getToken()));
     } else {
       throw new RuntimeException(
         "No callback server URL is passed. SDC in Slave mode requires callback server URL (callback.server.url).");
     }
-    standaloneRunner.start(user, runtimeParameters);
+    standaloneRunner.start(context);
   }
 
   @Override
   public void startAndCaptureSnapshot(
-      String user,
-      Map<String, Object> runtimeParameters,
+      StartPipelineContext context,
       String snapshotName,
       String snapshotLabel,
       int batches,
       int batchSize
   ) throws PipelineException, StageException {
-    standaloneRunner.captureSnapshot(user, snapshotName, snapshotLabel, batches, batchSize);
+    standaloneRunner.captureSnapshot(context.getUser(), snapshotName, snapshotLabel, batches, batchSize);
   }
 
   @Override
@@ -244,6 +248,11 @@ public class SlaveStandaloneRunner implements Runner, PipelineInfo  {
   }
 
   @Override
+  public Map<String, Object> createStateAttributes() {
+    return new HashMap<>();
+  }
+
+  @Override
   public Pipeline getPipeline() {
     return standaloneRunner.getPipeline();
   }
@@ -269,12 +278,15 @@ public class SlaveStandaloneRunner implements Runner, PipelineInfo  {
   }
 
   @Override
-  public void prepareForStop(String user) throws PipelineStoreException, PipelineRunnerException {
+  public void prepareForStop(String user) throws PipelineException {
     // no need for clear since slaves never run more than one pipeline
     MDC.put(LogConstants.USER, user);
-    MDC.put(LogConstants.ENTITY, getName());
+    LogUtil.injectPipelineInMDC(getPipelineTitle(), getName());
     standaloneRunner.prepareForStop(user);
   }
 
-
+  @Override
+  public Runner getDelegatingRunner() {
+    return standaloneRunner;
+  }
 }

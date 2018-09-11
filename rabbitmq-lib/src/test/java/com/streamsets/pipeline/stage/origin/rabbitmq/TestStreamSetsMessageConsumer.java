@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,10 +20,6 @@ import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.Envelope;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Source;
-import com.streamsets.pipeline.config.JsonMode;
-import com.streamsets.pipeline.lib.parser.DataParserFactory;
-import com.streamsets.pipeline.lib.parser.DataParserFactoryBuilder;
-import com.streamsets.pipeline.lib.parser.DataParserFormat;
 import com.streamsets.pipeline.sdk.ContextInfoCreator;
 import org.junit.After;
 import org.junit.Before;
@@ -68,12 +64,6 @@ public class TestStreamSetsMessageConsumer {
   @Test
   public void testConsumerSingleMessage() throws Exception {
     TransferQueue<RabbitMessage> messages = new LinkedTransferQueue<>();
-
-    DataParserFactory parserFactory = new DataParserFactoryBuilder(context, DataParserFormat.JSON)
-        .setCharset(StandardCharsets.UTF_8)
-        .setMode(JsonMode.MULTIPLE_OBJECTS)
-        .setMaxDataLen(-1)
-        .build();
 
     Channel channel = mock(Channel.class);
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,8 @@
 package com.streamsets.lib.security.http;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.lib.security.RegistrationResponseJson;
 import com.streamsets.pipeline.api.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +37,10 @@ public class RemoteSSOService extends AbstractSSOService {
   public static final String SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG = CONFIG_PREFIX + "appAuthToken";
   public static final String SECURITY_SERVICE_COMPONENT_ID_CONFIG = CONFIG_PREFIX + "componentId";
   public static final String SECURITY_SERVICE_CONNECTION_TIMEOUT_CONFIG = CONFIG_PREFIX + "connectionTimeout.millis";
+  public static final String DPM_DEPLOYMENT_ID = "dpm.remote.deployment.id";
+  public static final boolean DPM_USER_ALIAS_NAME_ENABLED_DEFAULT = false;
+  public static final String DPM_USER_ALIAS_NAME_ENABLED = CONFIG_PREFIX + "alias.name.enabled";
+
   public static final int DEFAULT_SECURITY_SERVICE_CONNECTION_TIMEOUT = 10000;
   public static final String DPM_ENABLED = CONFIG_PREFIX + "enabled";
   public static final boolean DPM_ENABLED_DEFAULT = false;
@@ -126,7 +130,10 @@ public class RemoteSSOService extends AbstractSSOService {
     boolean active;
     try {
       URL url = new URL(getLoginPageUrl());
-      int status = ((HttpURLConnection)url.openConnection()).getResponseCode();
+      HttpURLConnection httpURLConnection = ((HttpURLConnection)url.openConnection());
+      httpURLConnection.setConnectTimeout(connTimeout);
+      httpURLConnection.setReadTimeout(connTimeout);
+      int status = httpURLConnection.getResponseCode();
       active = status == HttpURLConnection.HTTP_OK;
       if (!active) {
         LOG.warn("DPM reachable but returning '{}' HTTP status on login", status);
@@ -183,6 +190,7 @@ public class RemoteSSOService extends AbstractSSOService {
           RestClient.Response response = restClient.post(registrationData);
           if (response.getStatus() == HttpURLConnection.HTTP_OK) {
             updateConnectionTimeout(response);
+            processRegistrationResponse(response);
             LOG.info("Registered with DPM");
             registered = true;
             break;
@@ -208,6 +216,18 @@ public class RemoteSSOService extends AbstractSSOService {
       } else {
         LOG.warn("DPM registration failed after '{}' attempts", attempts);
       }
+    }
+  }
+
+  private void processRegistrationResponse(RestClient.Response response) throws IOException {
+    if(!response.haveData()) {
+      LOG.debug("Received empty registration response from Control Hub");
+      return;
+    }
+
+    if(registrationResponseDelegate != null) {
+      RegistrationResponseJson registrationResponse = response.getData(RegistrationResponseJson.class);
+      registrationResponseDelegate.processRegistrationResponse(registrationResponse);
     }
   }
 
@@ -260,8 +280,7 @@ public class RemoteSSOService extends AbstractSSOService {
     } catch (IOException ex){
       LOG.warn("Could not do user token validation, going inactive: {}", ex.toString());
       serviceActive = false;
-      Map error = ImmutableMap.of("message", "Could not connect to security service: " + ex.toString());
-      throw new ForbiddenException(error);
+      throw new RuntimeException(Utils.format("Could not connect to security service: {}", ex), ex);
     }
     if (principal != null) {
       principal.setTokenStr(userAuthToken);
@@ -297,8 +316,7 @@ public class RemoteSSOService extends AbstractSSOService {
     } catch (IOException ex){
       LOG.warn("Could not do app token validation, going inactive: {}", ex.toString());
       serviceActive = false;
-      Map error = ImmutableMap.of("message", "Could not connect to seucirty service: " + ex.toString());
-      throw new ForbiddenException(error);
+      throw new RuntimeException(Utils.format("Could not connect to security service: {}", ex), ex);
     }
     if (principal != null) {
       principal.setTokenStr(authToken);

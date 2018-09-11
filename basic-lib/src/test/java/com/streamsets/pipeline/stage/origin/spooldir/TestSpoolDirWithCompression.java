@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 package com.streamsets.pipeline.stage.origin.spooldir;
 
 import com.google.common.io.Resources;
-import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.config.Compression;
 import com.streamsets.pipeline.config.DataFormat;
@@ -24,8 +23,8 @@ import com.streamsets.pipeline.config.OnParseError;
 import com.streamsets.pipeline.config.PostProcessingOptions;
 import com.streamsets.pipeline.lib.dirspooler.PathMatcherMode;
 import com.streamsets.pipeline.sdk.DataCollectorServicesUtils;
-import com.streamsets.pipeline.sdk.SourceRunner;
-import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.sdk.PushSourceRunner;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorOutputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
@@ -41,8 +40,11 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.streamsets.pipeline.config.OriginAvroSchemaSource.SOURCE;
 
@@ -85,23 +87,29 @@ public class TestSpoolDirWithCompression {
   @Test
   public void testProduceZipFile() throws Exception {
     SpoolDirSource source = createZipSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+
     runner.runInit();
+
     try {
-      List<Record> allRecords = new ArrayList<>();
-      String offset = null;
-      for(int i = 0; i < 50; i++) {
-        BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-        offset = source.produce(offset, 1000, batchMaker);
-        Assert.assertNotNull(offset);
+      AtomicInteger batchCount = new AtomicInteger();
+      final List<Record> records = Collections.synchronizedList(new ArrayList<>(10));
 
-        StageRunner.Output output = SourceRunner.getOutput(batchMaker);
-        List<Record> records = output.getRecords().get("lane");
-        allRecords.addAll(records);
-      }
-      Assert.assertEquals(37044, allRecords.size());
-      Assert.assertTrue(offset.equals("logArchive2.zip::-1"));
+      runner.runProduce(new HashMap<>(), 1000, output -> {
+        synchronized (records) {
+          records.addAll(output.getRecords().get("lane"));
+        }
 
+        if (batchCount.incrementAndGet() > 50) {
+          runner.setStop();
+        }
+      });
+
+      runner.waitOnProduce();
+      Assert.assertNotNull(runner.getOffsets());
+      Assert.assertEquals(37044, records.size());
+
+      TestOffsetUtil.compare("logArchive2.zip::-1", runner.getOffsets());
     } finally {
       runner.runDestroy();
     }
@@ -110,23 +118,28 @@ public class TestSpoolDirWithCompression {
   @Test
   public void testProduceTarGzipTextFile() throws Exception {
     SpoolDirSource source = createTarGzipSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
-      List<Record> allRecords = new ArrayList<>();
-      String offset = null;
-      for(int i = 0; i < 50; i++) {
-        BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-        offset = source.produce(offset, 1000, batchMaker);
-        Assert.assertNotNull(offset);
+      final List<Record> records = Collections.synchronizedList(new ArrayList<>(10));
+      AtomicInteger batchCount = new AtomicInteger(0);
 
-        StageRunner.Output output = SourceRunner.getOutput(batchMaker);
-        List<Record> records = output.getRecords().get("lane");
-        allRecords.addAll(records);
-      }
-      Assert.assertEquals(37044, allRecords.size());
-      Assert.assertTrue(offset.equals("logArchive2.tar.gz::-1"));
+      runner.runProduce(new HashMap<>(), 1000, output -> {
+        synchronized (records) {
+          records.addAll(output.getRecords().get("lane"));
+        }
+        batchCount.incrementAndGet();
 
+        if (batchCount.get() > 50) {
+          runner.setStop();
+        }
+      });
+
+      runner.waitOnProduce();
+
+      Assert.assertNotNull(runner.getOffsets());
+      Assert.assertEquals(37044, records.size());
+      TestOffsetUtil.compare("logArchive2.tar.gz::-1", runner.getOffsets());
     } finally {
       runner.runDestroy();
     }
@@ -135,23 +148,28 @@ public class TestSpoolDirWithCompression {
   @Test
   public void testProduceTarGzipAvroFile() throws Exception {
     SpoolDirSource source = createTarGzipAvroSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
-      List<Record> allRecords = new ArrayList<>();
-      String offset = null;
-      for(int i = 0; i < 50; i++) {
-        BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-        offset = source.produce(offset, 1000, batchMaker);
-        Assert.assertNotNull(offset);
+      final List<Record> records = Collections.synchronizedList(new ArrayList<>(10));
+      AtomicInteger batchCount = new AtomicInteger(0);
 
-        StageRunner.Output output = SourceRunner.getOutput(batchMaker);
-        List<Record> records = output.getRecords().get("lane");
-        allRecords.addAll(records);
-      }
-      Assert.assertEquals(48000, allRecords.size());
-      Assert.assertTrue(offset.equals("testAvro2.tar.gz::-1"));
+      runner.runProduce(new HashMap<>(), 1000, output -> {
+        synchronized (records) {
+          records.addAll(output.getRecords().get("lane"));
+        }
+        batchCount.incrementAndGet();
 
+        if (batchCount.get() > 50) {
+          runner.setStop();
+        }
+      });
+      runner.waitOnProduce();
+
+      Assert.assertNotNull(runner.getOffsets());
+
+      Assert.assertEquals(48000, records.size());
+      TestOffsetUtil.compare("testAvro2.tar.gz::-1", runner.getOffsets());
     } finally {
       runner.runDestroy();
     }
@@ -160,23 +178,28 @@ public class TestSpoolDirWithCompression {
   @Test
   public void testProduceBz2File() throws Exception {
     SpoolDirSource source = createBz2Source();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
-      List<Record> allRecords = new ArrayList<>();
-      String offset = null;
-      for(int i = 0; i < 10; i++) {
-        BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-        offset = source.produce(offset, 1000, batchMaker);
-        Assert.assertNotNull(offset);
+      final List<Record> records = Collections.synchronizedList(new ArrayList<>(10));
+      AtomicInteger batchCount = new AtomicInteger(0);
 
-        StageRunner.Output output = SourceRunner.getOutput(batchMaker);
-        List<Record> records = output.getRecords().get("lane");
-        allRecords.addAll(records);
-      }
-      Assert.assertEquals(4, allRecords.size());
-      Assert.assertTrue(offset.equals("testFile2.bz2::-1"));
+      runner.runProduce(new HashMap<>(), 1000, output -> {
+        synchronized (records) {
+          records.addAll(output.getRecords().get("lane"));
+        }
+        batchCount.incrementAndGet();
 
+        if (batchCount.get() > 10) {
+          runner.setStop();
+        }
+      });
+
+      runner.waitOnProduce();
+
+      Assert.assertNotNull(runner.getOffsets());
+      Assert.assertEquals(4, records.size());
+      TestOffsetUtil.compare("testFile2.bz2::-1", runner.getOffsets());
     } finally {
       runner.runDestroy();
     }

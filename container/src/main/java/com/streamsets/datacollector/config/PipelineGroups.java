@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,8 @@ public enum PipelineGroups implements Label {
   NOTIFICATIONS("Notifications"),
   BAD_RECORDS("Error Records"),
   CLUSTER("Cluster"),
-  STATS("Statistics")
+  STATS("Statistics"),
+  EMR("EMR"),
   ;
 
   private final String label;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Properties;
 
 public class JdbcQueryExecutorConfig {
 
@@ -68,10 +67,8 @@ public class JdbcQueryExecutorConfig {
     issues.addAll(hikariConfigBean.validateConfigs(context, issues));
 
     if(issues.isEmpty()) {
-      Properties driverProperties = new Properties();
-      driverProperties.putAll(hikariConfigBean.driverProperties);
       try {
-        dataSource = JdbcUtil.createDataSourceForRead(hikariConfigBean, driverProperties);
+        dataSource = JdbcUtil.createDataSourceForRead(hikariConfigBean);
       } catch (StageException e) {
         LOG.error("Can't open connection", e);
         issues.add(

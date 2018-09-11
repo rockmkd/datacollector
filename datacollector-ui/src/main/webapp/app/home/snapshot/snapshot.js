@@ -89,7 +89,7 @@ angular
      */
     var updateSnapshotDataForStage = function(stageInstance) {
       if($scope.snapshotMode) {
-        var stageInstances = $scope.pipelineConfig.stages,
+        var stageInstances = $scope.stageInstances,
           batchData = $scope.previewData.snapshotBatches[0];
 
         $scope.stagePreviewData = previewService.getPreviewDataForStage(batchData, stageInstance);
@@ -113,11 +113,11 @@ angular
     };
 
     var viewSnapshot = function(snapshotName) {
-      api.pipelineAgent.getSnapshot($scope.activeConfigInfo.pipelineId, 0, snapshotName).
-        success(function(res) {
-          $scope.previewData = res;
+      api.pipelineAgent.getSnapshot($scope.activeConfigInfo.pipelineId, 0, snapshotName)
+        .then(function(res) {
+          $scope.previewData = res.data;
 
-          var firstStageInstance = $scope.pipelineConfig.stages[0];
+          var firstStageInstance = $scope.stageInstances[0];
           $scope.changeStageSelection({
             selectedObject: firstStageInstance,
             type: pipelineConstant.STAGE_INSTANCE
@@ -126,12 +126,11 @@ angular
           $rootScope.$broadcast('updateErrorCount',
             previewService.getPreviewStageErrorCounts($scope.previewData.snapshotBatches[0]));
           $scope.showLoading = false;
-        }).
-        error(function(data) {
-          $rootScope.common.errors = [data];
+        })
+        .catch(function(res) {
+          $rootScope.common.errors = [res.data];
           $scope.showLoading = false;
         });
-
     };
 
     $scope.$on('snapshotPipeline', function(event, snapshotName) {
@@ -182,7 +181,7 @@ angular
         } else {
           $scope.clearStartAndEndStageInstance();
           $scope.changeStageSelection({
-            selectedObject: $scope.pipelineConfig.stages[0],
+            selectedObject: $scope.stageInstances[0],
             type: pipelineConstant.STAGE_INSTANCE
           });
         }

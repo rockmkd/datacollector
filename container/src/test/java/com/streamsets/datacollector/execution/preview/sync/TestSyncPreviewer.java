@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@ package com.streamsets.datacollector.execution.preview.sync;
 
 import com.streamsets.datacollector.execution.Previewer;
 import com.streamsets.datacollector.execution.preview.TestPreviewer;
-import com.streamsets.datacollector.execution.preview.sync.SyncPreviewer;
+import com.streamsets.datacollector.execution.runner.common.PipelineStopReason;
 import com.streamsets.datacollector.runner.Pipeline;
 import com.streamsets.datacollector.runner.preview.PreviewPipeline;
 import com.streamsets.datacollector.runner.preview.PreviewPipelineRunner;
@@ -40,26 +40,28 @@ public class TestSyncPreviewer extends TestPreviewer {
     SyncPreviewer previewer = (SyncPreviewer)createPreviewer();
     SyncPreviewer spyPreviewer = Mockito.spy(previewer);
     Pipeline pipeline = Mockito.mock(Pipeline.class);
-    Mockito.doReturn(Collections.emptyList()).when(pipeline).init();
+    Mockito.doReturn(Collections.emptyList()).when(pipeline).init(true);
     Mockito.doNothing().when(pipeline).run(Mockito.anyList());
-    Mockito.doNothing().when(pipeline).destroy();
+    Mockito.doNothing().when(pipeline).destroy(Mockito.anyBoolean(), Mockito.any());
     PreviewPipelineRunner previewPipelineRunner = Mockito.mock(PreviewPipelineRunner.class);
     Mockito.doReturn(null).when(previewPipelineRunner).getMetrics();
     Mockito.doReturn(null).when(previewPipelineRunner).getBatchesOutput();
     Mockito.doReturn(previewPipelineRunner).when(pipeline).getRunner();
     PreviewPipeline previewPipeline = new PreviewPipeline("","", pipeline, new Issues());
     Mockito.doReturn(previewPipeline).when(spyPreviewer).buildPreviewPipeline(Mockito.anyInt(), Mockito.anyInt(),
-        Mockito.anyString(), Mockito.anyBoolean());
-    spyPreviewer.start(1, 1, true, "", null, -1);
-    Mockito.verify(pipeline, Mockito.times(1)).destroy();
+        Mockito.anyString(), Mockito.anyBoolean(), Mockito.anyBoolean(), Mockito.anyBoolean());
+    spyPreviewer.start(1, 1, true, true,"", null,
+        -1, false);
+    Mockito.verify(pipeline, Mockito.times(1)).destroy(true, PipelineStopReason.FINISHED);
     // Check if preview returns non empty issue list
-    Mockito.doReturn(Arrays.asList(Mockito.mock(Issue.class))).when(pipeline).init();
+    Mockito.doReturn(Arrays.asList(Mockito.mock(Issue.class))).when(pipeline).init(true);
     try {
-      spyPreviewer.start(1, 1, true, "", null, -1);
+      spyPreviewer.start(1, 1, true, true,"", null,
+          -1, false);
     } catch (Exception e) {
       // expected as issues is non empty
     }
     // check that destroy is still called, total times its called should be 2
-    Mockito.verify(pipeline, Mockito.times(2)).destroy();
+    Mockito.verify(pipeline, Mockito.times(2)).destroy(true, PipelineStopReason.FINISHED);
   }
 }

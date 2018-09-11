@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -76,10 +76,6 @@ public class RuleDefinitionsJson {
     return BeanHelper.wrapDriftRuleDefinitions(ruleDefinitions.getDriftRuleDefinitions());
   }
 
-  public List<String> getEmailIds() {
-    return ruleDefinitions.getEmailIds();
-  }
-
   public List<RuleIssueJson> getRuleIssues() {
     return BeanHelper.wrapRuleIssues(ruleDefinitions.getRuleIssues());
   }
@@ -94,6 +90,14 @@ public class RuleDefinitionsJson {
 
   public List<ConfigConfigurationJson> getConfiguration() {
     return BeanHelper.wrapConfigConfiguration(ruleDefinitions.getConfiguration());
+  }
+
+  public List<IssueJson> getConfigIssues() {
+    return BeanHelper.wrapIssues(ruleDefinitions.getConfigIssues());
+  }
+
+  public void setConfigIssues(List<IssueJson> configIssues) {
+    //NO-OP, for jackson
   }
 
   @JsonIgnore

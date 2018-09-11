@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.runner.preview;
 
+import com.streamsets.datacollector.execution.runner.common.PipelineStopReason;
 import com.streamsets.datacollector.runner.Pipeline;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.StageOutput;
@@ -45,7 +46,7 @@ public class PreviewPipeline {
 
   public PreviewPipelineOutput run(List<StageOutput> stageOutputsToOverride)
       throws StageException, PipelineRuntimeException{
-    List<Issue> initIssues = pipeline.init();
+    List<Issue> initIssues = pipeline.init(true);
     if (initIssues.isEmpty()) {
       pipeline.run(stageOutputsToOverride);
     } else {
@@ -59,8 +60,8 @@ public class PreviewPipeline {
     return pipeline.validateConfigs();
   }
 
-  public void destroy() {
-    pipeline.destroy();
+  public void destroy(PipelineStopReason reason) throws StageException, PipelineRuntimeException {
+    pipeline.destroy(true, reason);
   }
 
 }

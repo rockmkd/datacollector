@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseTarget;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
@@ -37,12 +38,13 @@ import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.destination.datalake.writer.DataLakeWriterThread;
-import com.streamsets.pipeline.stage.destination.datalake.writer.RecordWriter;
+import com.streamsets.pipeline.stage.destination.datalake.writer.DataLakeGeneratorManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -69,7 +71,7 @@ public class DataLakeTarget extends BaseTarget {
   private ELEval timeDriverEval;
   private ELVars timeDriverVars;
   private Calendar calendar;
-  private RecordWriter writer;
+  private DataLakeGeneratorManager generatorManager;
   private ErrorRecordHandler errorRecordHandler;
   private SafeScheduledExecutorService scheduledExecutor;
   private long idleTimeSecs = -1;
@@ -94,7 +96,7 @@ public class DataLakeTarget extends BaseTarget {
     timeDriverEval = getContext().createELEval("timeDriver");
     timeDriverVars = getContext().createELVars();
 
-    calendar = Calendar.getInstance(TimeZone.getTimeZone(conf.timeZoneID));
+    calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of(conf.timeZoneID)));
 
     if (conf.idleTimeout != null && !conf.idleTimeout.isEmpty()) {
       idleTimeSecs = initTimeConfigs(getContext(), "idleTimeout", conf.idleTimeout, Groups.OUTPUT,
@@ -106,16 +108,11 @@ public class DataLakeTarget extends BaseTarget {
       TimeNowEL.setTimeNowInContext(dirPathTemplateVars, new Date());
 
       // Validate Evals
-      ELUtils.validateExpression(
-          dirPathTemplateEval,
-          getContext().createELVars(),
-          conf.dirPathTemplate,
+      ELUtils.validateExpression(conf.dirPathTemplate,
           getContext(),
           Groups.DATALAKE.getLabel(),
           DataLakeConfigBean.ADLS_CONFIG_BEAN_PREFIX + "dirPathTemplate",
-          Errors.ADLS_00,
-          String.class,
-          issues
+          Errors.ADLS_00, issues
       );
     }
 
@@ -123,16 +120,11 @@ public class DataLakeTarget extends BaseTarget {
       TimeEL.setCalendarInContext(timeDriverVars, calendar);
       TimeNowEL.setTimeNowInContext(timeDriverVars, new Date());
 
-      ELUtils.validateExpression(
-          timeDriverEval,
-          timeDriverVars,
-          conf.timeDriver,
+      ELUtils.validateExpression(conf.timeDriver,
           getContext(),
           Groups.DATALAKE.getLabel(),
           DataLakeConfigBean.ADLS_CONFIG_BEAN_PREFIX + "timeDriver",
-          Errors.ADLS_01,
-          Date.class,
-          issues
+          Errors.ADLS_01, issues
       );
     }
 
@@ -153,10 +145,20 @@ public class DataLakeTarget extends BaseTarget {
       }
     }
 
+    String authEndPoint = resolveCredentialValue(conf.authTokenEndpoint, DataLakeConfigBean.ADLS_CONFIG_AUTH_ENDPOINT, issues);
+    String clientId = resolveCredentialValue(conf.clientId, DataLakeConfigBean.ADLS_CONFIG_CLIENT_ID, issues);
+    String clientKey = resolveCredentialValue(conf.clientKey, DataLakeConfigBean.ADLS_CONFIG_CLIENT_KEY, issues);
+    String accountFQDN = resolveCredentialValue(conf.accountFQDN, DataLakeConfigBean.ADLS_CONFIG_ACCOUNT_FQDN, issues);
+
     if (issues.isEmpty()) {
       // connect to ADLS
       try {
-        client = createClient(conf.authTokenEndpoint, conf.clientId, conf.clientKey, conf.accountFQDN);
+        client = createClient(
+          authEndPoint,
+          clientId,
+          clientKey,
+          accountFQDN
+        );
 
         if (conf.checkPermission && !conf.dirPathTemplateInHeader) {
           validatePermission();
@@ -188,7 +190,7 @@ public class DataLakeTarget extends BaseTarget {
     }
 
     if (issues.isEmpty()) {
-      writer = new RecordWriter(
+      generatorManager = new DataLakeGeneratorManager(
           client,
           conf.dataFormat,
           conf.dataFormatConfig,
@@ -202,14 +204,30 @@ public class DataLakeTarget extends BaseTarget {
           conf.maxRecordsPerFile,
           conf.maxFileSize * MEGA_BYTE,
           conf.dataFormatConfig.wholeFileExistsAction,
-          conf.authTokenEndpoint,
-          conf.clientId,
-          conf.clientKey,
+          authEndPoint,
+          clientId,
+          clientKey,
           idleTimeSecs
       );
     }
 
     return issues;
+  }
+
+  private String resolveCredentialValue(CredentialValue credentialValue, String configName, List<ConfigIssue> issues) {
+    try {
+      return credentialValue.get();
+    } catch (StageException e) {
+      LOG.error(Errors.ADLS_15.getMessage(), e.toString(), e);
+      issues.add(getContext().createConfigIssue(
+          Groups.DATALAKE.name(),
+          configName,
+          Errors.ADLS_15,
+          e.toString()
+      ));
+    }
+
+    return null;
   }
 
   ADLStoreClient createClient(String authTokenEndpoint, String clientId, String clientKey, String accountFQDN)
@@ -221,34 +239,28 @@ public class DataLakeTarget extends BaseTarget {
 
   @Override
   public void destroy() {
-    super.destroy();
-    try {
-      if(writer != null) {
-        try {
-          writer.close();
-        } catch (StageException | IOException ex) {
-          String errorMessage = ex.toString();
-          if (ex instanceof ADLException) {
-            errorMessage = ex.getMessage();
-            if (errorMessage == null) {
-              errorMessage = ((ADLException) ex).remoteExceptionMessage;
-            }
+    if (generatorManager != null) {
+      try {
+        generatorManager.closeAll();
+        generatorManager.issueCachedEvents();
+      } catch (StageException | IOException ex) {
+        String errorMessage = ex.toString();
+        if (ex instanceof ADLException) {
+          errorMessage = ex.getMessage();
+          if (errorMessage == null) {
+            errorMessage = ((ADLException) ex).remoteExceptionMessage;
           }
-          LOG.error(Errors.ADLS_04.getMessage(), errorMessage, ex);
         }
+        LOG.error(Errors.ADLS_04.getMessage(), errorMessage, ex);
       }
-
-      if (scheduledExecutor != null && !scheduledExecutor.isTerminated()) {
-        scheduledExecutor.shutdown();
-
-        while (!scheduledExecutor.isShutdown()) {
-          Thread.sleep(100);
-        }
-      }
-    } catch (InterruptedException ex) {
-      LOG.error("interrupted: {}", ex.toString(), ex);
-      Thread.currentThread().interrupt();
     }
+
+    if (scheduledExecutor != null && !scheduledExecutor.isTerminated()) {
+      scheduledExecutor.shutdown();
+      scheduledExecutor = null;
+    }
+
+    super.destroy();
   }
 
   @Override
@@ -263,7 +275,7 @@ public class DataLakeTarget extends BaseTarget {
     for (Map.Entry<String, List<Record>> entry : recordsPerFile.entrySet()) {
       String filePath = entry.getKey();
       List<Record> records = entry.getValue();
-      Callable<List<OnRecordErrorException>> worker = new DataLakeWriterThread(writer, filePath, records);
+      Callable<List<OnRecordErrorException>> worker = new DataLakeWriterThread(generatorManager, filePath, records);
       Future<List<OnRecordErrorException>> future = scheduledExecutor.submit(worker);
       futures.add(future);
     }
@@ -291,7 +303,7 @@ public class DataLakeTarget extends BaseTarget {
     }
 
     try {
-      writer.issueCachedEvents();
+      generatorManager.issueCachedEvents();
     } catch (IOException ex) {
       throw new StageException(Errors.ADLS_12, String.valueOf(ex), ex);
     }
@@ -307,14 +319,14 @@ public class DataLakeTarget extends BaseTarget {
       Record record = recordIterator.next();
 
       try {
-        Date recordTime = writer.getRecordTime(timeDriverEval, timeDriverVars, conf.timeDriver, record);
+        Date recordTime = ELUtils.getRecordTime(timeDriverEval, timeDriverVars, conf.timeDriver, record);
 
         if (recordTime == null) {
           LOG.error(Errors.ADLS_07.getMessage(), conf.timeDriver);
           errorRecordHandler.onError(new OnRecordErrorException(record, Errors.ADLS_07, conf.timeDriver));
         }
 
-        String filePath = writer.getFilePath(
+        String filePath = generatorManager.getFilePath(
             conf.dirPathTemplate,
             record,
             recordTime

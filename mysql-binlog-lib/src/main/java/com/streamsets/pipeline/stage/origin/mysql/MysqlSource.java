@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 public abstract class MysqlSource extends BaseSource {
   private static final Logger LOG = LoggerFactory.getLogger(MysqlSource.class);
 
+  private static final String CONFIG_PREFIX = "config.";
   private BinaryLogConsumer consumer;
 
   private BinaryLogClient client;
@@ -93,14 +94,13 @@ public abstract class MysqlSource extends BaseSource {
     // we don't reuse this client later on, it is used just to check that client can connect, it
     // is immediately closed after connection.
     BinaryLogClient tmpClient = createBinaryLogClient();
-    tmpClient.setServerId(serverId);
     try {
       tmpClient.setKeepAlive(false);
       tmpClient.connect(getConfig().connectTimeout);
     } catch (IOException | TimeoutException e) {
       LOG.error("Error connecting to MySql binlog: {}", e.getMessage(), e);
       issues.add(getContext().createConfigIssue(
-          Groups.MYSQL.name(), null, Errors.MYSQL_003, e.getMessage(), e
+          Groups.MYSQL.name(), CONFIG_PREFIX + "hostname", Errors.MYSQL_003, e.getMessage(), e
       ));
     } finally {
       try {
@@ -117,7 +117,7 @@ public abstract class MysqlSource extends BaseSource {
     } catch (IllegalArgumentException e) {
       LOG.error("Error creating include tables filter: {}", e.getMessage(), e);
       issues.add(getContext().createConfigIssue(
-          Groups.ADVANCED.name(), "includeTables", Errors.MYSQL_008, e.getMessage(), e
+          Groups.ADVANCED.name(), CONFIG_PREFIX  + "includeTables", Errors.MYSQL_008, e.getMessage(), e
       ));
     }
 
@@ -127,7 +127,7 @@ public abstract class MysqlSource extends BaseSource {
     } catch (IllegalArgumentException e) {
       LOG.error("Error creating ignore tables filter: {}", e.getMessage(), e);
       issues.add(getContext().createConfigIssue(
-          Groups.ADVANCED.name(), "ignoreTables", Errors.MYSQL_007, e.getMessage(), e
+          Groups.ADVANCED.name(), CONFIG_PREFIX + "ignoreTables", Errors.MYSQL_007, e.getMessage(), e
       ));
     }
 
@@ -168,6 +168,7 @@ public abstract class MysqlSource extends BaseSource {
     } else {
       binLogClient.setSSLMode(SSLMode.DISABLED);
     }
+    binLogClient.setServerId(serverId);
     return binLogClient;
   }
 
@@ -309,8 +310,10 @@ public abstract class MysqlSource extends BaseSource {
         }
       }
 
-      client.setKeepAlive(true);
-      client.setKeepAliveInterval(getConfig().connectTimeout);
+      client.setKeepAlive(getConfig().enableKeepAlive);
+      if (getConfig().enableKeepAlive) {
+        client.setKeepAliveInterval(getConfig().keepAliveInterval);
+      }
       registerClientLifecycleListener();
       client.registerEventListener(consumer);
       client.connect(getConfig().connectTimeout);

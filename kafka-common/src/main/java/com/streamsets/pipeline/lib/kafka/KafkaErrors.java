@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,6 +51,7 @@ public enum KafkaErrors implements ErrorCode {
   KAFKA_42("Could not get partition count for topic '{}'"),
   KAFKA_43("Schema Registry URLs must be configured to use Confluent Deserializer"),
   KAFKA_44("Confluent Avro Deserializer not supported by this version of Kafka."),
+  KAFKA_74("Message payload cannot be null"),
 
   //Kafka target messages
   KAFKA_50("Error writing data to the Kafka broker: {}"),

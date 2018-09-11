@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +32,7 @@ public enum Errors implements ErrorCode {
   SYSLOG_08("Corrupt message: bad timestamp format, invalid timezone: '{}'"),
   SYSLOG_09("Not a valid RFC5424 timestamp: '{}'"),
   SYSLOG_10("Not a valid RFC3164 timestamp: '{}'"),
+  SYSLOG_20("Error parsing Syslog message: '{}'"),
   ;
 
   private final String msg;

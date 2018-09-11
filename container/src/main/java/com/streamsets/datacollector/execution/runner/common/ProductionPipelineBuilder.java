@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,9 @@
  */
 package com.streamsets.datacollector.execution.runner.common;
 
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.PipelineConfiguration;
-import com.streamsets.datacollector.creation.PipelineBeanCreator;
-import com.streamsets.datacollector.creation.PipelineConfigBean;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.runner.Observer;
@@ -30,8 +30,6 @@ import com.streamsets.datacollector.runner.production.ProductionSourceOffsetTrac
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
-import com.streamsets.datacollector.util.ValidationUtil;
-import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
 import com.streamsets.pipeline.api.OffsetCommitter;
 import com.streamsets.pipeline.api.StageException;
@@ -39,7 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Named;
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class ProductionPipelineBuilder {
@@ -51,6 +50,7 @@ public class ProductionPipelineBuilder {
   private final String rev;
   private final Configuration configuration;
   private final RuntimeInfo runtimeInfo;
+  private final BlobStoreTask blobStoreTask;
   private final LineagePublisherTask lineagePublisherTask;
 
   private final ProductionPipelineRunner runner;
@@ -64,6 +64,7 @@ public class ProductionPipelineBuilder {
       StageLibraryTask stageLib,
       ProductionPipelineRunner runner,
       Observer observer,
+      BlobStoreTask blobStoreTask,
       LineagePublisherTask lineagePublisherTask
   ) {
     this.name = name;
@@ -73,23 +74,29 @@ public class ProductionPipelineBuilder {
     this.stageLib = stageLib;
     this.runner = runner;
     this.observer = observer;
+    this.blobStoreTask = blobStoreTask;
     this.lineagePublisherTask = lineagePublisherTask;
-  }
-
-  public ProductionPipeline build(UserContext userContext, PipelineConfiguration pipelineConf) throws PipelineRuntimeException, StageException {
-    return build(userContext, pipelineConf, null);
   }
 
   public ProductionPipeline build(
       UserContext userContext,
       PipelineConfiguration pipelineConf,
+      long startTime
+  ) throws PipelineRuntimeException, StageException {
+    return build(userContext, pipelineConf, startTime, Collections.emptyList(), null);
+  }
+
+  public ProductionPipeline build(
+      UserContext userContext,
+      PipelineConfiguration pipelineConf,
+      long startTime,
+      List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs,
       Map<String, Object> runtimeParameters
   ) throws PipelineRuntimeException, StageException {
     PipelineConfigurationValidator validator = new PipelineConfigurationValidator(stageLib, name, pipelineConf);
     pipelineConf = validator.validate();
     if (validator.getIssues().hasIssues()) {
-      throw new PipelineRuntimeException(ContainerError.CONTAINER_0158, ValidationUtil.getFirstIssueAsString(name,
-        validator.getIssues()));
+      throw new PipelineRuntimeException(ContainerError.CONTAINER_0158, validator.getIssues().getIssues().size());
     }
     Pipeline pipeline = new Pipeline.Builder(
         stageLib,
@@ -99,7 +106,10 @@ public class ProductionPipelineBuilder {
         rev,
         userContext,
         pipelineConf,
-        lineagePublisherTask
+        startTime,
+        blobStoreTask,
+        lineagePublisherTask,
+        interceptorConfs
     ).setObserver(observer).build(runner, runtimeParameters);
 
     SourceOffsetTracker sourceOffsetTracker;
@@ -110,8 +120,16 @@ public class ProductionPipelineBuilder {
       sourceOffsetTracker = new ProductionSourceOffsetTracker(name, rev, runtimeInfo);
     }
     runner.setOffsetTracker(sourceOffsetTracker);
-    PipelineConfigBean pipelineConfigBean = PipelineBeanCreator.get().create(pipelineConf, new ArrayList<Issue>());
-    return new ProductionPipeline(name, rev, pipelineConf, configuration, pipeline, pipelineConfigBean.shouldRetry);
+    runner.setPipelineStartTime(startTime);
+    runner.setParameters(pipeline.getPipelineConfig().constants);
+    return new ProductionPipeline(
+        name,
+        rev,
+        pipelineConf,
+        configuration,
+        pipeline,
+        pipeline.getPipelineConfig().shouldRetry
+    );
   }
 
 }

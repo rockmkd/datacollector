@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -91,8 +92,18 @@ public class CsvParser implements Closeable, AutoCloseable {
         headers = null;
       }
     }
+    fixNullHeaderNames();
   }
 
+  private void fixNullHeaderNames() {
+    // makes sure any blank column names in the header get replaced with an incremental string value
+    if (headers == null) return;
+    for (int x=0; x < headers.length; x++) {
+      if (StringUtils.isEmpty(headers[x])) {
+        headers[x] = "empty-" + x;
+      }
+    }
+  }
   private long skipLines(Reader reader, int lines) throws IOException {
     int count = 0;
     int skipped = 0;
@@ -115,7 +126,19 @@ public class CsvParser implements Closeable, AutoCloseable {
   }
 
   protected CSVRecord nextRecord() throws IOException {
-    return (iterator.hasNext()) ? iterator.next() : null;
+    // Since  the iterator interface doesn't allow  any checked exceptions the underlying CVS library will
+    // re-throw any IOException  as IllegalStateException. We catch it here and unwrap it. If the cause is
+    // in fact IOException we simply throw that exception instead.
+    try {
+      return (iterator.hasNext()) ? iterator.next() : null;
+    } catch (IllegalStateException  e) {
+      Throwable cause = e.getCause();
+      if(cause instanceof IOException) {
+        throw (IOException)cause;
+      }
+
+      throw e;
+    }
   }
 
   public String[] getHeaders() throws IOException {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@ public enum Errors implements ErrorCode {
   FORCE_03("Batch failed: {}"),
   FORCE_04("Record read failed: {}"),
   FORCE_05("Get query result failed: {}"),
-  FORCE_06("Can't find offset column in result header: {}"),
+  FORCE_06("Can't find offset column '{}' in result header: {}"),
   FORCE_07("SOQL query must include '{}' in WHERE clause and in ORDER BY clause before other columns."),
   FORCE_08("Error querying SOAP API: {}"),
   FORCE_09("Streaming API Error: {}"),
@@ -46,6 +46,21 @@ public enum Errors implements ErrorCode {
   FORCE_22("Can't find offset column {} in the returned data. Ensure it is present in the query."),
   FORCE_23("Unsupported operation in record header: {}"),
   FORCE_24("Invalid External ID Field expression '{}': {}"),
+  FORCE_25("Preview timed out before the origin retrieved data. Try increasing the timeout."),
+  FORCE_26("Pipeline was stopped as the origin was retrieving data."),
+  FORCE_27("Error parsing SOQL query {}"),
+  FORCE_28("Error retrieving data: {}"),
+  FORCE_29("Malformed ID: {}"),
+  FORCE_30("Invalid field name: {}"),
+  FORCE_31("SOQL query can't include ORDER BY clause when PK Chunking is enabled."),
+  FORCE_32("SOQL query can't use Id field in a WHERE clause when PK Chunking is enabled."),
+  FORCE_33("Can't repeat an incremental query when PK Chunking is enabled."),
+  FORCE_34("Can't create HTTP client"),
+  FORCE_35("Record ID missing"),
+  FORCE_36("Exception creating XMLEventReader"),
+  FORCE_37("Exception reading XML Stream"),
+  FORCE_38("No type on XML Record"),
+  FORCE_39("Unexpected end of XML Stream"),
   ;
   private final String msg;
 

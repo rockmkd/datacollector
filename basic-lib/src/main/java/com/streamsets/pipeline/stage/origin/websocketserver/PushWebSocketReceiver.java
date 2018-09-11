@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,11 +19,17 @@ import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
+import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
+import com.streamsets.pipeline.lib.microservice.ResponseConfigBean;
 import com.streamsets.pipeline.lib.parser.DataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.parser.DataParserFactory;
+import com.streamsets.pipeline.lib.websocket.WebSocketCommon;
 import com.streamsets.pipeline.stage.origin.httpserver.Errors;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
+import org.apache.commons.collections.CollectionUtils;
+import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.servlet.ServletUpgradeRequest;
 import org.eclipse.jetty.websocket.servlet.ServletUpgradeResponse;
 
@@ -46,10 +52,17 @@ public class PushWebSocketReceiver implements WebSocketReceiver {
   private PushSource.Context context;
   private DataParserFactory parserFactory;
   private AtomicLong counter = new AtomicLong();
+  private final ResponseConfigBean responseConfig;
+  private DataGeneratorFactory dataGeneratorFactory;
 
-  PushWebSocketReceiver(WebSocketConfigs webSocketConfigs, DataParserFormatConfig dataParserFormatConfig) {
+  PushWebSocketReceiver(
+      WebSocketConfigs webSocketConfigs,
+      DataParserFormatConfig dataParserFormatConfig,
+      ResponseConfigBean responseConfig
+  ) {
     this.webSocketConfigs = webSocketConfigs;
     this.dataParserFormatConfig = dataParserFormatConfig;
+    this.responseConfig = responseConfig;
   }
 
   public PushSource.Context getContext() {
@@ -68,6 +81,7 @@ public class PushWebSocketReceiver implements WebSocketReceiver {
     } else {
       maxRequestSize = maxRequestSizeMB * 1000 * 1000;
     }
+    dataGeneratorFactory = responseConfig.dataGeneratorFormatConfig.getDataGeneratorFactory();
     return issues;
   }
 
@@ -77,7 +91,7 @@ public class PushWebSocketReceiver implements WebSocketReceiver {
   }
 
   @Override
-  public String getAppId() {
+  public CredentialValue getAppId() {
     return webSocketConfigs.getAppId();
   }
 
@@ -102,26 +116,26 @@ public class PushWebSocketReceiver implements WebSocketReceiver {
   }
 
   @Override
-  public boolean process(byte[] payload, int offset, int len) throws IOException {
+  public boolean process(Session session, byte[] payload, int offset, int len) throws IOException {
     String requestId = System.currentTimeMillis() + "." + counter.getAndIncrement();
     try (DataParser parser = parserFactory.getParser(requestId, payload, offset, len)) {
-      return process(parser);
+      return process(session, parser);
     } catch (DataParserException ex) {
       throw new IOException(ex);
     }
   }
 
   @Override
-  public boolean process(String message) throws IOException {
+  public boolean process(Session session, String message) throws IOException {
     String requestId = System.currentTimeMillis() + "." + counter.getAndIncrement();
     try (DataParser parser = parserFactory.getParser(requestId, message)) {
-      return process(parser);
+      return process(session, parser);
     } catch (DataParserException ex) {
       throw new IOException(ex);
     }
   }
 
-  private boolean process(DataParser parser) throws IOException, DataParserException {
+  private boolean process(Session session, DataParser parser) throws IOException, DataParserException {
     BatchContext batchContext = getContext().startBatch();
     List<Record> records = new ArrayList<>();
     Record parsedRecord = parser.parse();
@@ -135,6 +149,20 @@ public class PushWebSocketReceiver implements WebSocketReceiver {
       batchContext.getBatchMaker().addRecord(record);
     }
 
-    return getContext().processBatch(batchContext);
+    boolean returnValue =  getContext().processBatch(batchContext);
+
+    // Send response
+    List<Record> sourceResponseRecords = batchContext.getSourceResponseRecords();
+    if (CollectionUtils.isNotEmpty(sourceResponseRecords)) {
+      WebSocketCommon.sendOriginResponseToWebSocketClient(
+          session,
+          getContext(),
+          parserFactory,
+          dataGeneratorFactory,
+          sourceResponseRecords
+      );
+    }
+
+    return returnValue;
   }
 }

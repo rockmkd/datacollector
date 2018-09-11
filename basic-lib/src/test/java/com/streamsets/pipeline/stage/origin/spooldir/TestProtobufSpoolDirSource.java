@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,12 +23,18 @@ import com.streamsets.pipeline.config.Compression;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.OnParseError;
 import com.streamsets.pipeline.config.PostProcessingOptions;
+import com.streamsets.pipeline.lib.dirspooler.LocalFileSystem;
+import com.streamsets.pipeline.lib.dirspooler.Offset;
 import com.streamsets.pipeline.lib.dirspooler.PathMatcherMode;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirRunnable;
+import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +43,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class TestProtobufSpoolDirSource {
+  private static final int threadNumber = 0;
+  private static final int batchSize = 10;
+  private static final Map<String, Offset> lastSourceOffset = new HashMap<>();
 
   private static String TEST_PROTOBUF_FILE = Resources.getResource("TestProtobuf3.ser").getPath();
   private static String TEST_DESCRIPTOR_FILE = Resources.getResource("TestRecordProtobuf3.desc").getPath();
@@ -67,11 +76,12 @@ public class TestProtobufSpoolDirSource {
   @Test
   public void testProduceFullFile() throws Exception {
     SpoolDirSource source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      assertEquals("-1", source.produce(new File(TEST_PROTOBUF_FILE), null, 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      assertEquals("-1", runnable.generateBatch(new LocalFileSystem("*", PathMatcherMode.GLOB).getFile(TEST_PROTOBUF_FILE), null, 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       assertNotNull(records);

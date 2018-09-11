@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,6 @@ import com.streamsets.datacollector.runner.StageRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.security.auth.Subject;
 import javax.security.auth.SubjectDomainCombiner;
 import java.lang.instrument.Instrumentation;
 import java.lang.ref.PhantomReference;
@@ -28,15 +27,9 @@ import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.DomainCombiner;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.List;
 import java.util.Vector;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -49,7 +42,6 @@ public class MemoryUsageCollector {
   private static final boolean IS_TRACE_ENABLED = LOG.isTraceEnabled();
   private static final Field[] EMPTY_FIELD_ARRAY = new Field[0];
   private static final Field CLASSLOADER_CLASSES_FIELD;
-  private static final Field SUBJECT_DOMAIN_COMBINER_INTERNAL_LOCK;
   private static Instrumentation sharedInstrumentation;
   private static final ConcurrentMap<Class, Field[]> classToFieldCache = new ConcurrentHashMap<>();
   private final Instrumentation instrumentation;
@@ -88,7 +80,6 @@ public class MemoryUsageCollector {
       String msg = "Could not obtain internal SubjectDomainCombiner lock. Error: " + e;
       LOG.error(msg, e);
     }
-    SUBJECT_DOMAIN_COMBINER_INTERNAL_LOCK = subjectDomainInternalLock;
   }
 
   public synchronized static void initialize(Instrumentation sharedInstrumentation) {
@@ -310,43 +301,14 @@ public class MemoryUsageCollector {
       return result;
     }
     try {
-      if (MultipleMonitorLocker.isEnabled()) {
-        // Per SDC-1395 this code is to work around a deadlock
-        // in the security manager. Needs to go around any code
-        // in the this class which invokes the security manager
-        List<Object> locks = new ArrayList<>();
-        AccessControlContext context = AccessController.getContext();
-        Subject activeSubject = Subject.getSubject(context);
-        if (activeSubject != null) {
-          locks.add(activeSubject.getPrincipals());
-          if (SUBJECT_DOMAIN_COMBINER_INTERNAL_LOCK != null) {
-            DomainCombiner domainCombiner = context.getDomainCombiner();
-            if (domainCombiner instanceof SubjectDomainCombiner) {
-              locks.add(SUBJECT_DOMAIN_COMBINER_INTERNAL_LOCK.get(domainCombiner));
-            }
-          }
+      result = clz.getDeclaredFields();
+      for (Field field : result) {
+        if (!field.isAccessible()) {
+          field.setAccessible(true);
         }
-        while (result == null) {
-          result = MultipleMonitorLocker.lock(locks, new Callable<Field[]>() {
-            @Override
-            public Field[] call() throws Exception {
-              Field[] result = clz.getDeclaredFields();
-              for (Field field : result) {
-                if (!field.isAccessible()) {
-                  field.setAccessible(true);
-                }
-              }
-              classToFieldCache.putIfAbsent(clz, result);
-              return result;
-            }
-          });
-          if (result == null) {
-            LOG.debug("Could not obtain locks for '{}' retrying in 100ms", clz.getName());
-            Thread.sleep(10);
-          }
-        }
-        return result;
       }
+      classToFieldCache.putIfAbsent(clz, result);
+      return result;
     } catch (Throwable error) {
       if (IS_TRACE_ENABLED) {
         LOG.trace("Error getting fields from {}: {}", clz.getName(), error.toString(), error);
@@ -354,7 +316,7 @@ public class MemoryUsageCollector {
       // eek too bad there is no better way to do this other than importing the asm library:
       // https://bukkit.org/threads/reflecting-fields-that-have-classes-from-unloaded-plugins.160959/
       if (error instanceof OutOfMemoryError) {
-        throw (OutOfMemoryError)error;
+        throw (OutOfMemoryError) error;
       }
     }
     return EMPTY_FIELD_ARRAY;

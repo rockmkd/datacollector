@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,6 +42,8 @@ public abstract class AbstractSSOService implements SSOService {
   private String logoutUrl;
   private PrincipalCache userPrincipalCache;
   private PrincipalCache appPrincipalCache;
+
+  protected RegistrationResponseDelegate registrationResponseDelegate;
 
   @Override
   public void setDelegateTo(SSOService ssoService) {
@@ -147,6 +149,11 @@ public abstract class AbstractSSOService implements SSOService {
     getUserPrincipalCache().clear();
     getAppPrincipalCache().clear();
     LOG.info("Flushed user and application principal caches");
+  }
+
+  @Override
+  public void setRegistrationResponseDelegate(RegistrationResponseDelegate delegate) {
+    this.registrationResponseDelegate = delegate;
   }
 
   // returns principal if OK, throws ForbiddenException if invalid credentials (will add to invalid cache) or

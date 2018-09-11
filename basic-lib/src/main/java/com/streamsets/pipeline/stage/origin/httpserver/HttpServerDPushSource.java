@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,19 +24,22 @@ import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DPushSource;
 import com.streamsets.pipeline.config.DataFormat;
-import com.streamsets.pipeline.configurablestage.DPushSource;
+import com.streamsets.pipeline.lib.http.DataFormatChooserValues;
 import com.streamsets.pipeline.lib.httpsource.RawHttpConfigs;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
+
+import static com.streamsets.pipeline.config.OriginAvroSchemaSource.SOURCE;
 
 @StageDef(
     version = 10,
     label = "HTTP Server",
     description = "Listens for requests on an HTTP endpoint",
     icon="httpserver_multithreaded.png",
-    execution = ExecutionMode.STANDALONE,
+    execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/HTTPServer.html#task_pgw_b3b_4y",
+    onlineHelpRefUrl ="index.html?contextID=task_pgw_b3b_4y",
     upgrader = HttpServerPushSourceUpgrader.class
 )
 @ConfigGroups(Groups.class)
@@ -82,6 +85,9 @@ public class HttpServerDPushSource extends DPushSource {
 
   @Override
   protected PushSource createPushSource() {
+    if (dataFormat == DataFormat.AVRO) {
+      dataFormatConfig.avroSchemaSource = SOURCE;
+    }
     return new HttpServerPushSource(httpConfigs, maxRequestSizeMB, dataFormat, dataFormatConfig);
   }
 

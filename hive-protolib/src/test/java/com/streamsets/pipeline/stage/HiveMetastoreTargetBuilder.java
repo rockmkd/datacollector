@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,7 +47,7 @@ public class HiveMetastoreTargetBuilder {
     HMSTargetConfigBean config = new HMSTargetConfigBean();
     config.storedAsAvro = storedAsAvro;
     config.hdfsUser = hdfsUser;
-    config.hiveConfigBean = BaseHiveIT.getHiveConfigBean();
+    config.hiveConfigBean = HiveTestUtil.getHiveConfigBean();
     config.schemaFolderLocation = schemaFolderLocation;
     return new HiveMetastoreTarget(config);
   }

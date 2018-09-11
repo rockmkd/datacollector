@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,6 @@ import javax.security.auth.login.LoginException;
 import javax.security.auth.kerberos.KerberosTicket;
 import javax.security.auth.Subject;
 
-import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.security.JaasUtils;
 import org.apache.kafka.common.security.authenticator.AbstractLogin;
 import org.apache.kafka.common.config.SaslConfigs;

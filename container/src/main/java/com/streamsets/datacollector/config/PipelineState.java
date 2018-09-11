@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,10 +25,12 @@ public enum PipelineState implements Label, Serializable {
   RUNNING("Running"),
   START_ERROR("Start Error"),
   RUN_ERROR("Run Error"),
+  RUNNING_ERROR("Running Error"),
   STOPPED("Stopped"),
   FINISHED("Finished"),
   DISCONNECTED("Disconnected"),
   CONNECTING("Connecting"),
+  STOP_ERROR("Stop Error"),
 
   ;
 

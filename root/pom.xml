@@ -23,12 +23,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root-proto</artifactId>
-    <version>2.7.0.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <relativePath>../root-proto</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-root</artifactId>
-  <version>2.7.0.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Root POM</description>
   <name>StreamSets Data Collector Root POM</name>
   <packaging>pom</packaging>
@@ -61,18 +61,19 @@
     <commons-beanutils.version>1.9.3</commons-beanutils.version>
     <commons-cli.version>1.2</commons-cli.version>
     <commons-codec.version>1.10</commons-codec.version>
+    <commons-compress.version>1.16.1</commons-compress.version>
     <commons-configuration.version>2.0</commons-configuration.version>
-    <commons-csv.version>1.4</commons-csv.version>
+    <commons-csv.version>1.5</commons-csv.version>
     <commons-el.version>1.0</commons-el.version>
     <commons-io.version>2.4</commons-io.version>
     <commons-pool.version>2.4.1</commons-pool.version>
     <dagger.version>1.2.2</dagger.version>
     <google.http.version>1.22.0</google.http.version>
     <guava.version>18.0</guava.version>
-    <hk2-api.version>2.4.0-b34</hk2-api.version>
+    <hk2-api.version>2.5.0-b32</hk2-api.version>
     <httpclient.version>4.5.2</httpclient.version>
     <icegreen.version>1.4.0</icegreen.version>
-    <javassist.version>3.19.0-GA</javassist.version>
+    <javassist.version>3.21.0-GA</javassist.version>
     <javax.inject.version>1</javax.inject.version>
     <javax.mail.version>1.4.7</javax.mail.version>
     <jaxrpc.version>2.0.1</jaxrpc.version>
@@ -83,10 +84,14 @@
     <kryo.version>3.0.1</kryo.version> <!-- old versions of cdh use this -->
     <minikdc-hadoop.version>2.6.0</minikdc-hadoop.version>
     <minikdc-jdbm1.version>2.0.0-M3</minikdc-jdbm1.version>
-    <mockserver.version>3.10.4</mockserver.version>
+    <mockserver.version>3.10.8</mockserver.version>
     <selma.version>0.13</selma.version>
     <servlet.version>3.1.0</servlet.version>
-    <swagger.version>1.5.3</swagger.version>
+    <!-- Swagger starting on version 1.5.14 depends on reflections 0.9.11 that in turns
+         require guava on at least version 20. Since we mostly use 18 across our project
+         we can't upgrade swagger before we upgrade guava -->
+    <swagger.version>1.5.13</swagger.version>
+    <commons-lang3.version>3.4</commons-lang3.version>
   </properties>
 
   <dependencyManagement>
@@ -137,28 +142,38 @@
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-client-api</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-basic-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-crypto-lib</artifactId>
+        <version>3.0.0.0-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-stats-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-omniture-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-jdbc-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-jms-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
@@ -168,7 +183,7 @@
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-rabbitmq-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
@@ -178,182 +193,274 @@
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_4-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_5-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_7-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_8-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_9-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_10-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_5_11-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-cdh_5_12-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-cdh_5_13-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-cdh_5_14-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-guavasupport</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-hdp_2_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-hdp_2_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_3-hive1-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-hdp_2_4-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_4-hive1-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-hdp_2_5-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_5-flume-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-hdp_2_6-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_6_1-hive1-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_6_2-hive1-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_6-hive2-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-hdp_2_6-flume-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-mapr_5_0-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kudu_1_0-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kudu_1_1-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kudu_1_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kudu_1_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-apache-kudu_1_4-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kafka_0_8_1-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kafka_0_8_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kafka_0_9-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-apache-kafka_0_10-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-apache-kafka_0_11-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-apache-kafka_1_0-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_kafka_1_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_kafka_1_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_kafka_2_0-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cdh_kafka_2_1-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-cdh_kafka_3_0-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-jython_2_7-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-groovy_2_4-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
+
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-kinetica_6_0-lib</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-elasticsearch_5-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-cassandra_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-mongodb_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-bigtable-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-google-cloud-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-influxdb_0_9-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-redis-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-aws-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-dataformats-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
@@ -387,58 +494,38 @@
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
+        <artifactId>streamsets-datacollector-mapr-cluster-bootstrap_2_2</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-mesos-bootstrap</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_4-cluster-cdh_kafka_1_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <artifactId>streamsets-datacollector-cdh-spark_2_1-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_4-cluster-cdh_kafka_1_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <artifactId>streamsets-datacollector-cdh-spark_2_2-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_5-cluster-cdh_kafka_1_3-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
-      </dependency>
-      <dependency>
-        <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_7-cluster-cdh_kafka_2_0-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
-      </dependency>
-      <dependency>
-        <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_8-cluster-cdh_kafka_2_0-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
-      </dependency>
-      <dependency>
-        <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_9-cluster-cdh_kafka_2_0-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
-      </dependency>
-      <dependency>
-        <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_10-cluster-cdh_kafka_2_1-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
-      </dependency>
-      <dependency>
-        <groupId>com.streamsets</groupId>
-        <artifactId>streamsets-datacollector-cdh_5_11-cluster-cdh_kafka_2_1-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <artifactId>streamsets-datacollector-cdh-spark_2_3-lib</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-mapr_5_1-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-mapr_5_2-lib</artifactId>
-        <version>2.7.0.0-SNAPSHOT</version>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>com.streamsets</groupId>
@@ -627,34 +714,9 @@
         <version>${slf4j.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.glassfish.jersey.core</groupId>
-        <artifactId>jersey-server</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.glassfish.jersey.core</groupId>
-        <artifactId>jersey-client</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.glassfish.jersey.media</groupId>
-        <artifactId>jersey-media-multipart</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
         <groupId>javax.ws.rs</groupId>
         <artifactId>javax.ws.rs-api</artifactId>
         <version>${jaxrpc.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.glassfish.jersey.containers</groupId>
-        <artifactId>jersey-container-servlet</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.glassfish.jersey.containers</groupId>
-        <artifactId>jersey-container-servlet-core</artifactId>
-        <version>${jersey.version}</version>
       </dependency>
 
       <dependency>
@@ -671,6 +733,11 @@
         <groupId>commons-codec</groupId>
         <artifactId>commons-codec</artifactId>
         <version>${commons-codec.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-compress</artifactId>
+        <version>${commons-compress.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-cli</groupId>
@@ -693,21 +760,6 @@
         <version>${commons-beanutils.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.glassfish.jersey.media</groupId>
-        <artifactId>jersey-media-json-jackson</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.glassfish.jersey.test-framework.providers</groupId>
-        <artifactId>jersey-test-framework-provider-inmemory</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.glassfish.jersey.test-framework</groupId>
-        <artifactId>jersey-test-framework-core</artifactId>
-        <version>${jersey.version}</version>
-      </dependency>
-      <dependency>
         <groupId>javax.servlet.jsp</groupId>
         <artifactId>jsp-api</artifactId>
         <version>${jps-api.version}</version>
@@ -721,6 +773,11 @@
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-csv</artifactId>
         <version>${commons-csv.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>${commons-lang3.version}</version>
       </dependency>
       <dependency>
         <groupId>javax.mail</groupId>

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,9 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.Executor;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.ListBeanModel;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DExecutor;
+import com.streamsets.pipeline.api.base.configurablestage.DExecutor;
 
 import java.util.List;
 
@@ -30,10 +31,11 @@ import java.util.List;
     label="Email Executor",
     description = "Sends emails upon receipt of specific events",
     icon="envelope.png",
-    onlineHelpRefUrl = "index.html#Executors/Email.html#task_pyx_tfp_qz"
+    onlineHelpRefUrl ="index.html?contextID=task_pyx_tfp_qz"
 )
 
 @ConfigGroups(Groups.class)
+@PipelineLifecycleStage
 @GenerateResourceBundle
 public class EmailDExecutor extends DExecutor {
   @ConfigDef(

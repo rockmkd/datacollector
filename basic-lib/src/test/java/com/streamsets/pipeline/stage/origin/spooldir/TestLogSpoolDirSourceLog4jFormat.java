@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,10 +23,16 @@ import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.LogMode;
 import com.streamsets.pipeline.config.OnParseError;
 import com.streamsets.pipeline.config.PostProcessingOptions;
+import com.streamsets.pipeline.lib.dirspooler.LocalFileSystem;
+import com.streamsets.pipeline.lib.dirspooler.Offset;
 import com.streamsets.pipeline.lib.dirspooler.PathMatcherMode;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirRunnable;
 import com.streamsets.pipeline.lib.parser.log.Constants;
+import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.lib.dirspooler.WrappedFile;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -34,10 +40,16 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.Writer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class TestLogSpoolDirSourceLog4jFormat {
+  private static final int threadNumber = 0;
+  private static final int batchSize = 10;
+  private static final Map<String, Offset> lastSourceOffset = new HashMap<>();
+
   private String createTestDir() {
     File f = new File("target", UUID.randomUUID().toString());
     Assert.assertTrue(f.mkdirs());
@@ -127,32 +139,32 @@ public class TestLogSpoolDirSourceLog4jFormat {
 
   private static final String LOG_LINE_WITH_STACK_TRACE = DATE_LEVEL_CLASS + ERROR_MSG_WITH_STACK_TRACE;
 
-  private File createLogFile() throws Exception {
+  private WrappedFile createLogFile() throws Exception {
     File f = new File(createTestDir(), "test.log");
     Writer writer = new FileWriter(f);
     IOUtils.write(LINE1 + "\n", writer);
     IOUtils.write(LINE2, writer);
     writer.close();
-    return f;
+    return new LocalFileSystem("*", PathMatcherMode.GLOB).getFile(f.getAbsolutePath());
   }
 
-  private File createLogFileWithStackTrace() throws Exception {
+  private WrappedFile createLogFileWithStackTrace() throws Exception {
     File f = new File(createTestDir(), "test.log");
     Writer writer = new FileWriter(f);
     IOUtils.write(LINE1 + "\n", writer);
     IOUtils.write(LOG_LINE_WITH_STACK_TRACE + "\n", writer);
     IOUtils.write(LINE2, writer);
     writer.close();
-    return f;
+    return new LocalFileSystem("*", PathMatcherMode.GLOB).getFile(f.getAbsolutePath());
   }
 
-  private File createTTCCLogFile() throws Exception {
+  private WrappedFile createTTCCLogFile() throws Exception {
     File f = new File(createTestDir(), "test.log");
     Writer writer = new FileWriter(f);
     IOUtils.write(TTCC_LINE1 + "\n", writer);
     IOUtils.write(TTCC_LINE2, writer);
     writer.close();
-    return f;
+    return new LocalFileSystem("*", PathMatcherMode.GLOB).getFile(f.getAbsolutePath());
   }
 
   private SpoolDirSource createSource(OnParseError onParseError, int maxStackTraceLines) {
@@ -192,11 +204,12 @@ public class TestLogSpoolDirSourceLog4jFormat {
   @Test
   public void testProduceFullFile() throws Exception {
     SpoolDirSource source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      Assert.assertEquals("-1", source.produce(createLogFile(), "0", 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      Assert.assertEquals("-1", runnable.generateBatch(createLogFile(), "0", 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       Assert.assertNotNull(records);
@@ -249,11 +262,12 @@ public class TestLogSpoolDirSourceLog4jFormat {
   @Test
   public void testProduceLessThanFile() throws Exception {
     SpoolDirSource source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      String offset = source.produce(createLogFile(), "0", 1, batchMaker);
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      String offset = runnable.generateBatch(createLogFile(), "0", 1, batchMaker);
       Assert.assertEquals("142", offset);
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
@@ -278,7 +292,7 @@ public class TestLogSpoolDirSourceLog4jFormat {
         record.get("/" + Constants.MESSAGE).getValueAsString());
 
       batchMaker = SourceRunner.createTestBatchMaker("lane");
-      offset = source.produce(createLogFile(), offset, 1, batchMaker);
+      offset = runnable.generateBatch(createLogFile(), offset, 1, batchMaker);
       Assert.assertEquals("283", offset);
       output = SourceRunner.getOutput(batchMaker);
       records = output.getRecords().get("lane");
@@ -304,7 +318,7 @@ public class TestLogSpoolDirSourceLog4jFormat {
         record.get("/" + Constants.MESSAGE).getValueAsString());
 
       batchMaker = SourceRunner.createTestBatchMaker("lane");
-      offset = source.produce(createLogFile(), offset, 1, batchMaker);
+      offset = runnable.generateBatch(createLogFile(), offset, 1, batchMaker);
       Assert.assertEquals("-1", offset);
       output = SourceRunner.getOutput(batchMaker);
       records = output.getRecords().get("lane");
@@ -345,11 +359,12 @@ public class TestLogSpoolDirSourceLog4jFormat {
     conf.dataFormatConfig.maxStackTraceLines = 0;
 
     SpoolDirSource source = new SpoolDirSource(conf);
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      Assert.assertEquals("-1", source.produce(createTTCCLogFile(), "0", 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      Assert.assertEquals("-1", runnable.generateBatch(createTTCCLogFile(), "0", 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       Assert.assertNotNull(records);
@@ -411,11 +426,12 @@ public class TestLogSpoolDirSourceLog4jFormat {
   @Test
   public void testProduceFullFileWithStackTrace() throws Exception {
     SpoolDirSource source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      Assert.assertEquals("-1", source.produce(createLogFileWithStackTrace(), "0", 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      Assert.assertEquals("-1", runnable.generateBatch(createLogFileWithStackTrace(), "0", 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       Assert.assertNotNull(records);
@@ -486,11 +502,12 @@ public class TestLogSpoolDirSourceLog4jFormat {
   @Test
   public void testProduceFullFileWithStackTraceCutShort() throws Exception {
     SpoolDirSource source = createSource(OnParseError.INCLUDE_AS_STACK_TRACE, 10);
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      Assert.assertEquals("-1", source.produce(createLogFileWithStackTrace(), "0", 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      Assert.assertEquals("-1", runnable.generateBatch(createLogFileWithStackTrace(), "0", 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       Assert.assertNotNull(records);
@@ -584,11 +601,12 @@ public class TestLogSpoolDirSourceLog4jFormat {
   @Test(expected = StageException.class)
   public void testTreatStackTraceAsError() throws Exception {
     SpoolDirSource source = createSource(OnParseError.ERROR, 0);
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      source.produce(createLogFileWithStackTrace(), "0", 10, batchMaker);
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      runnable.generateBatch(createLogFileWithStackTrace(), "0", 10, batchMaker);
     } finally {
       runner.runDestroy();
     }

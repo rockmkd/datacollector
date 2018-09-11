@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,15 +15,8 @@
  */
 package com.streamsets.pipeline.stage.origin.websocketserver;
 
-import com.streamsets.pipeline.api.Config;
-import com.streamsets.pipeline.config.upgrade.UpgraderTestUtils;
-import com.streamsets.pipeline.stage.origin.mqtt.MqttClientSourceUpgrader;
 import com.streamsets.pipeline.stage.util.tls.TlsConfigBeanUpgraderTestUtil;
-import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class TestWebSocketServerPushSourceUpgrader {
 

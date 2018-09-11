@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,9 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.Executor;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DExecutor;
+import com.streamsets.pipeline.api.base.configurablestage.DExecutor;
 
 @StageDef(
     version = 2,
@@ -29,13 +30,14 @@ import com.streamsets.pipeline.configurablestage.DExecutor;
     description = "Executes queries against JDBC compliant database",
     upgrader = JdbcQueryExecutorUpgrader.class,
     icon = "rdbms-executor.png",
-    onlineHelpRefUrl = "index.html#Executors/JDBCQuery.html#task_ym2_3cv_sx"
+    onlineHelpRefUrl ="index.html?contextID=task_ym2_3cv_sx"
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
 @HideConfigs(
   "config.hikariConfigBean.readOnly"
 )
+@PipelineLifecycleStage
 public class JdbcQueryDExecutor extends DExecutor {
 
   @ConfigDefBean

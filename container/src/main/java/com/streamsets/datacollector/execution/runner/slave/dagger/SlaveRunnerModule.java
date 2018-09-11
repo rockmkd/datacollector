@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,8 +52,11 @@ public class SlaveRunnerModule {
   }
 
   @Provides
-  public Runner provideAsyncRunner(SlaveStandaloneRunner runner,
-                                        @Named("runnerExecutor") SafeScheduledExecutorService asyncExecutor) {
-    return new AsyncRunner(runner, asyncExecutor);
+  public Runner provideAsyncRunner(
+      SlaveStandaloneRunner runner,
+      @Named("runnerExecutor") SafeScheduledExecutorService asyncExecutor,
+      @Named("runnerStopExecutor") SafeScheduledExecutorService asyncStopExecutor
+  ) {
+    return new AsyncRunner(runner, asyncExecutor, asyncStopExecutor);
   }
 }

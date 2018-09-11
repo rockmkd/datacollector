@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,7 +60,7 @@ public class JdbcMongoDBOplogRecordReader extends JdbcRecordReader {
       if (record.has(fieldPath)) {
         columnsToParameters.put(columnName, parameters.get(columnName));
       } else {
-        LOG.warn("Record is missing a field for column {} for the operation code {}", columnName, op);
+        LOG.trace("Record is missing a field for column {} for the operation code {}", columnName, op);
       }
     }
     return columnsToParameters;

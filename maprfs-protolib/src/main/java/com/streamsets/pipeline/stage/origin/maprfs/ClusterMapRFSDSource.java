@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.origin.maprfs;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedClusterSource;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
@@ -29,9 +28,9 @@ import com.streamsets.pipeline.stage.origin.hdfs.cluster.ClusterHdfsDSource;
     description = "Reads from a MapR filesystem",
     execution = ExecutionMode.CLUSTER_BATCH,
     libJarsRegex = {"avro-\\d+.*", "avro-mapred.*"},
-    icon = "mapr.png",
+    icon = "mapr_xd.png",
     privateClassLoader = false,
-    onlineHelpRefUrl = "index.html#Origins/MapRFS.html#task_h2p_mb4_lx"
+    onlineHelpRefUrl ="index.html?contextID=task_h2p_mb4_lx"
 )
 @HideConfigs(value =
                  {
@@ -49,7 +48,7 @@ public class ClusterMapRFSDSource extends ClusterHdfsDSource {
     if(clusterHDFSConfigBean.hdfsUri == null || clusterHDFSConfigBean.hdfsUri.isEmpty()) {
       clusterHDFSConfigBean.hdfsUri = "maprfs:///";
     }
-    clusterMapRFSSource = new HadoopConfigurationSynchronizedClusterSource(new ClusterMapRFSSource(clusterHDFSConfigBean));
+    clusterMapRFSSource = new ClusterMapRFSSource(clusterHDFSConfigBean);
     return clusterMapRFSSource;
   }
 

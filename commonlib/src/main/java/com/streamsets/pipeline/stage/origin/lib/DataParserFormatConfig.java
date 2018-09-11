@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ import com.google.common.base.Strings;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.Dependency;
 import com.streamsets.pipeline.api.ListBeanModel;
+import com.streamsets.pipeline.api.ProtoConfigurableEntity;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.common.DataFormatConstants;
@@ -36,6 +37,8 @@ import com.streamsets.pipeline.config.CsvRecordTypeChooserValues;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.DatagramMode;
 import com.streamsets.pipeline.config.DatagramModeChooserValues;
+import com.streamsets.pipeline.config.ExcelHeader;
+import com.streamsets.pipeline.config.ExcelHeaderChooserValues;
 import com.streamsets.pipeline.config.JsonMode;
 import com.streamsets.pipeline.config.JsonModeChooserValues;
 import com.streamsets.pipeline.config.LogMode;
@@ -52,6 +55,9 @@ import com.streamsets.pipeline.lib.parser.DataParserFormat;
 import com.streamsets.pipeline.lib.parser.log.LogDataFormatValidator;
 import com.streamsets.pipeline.lib.parser.log.LogDataParserFactory;
 import com.streamsets.pipeline.lib.parser.log.RegExConfig;
+import com.streamsets.pipeline.lib.parser.net.netflow.NetflowDataParserFactory;
+import com.streamsets.pipeline.lib.parser.net.netflow.OutputValuesMode;
+import com.streamsets.pipeline.lib.parser.net.netflow.OutputValuesModeChooserValues;
 import com.streamsets.pipeline.lib.parser.text.TextDataParserFactory;
 import com.streamsets.pipeline.lib.parser.udp.DatagramParserFactory;
 import com.streamsets.pipeline.lib.parser.xml.XmlDataParserFactory;
@@ -74,11 +80,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_ID_KEY;
-import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_KEY;
-import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_REPO_URLS_KEY;
-import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_SOURCE_KEY;
-import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SUBJECT_KEY;
+import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.*;
 import static com.streamsets.pipeline.stage.common.DataFormatErrors.DATA_FORMAT_11;
 
 /**
@@ -272,6 +274,36 @@ public class DataParserFormatConfig implements DataFormatConfig {
 
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Allow Extra Columns",
+      description = "When false, rows with more columns than the header are sent to error.",
+      displayPosition = 385,
+      group = "DATA_FORMAT",
+      dependencies = {
+          @Dependency(configName = "dataFormat^", triggeredByValues = "DELIMITED"),
+          @Dependency(configName = "csvHeader", triggeredByValues = "WITH_HEADER")
+      }
+  )
+  public boolean csvAllowExtraColumns = false;
+
+  @ConfigDef(
+    required = false,
+    type = ConfigDef.Type.STRING,
+    defaultValue = DelimitedDataConstants.DEFAULT_EXTRA_COLUMN_PREFIX,
+    label = "Extra Column Prefix",
+    description = "Each extra column is labeled with this prefix followed by an integer",
+    displayPosition = 386,
+    group = "DATA_FORMAT",
+    dependencies = {
+        @Dependency(configName = "dataFormat^", triggeredByValues = "DELIMITED"),
+        @Dependency(configName = "csvAllowExtraColumns", triggeredByValues = "true")
+    }
+  )
+  public String csvExtraColumnPrefix = DelimitedDataConstants.DEFAULT_EXTRA_COLUMN_PREFIX;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.NUMBER,
       defaultValue = "1024",
       label = "Max Record Length (chars)",
@@ -284,34 +316,6 @@ public class DataParserFormatConfig implements DataFormatConfig {
       max = Integer.MAX_VALUE
   )
   public int csvMaxObjectLen = 1024;
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.BOOLEAN,
-      defaultValue = "false",
-      label = "Allow Extra Columns",
-      description = "When false, rows with more columns than the header are sent to error.",
-      displayPosition = 395,
-      group = "DATA_FORMAT",
-      dependsOn = "dataFormat^",
-      triggeredByValue = "DELIMITED"
-  )
-  public boolean csvAllowExtraColumns = false;
-
-  @ConfigDef(
-      required = false,
-      type = ConfigDef.Type.STRING,
-      defaultValue = DelimitedDataConstants.DEFAULT_EXTRA_COLUMN_PREFIX,
-      label = "Extra Column Prefix",
-      description = "Each extra column is labeled with this prefix followed by an integer",
-      displayPosition = 396,
-      group = "DATA_FORMAT",
-      dependencies = {
-          @Dependency(configName = "dataFormat^", triggeredByValues = "DELIMITED"),
-          @Dependency(configName = "csvAllowExtraColumns", triggeredByValues = "true")
-      }
-  )
-  public String csvExtraColumnPrefix = DelimitedDataConstants.DEFAULT_EXTRA_COLUMN_PREFIX;
 
   @ConfigDef(
       required = false,
@@ -835,7 +839,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
   @ConfigDef(
     required = true,
     type = ConfigDef.Type.MODEL,
-    label = "Data Format",
+    label = "Datagram Packet Format",
     defaultValue = "SYSLOG",
     group = "DATA_FORMAT",
     displayPosition = 800,
@@ -895,6 +899,90 @@ public class DataParserFormatConfig implements DataFormatConfig {
   )
   public String authFilePath;
 
+  // Netflow v9
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      defaultValue = NetflowDataParserFactory.DEFAULT_OUTPUT_VALUES_MODE_STR,
+      label = NetflowDataParserFactory.OUTPUT_VALUES_MODE_LABEL,
+      description = NetflowDataParserFactory.OUTPUT_VALUES_MODE_TOOLTIP,
+      displayPosition = 870,
+      group = "DATA_FORMAT",
+      dependsOn = "dataFormat^",
+      triggeredByValue = "NETFLOW"
+  )
+  @ValueChooserModel(OutputValuesModeChooserValues.class)
+  public OutputValuesMode netflowOutputValuesMode = NetflowDataParserFactory.DEFAULT_OUTPUT_VALUES_MODE;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = NetflowDataParserFactory.DEFAULT_MAX_TEMPLATE_CACHE_SIZE_STR,
+      label = NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_LABEL,
+      description = NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_TOOLTIP,
+      displayPosition = 880,
+      group = "DATA_FORMAT",
+      dependsOn = "dataFormat^",
+      triggeredByValue = "NETFLOW"
+  )
+  public int maxTemplateCacheSize = NetflowDataParserFactory.DEFAULT_MAX_TEMPLATE_CACHE_SIZE;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = NetflowDataParserFactory.DEFAULT_TEMPLATE_CACHE_TIMEOUT_MS_STR,
+      label = NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_LABEL,
+      description = NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_TOOLTIP,
+      displayPosition = 890,
+      group = "DATA_FORMAT",
+      dependsOn = "dataFormat^",
+      triggeredByValue = "NETFLOW"
+  )
+  public int templateCacheTimeoutMs = NetflowDataParserFactory.DEFAULT_TEMPLATE_CACHE_TIMEOUT_MS;
+
+  // within Datagram packet (since we don't allow logical OR dependencies)
+  // TODO: remove duplicate fields once API-149 is implemented
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      defaultValue = NetflowDataParserFactory.DEFAULT_OUTPUT_VALUES_MODE_STR,
+      label = NetflowDataParserFactory.OUTPUT_VALUES_MODE_LABEL,
+      description = NetflowDataParserFactory.OUTPUT_VALUES_MODE_TOOLTIP,
+      displayPosition = 870,
+      group = "DATA_FORMAT",
+      dependsOn = "datagramMode",
+      triggeredByValue = "NETFLOW"
+  )
+  @ValueChooserModel(OutputValuesModeChooserValues.class)
+  public OutputValuesMode netflowOutputValuesModeDatagram = NetflowDataParserFactory.DEFAULT_OUTPUT_VALUES_MODE;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = NetflowDataParserFactory.DEFAULT_MAX_TEMPLATE_CACHE_SIZE_STR,
+      label = NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_LABEL,
+      description = NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_TOOLTIP,
+      displayPosition = 880,
+      group = "DATA_FORMAT",
+      dependsOn = "datagramMode",
+      triggeredByValue = "NETFLOW"
+  )
+  public int maxTemplateCacheSizeDatagram = NetflowDataParserFactory.DEFAULT_MAX_TEMPLATE_CACHE_SIZE;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = NetflowDataParserFactory.DEFAULT_TEMPLATE_CACHE_TIMEOUT_MS_STR,
+      label = NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_LABEL,
+      description = NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_TOOLTIP,
+      displayPosition = 890,
+      group = "DATA_FORMAT",
+      dependsOn = "datagramMode",
+      triggeredByValue = "NETFLOW"
+  )
+  public int templateCacheTimeoutMsDatagram = NetflowDataParserFactory.DEFAULT_TEMPLATE_CACHE_TIMEOUT_MS;
+
+
   //Whole File
   @ConfigDef(
       required = true,
@@ -941,13 +1029,26 @@ public class DataParserFormatConfig implements DataFormatConfig {
   )
   public boolean verifyChecksum = false;
 
+  @ConfigDef(
+          required = true,
+          type = ConfigDef.Type.MODEL,
+          label = "Excel Header Option",
+          description = "Excel headers",
+          displayPosition = 1000,
+          group = "DATA_FORMAT",
+          dependsOn = "dataFormat^",
+          triggeredByValue = "EXCEL"
+  )
+  @ValueChooserModel(ExcelHeaderChooserValues.class)
+  public ExcelHeader excelHeader;
+
   // Size of StringBuilder pool maintained by Text and Log Data Parser Factories.
   // The default value is 1 for regular origins. Multithreaded origins should override this value as required.
   public int stringBuilderPoolSize = DataFormatConstants.STRING_BUILDER_POOL_SIZE;
 
   @Override
   public boolean init(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String stageGroup,
       String configPrefix,
@@ -965,7 +1066,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
   }
 
   public boolean init(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String stageGroup,
       String configPrefix,
@@ -984,7 +1085,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
   }
 
   public boolean init(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String stageGroup,
       String configPrefix,
@@ -1003,7 +1104,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
   }
 
   public boolean init(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String stageGroup,
       String configPrefix,
@@ -1012,6 +1113,15 @@ public class DataParserFormatConfig implements DataFormatConfig {
       List<Stage.ConfigIssue> issues
   ) {
     boolean valid = true;
+    if (dataFormat == null) {
+      issues.add(context.createConfigIssue(
+          stageGroup,
+          configPrefix + "dataFormat",
+          DataFormatErrors.DATA_FORMAT_12,
+          dataFormat
+      ));
+      return false;
+    }
     switch (dataFormat) {
       case JSON:
         valid = validateJson(context, configPrefix, issues);
@@ -1034,14 +1144,40 @@ public class DataParserFormatConfig implements DataFormatConfig {
       case DATAGRAM:
         if (datagramMode == DatagramMode.COLLECTD) {
           checkCollectdParserConfigs(context, configPrefix, issues);
+        } else if (datagramMode == DatagramMode.NETFLOW) {
+          NetflowDataParserFactory.validateConfigs(
+              context,
+              issues,
+              stageGroup,
+              configPrefix + ".",
+              maxTemplateCacheSizeDatagram,
+              templateCacheTimeoutMsDatagram,
+              "maxTemplateCacheSizeDatagram",
+              "templateCacheTimeoutMsDatagram"
+          );
         }
         break;
       case WHOLE_FILE:
         valid = validateWholeFile(context, configPrefix, issues);
         break;
+      case NETFLOW:
+        NetflowDataParserFactory.validateConfigs(
+            context,
+            issues,
+            stageGroup,
+            configPrefix + ".",
+            maxTemplateCacheSize,
+            templateCacheTimeoutMs
+        );
+        break;
+      case EXCEL:
+        valid = validateWorkbook(context, configPrefix, issues);
+        break;
       case SDC_JSON:
       case BINARY:
       case AVRO:
+      case SYSLOG:
+        // nothing to validate for these formats
         break;
       default:
         issues.add(context.createConfigIssue(
@@ -1067,7 +1203,22 @@ public class DataParserFormatConfig implements DataFormatConfig {
     return valid;
   }
 
-  private boolean validateJson(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private boolean validateWorkbook(ProtoConfigurableEntity.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+    boolean valid = true;
+    if (excelHeader == null) {
+      valid = false;
+      issues.add(
+          context.createConfigIssue(
+              DataFormatGroups.DATA_FORMAT.name(),
+              configPrefix + "excelHeader",
+              DataFormatErrors.DATA_FORMAT_200
+          )
+      );
+    }
+    return valid;
+  }
+
+  private boolean validateJson(ProtoConfigurableEntity.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
     boolean valid = true;
     if (jsonMaxObjectLen < 1) {
       issues.add(
@@ -1082,7 +1233,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
     return valid;
   }
 
-  private boolean validateText(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private boolean validateText(ProtoConfigurableEntity.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
     boolean valid = true;
     if (textMaxLineLen < 1) {
       issues.add(
@@ -1107,7 +1258,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
     return valid;
   }
 
-  private boolean validateDelimited(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private boolean validateDelimited(ProtoConfigurableEntity.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
     boolean valid = true;
     if (csvMaxObjectLen < 1) {
       issues.add(
@@ -1122,7 +1273,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
     return valid;
   }
 
-  private boolean validateXml(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private boolean validateXml(ProtoConfigurableEntity.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
     boolean valid = true;
     if (xmlMaxObjectLen < 1) {
       issues.add(
@@ -1152,7 +1303,10 @@ public class DataParserFormatConfig implements DataFormatConfig {
   }
 
   private boolean validateWholeFile(
-      Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
+  ) {
     boolean valid = true;
     if (wholeFileMaxObjectLen < 1) {
       issues.add(
@@ -1167,7 +1321,11 @@ public class DataParserFormatConfig implements DataFormatConfig {
     return valid;
   }
 
-  private void validateProtobuf(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private void validateProtobuf(
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
+  ) {
     if (protoDescriptorFile == null || protoDescriptorFile.isEmpty()) {
       issues.add(
           context.createConfigIssue(
@@ -1200,7 +1358,11 @@ public class DataParserFormatConfig implements DataFormatConfig {
     }
   }
 
-  private void validateLogFormat(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private void validateLogFormat(
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
+  ) {
     logDataFormatValidator = new LogDataFormatValidator(
         logMode,
         logMaxObjectLen,
@@ -1219,7 +1381,11 @@ public class DataParserFormatConfig implements DataFormatConfig {
     logDataFormatValidator.validateLogFormatConfig(context, configPrefix, issues);
   }
 
-  private void checkCollectdParserConfigs(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  void checkCollectdParserConfigs(
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
+  ) {
     if (null != typesDbPath && !typesDbPath.isEmpty()) {
       File typesDbFile = new File(typesDbPath);
       if (!typesDbFile.canRead() || !typesDbFile.isFile()) {
@@ -1247,7 +1413,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
   }
 
   private boolean validateDataParser(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String stageGroup,
       String configPrefix,
@@ -1318,6 +1484,15 @@ public class DataParserFormatConfig implements DataFormatConfig {
         builder.setCompression(Compression.NONE);
         builder.setMaxDataLen(wholeFileMaxObjectLen);
         break;
+      case SYSLOG:
+        buildSyslogParser(builder);
+        break;
+      case NETFLOW:
+        buildNetflowParser(builder);
+        break;
+      case EXCEL:
+        buildWorkbookParser(builder);
+        break;
       default:
         throw new IllegalStateException("Unexpected data format" + dataFormat);
     }
@@ -1373,12 +1548,15 @@ public class DataParserFormatConfig implements DataFormatConfig {
         .setMaxDataLen(-1);
   }
 
-  private void buildDatagramParser(DataParserFactoryBuilder builder) {
+  void buildDatagramParser(DataParserFactoryBuilder builder) {
     builder
       .setConfig(DatagramParserFactory.CONVERT_TIME_KEY, convertTime)
       .setConfig(DatagramParserFactory.EXCLUDE_INTERVAL_KEY, excludeInterval)
       .setConfig(DatagramParserFactory.AUTH_FILE_PATH_KEY, authFilePath)
       .setConfig(DatagramParserFactory.TYPES_DB_PATH_KEY, typesDbPath)
+      .setConfig(NetflowDataParserFactory.OUTPUT_VALUES_MODE_KEY, netflowOutputValuesModeDatagram)
+      .setConfig(NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_KEY, maxTemplateCacheSizeDatagram)
+      .setConfig(NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_KEY, templateCacheTimeoutMsDatagram)
       .setMode(datagramMode)
       .setMaxDataLen(-1);
   }
@@ -1398,6 +1576,25 @@ public class DataParserFormatConfig implements DataFormatConfig {
       .setStringBuilderPoolSize(stringBuilderPoolSize)
       .setConfig(LogDataParserFactory.MULTI_LINES_KEY, multiLines);
     logDataFormatValidator.populateBuilder(builder);
+  }
+
+  private void buildSyslogParser(DataParserFactoryBuilder builder) {
+    builder
+      .setMaxDataLen(-1)
+      .setCharset(Charset.forName(charset));
+  }
+
+  private void buildNetflowParser(DataParserFactoryBuilder builder) {
+    builder
+        .setConfig(NetflowDataParserFactory.OUTPUT_VALUES_MODE_KEY, netflowOutputValuesMode)
+        .setConfig(NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_KEY, maxTemplateCacheSize)
+        .setConfig(NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_KEY, templateCacheTimeoutMs);
+  }
+
+  private void buildWorkbookParser(DataParserFactoryBuilder builder) {
+    builder
+        .setMode(excelHeader)
+        .setMaxDataLen(-1);
   }
 
   /**
@@ -1436,7 +1633,7 @@ public class DataParserFormatConfig implements DataFormatConfig {
   public void checkForInvalidAvroSchemaLookupMode(
       DataFormat dataFormat,
       String configBeanPrefix,
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       List<Stage.ConfigIssue> issues
   ) {
     if (dataFormat != DataFormat.AVRO) {

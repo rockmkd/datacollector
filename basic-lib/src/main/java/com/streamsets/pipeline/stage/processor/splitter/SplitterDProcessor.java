@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,12 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.config.OnStagePreConditionFailure;
 import com.streamsets.pipeline.config.OnStagePreConditionFailureChooserValues;
-import com.streamsets.pipeline.configurablestage.DProcessor;
 
 import java.util.List;
 
@@ -33,7 +34,8 @@ import java.util.List;
     label="Field Splitter",
     description = "Splits a string field based on a separator character",
     icon="splitter.png",
-    onlineHelpRefUrl = "index.html#Processors/FieldSplitter.html#task_av1_5g3_yq",
+    flags = StageBehaviorFlags.PURE_FUNCTION,
+    onlineHelpRefUrl ="index.html?contextID=task_av1_5g3_yq",
     upgrader = SplitterProcessorUpgrader.class
 )
 @ConfigGroups(Groups.class)
@@ -79,7 +81,7 @@ public class SplitterDProcessor extends DProcessor {
       required = true,
       type = ConfigDef.Type.MODEL,
       defaultValue = "TO_ERROR",
-      label = "Not Enough Splits ",
+      label = "Not Enough Splits",
       description="Action for data that has fewer splits than configured field paths",
       displayPosition = 40,
       group = "FIELD_SPLITTER"
@@ -92,7 +94,7 @@ public class SplitterDProcessor extends DProcessor {
       required = true,
       type = ConfigDef.Type.MODEL,
       defaultValue = "TO_LAST_FIELD",
-      label = "Too Many Splits ",
+      label = "Too Many Splits",
       description="Action for data that more splits than configured field paths",
       displayPosition = 50,
       group = "FIELD_SPLITTER"

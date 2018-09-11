@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,6 @@
  */
 package com.streamsets.pipeline.stage.destination.sdcipc;
 
-import com.streamsets.pipeline.api.Stage;
-
-import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;

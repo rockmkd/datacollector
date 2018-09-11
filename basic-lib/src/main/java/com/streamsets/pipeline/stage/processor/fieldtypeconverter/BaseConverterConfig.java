@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
  */
 package com.streamsets.pipeline.stage.processor.fieldtypeconverter;
 
+import com.google.common.base.Preconditions;
+import com.streamsets.pipeline.ZonedDateTimeFormatChooserValues;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.ValueChooserModel;
@@ -25,7 +27,9 @@ import com.streamsets.pipeline.config.DecimalScaleRoundingStrategyChooserValues;
 import com.streamsets.pipeline.config.LocaleChooserValues;
 import com.streamsets.pipeline.config.DateFormatChooserValues;
 import com.streamsets.pipeline.config.PrimitiveFieldTypeChooserValues;
+import com.streamsets.pipeline.config.ZonedDateTimeFormat;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
@@ -52,6 +56,7 @@ public class BaseConverterConfig {
       description = "Select to convert input Long to DateTime before converting to a String",
       displayPosition = 20,
       dependsOn = "targetType",
+      group = "TYPE_CONVERSION",
       triggeredByValue = "STRING"
   )
   public boolean treatInputFieldAsDate;
@@ -65,7 +70,8 @@ public class BaseConverterConfig {
                     "separator",
       displayPosition = 30,
       dependsOn = "targetType",
-      triggeredByValue = {"BYTE", "INTEGER", "LONG", "DOUBLE", "DECIMAL", "FLOAT", "SHORT"}
+      group = "TYPE_CONVERSION",
+      triggeredByValue = {"BYTE", "INTEGER", "LONG", "DOUBLE", "DECIMAL", "FLOAT", "SHORT", "ZONED_DATETIME"}
   )
   @ValueChooserModel(LocaleChooserValues.class)
   public String dataLocale;
@@ -78,6 +84,7 @@ public class BaseConverterConfig {
       description = "Decimal Value Scale",
       displayPosition = 40,
       dependsOn = "targetType",
+      group = "TYPE_CONVERSION",
       triggeredByValue = {"DECIMAL"}
   )
   public int scale;
@@ -90,6 +97,7 @@ public class BaseConverterConfig {
       description = "Rounding strategy during scale conversion",
       displayPosition = 50,
       dependsOn = "targetType",
+      group = "TYPE_CONVERSION",
       triggeredByValue = {"DECIMAL"}
   )
   @ValueChooserModel(DecimalScaleRoundingStrategyChooserValues.class)
@@ -112,6 +120,7 @@ public class BaseConverterConfig {
       description="Select or enter any valid date or datetime format",
       displayPosition = 40,
       dependsOn = "targetType",
+      group = "TYPE_CONVERSION",
       triggeredByValue = {"DATE", "DATETIME", "TIME", "STRING"}
   )
   @ValueChooserModel(DateFormatChooserValues.class)
@@ -124,9 +133,36 @@ public class BaseConverterConfig {
       label = "Other Date Format",
       displayPosition = 50,
       dependsOn = "dateFormat",
+      group = "TYPE_CONVERSION",
       triggeredByValue = "OTHER"
   )
   public String otherDateFormat;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      defaultValue="ISO_ZONED_DATE_TIME",
+      label = "Zoned DateTime Format",
+      description="Select or enter any valid date or datetime format",
+      displayPosition = 60,
+      dependsOn = "targetType",
+      group = "TYPE_CONVERSION",
+      triggeredByValue = {"ZONED_DATETIME", "STRING"}
+  )
+  @ValueChooserModel(ZonedDateTimeFormatChooserValues.class)
+  public ZonedDateTimeFormat zonedDateTimeFormat;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.STRING,
+      defaultValue = "",
+      label = "Other Zoned DateTime Format",
+      displayPosition = 70,
+      dependsOn = "zonedDateTimeFormat",
+      group = "TYPE_CONVERSION",
+      triggeredByValue = "OTHER"
+  )
+  public String otherZonedDateTimeFormat;
 
   @ConfigDef(
       required = true,
@@ -135,16 +171,32 @@ public class BaseConverterConfig {
       label = "CharSet",
       displayPosition = 80,
       dependsOn = "targetType",
+      group = "TYPE_CONVERSION",
       triggeredByValue = "STRING"
   )
   @ValueChooserModel(CharsetChooserValues.class)
   public String encoding = "UTF-8";
 
+  private DateTimeFormatter dateTimeFormatter;
   /**
    * Return configured date mask.
    */
   public String getDateMask() {
     return dateFormat != DateFormat.OTHER ? dateFormat.getFormat() : otherDateFormat;
+  }
+
+  public DateTimeFormatter getFormatter() {
+    if (!targetType.isOneOf(Field.Type.STRING, Field.Type.ZONED_DATETIME)) {
+      return null;
+    }
+    return zonedDateTimeFormat.getFormatter().orElseGet(() -> {
+      Preconditions.checkNotNull(otherZonedDateTimeFormat,
+          "Zoned Datetime format cannot be null");
+      if (dateTimeFormatter == null) {
+        dateTimeFormatter = DateTimeFormatter.ofPattern(otherZonedDateTimeFormat, getLocale());
+      }
+      return dateTimeFormatter;
+    });
   }
 
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,11 +25,11 @@ import com.streamsets.pipeline.stage.destination.hdfs.HdfsDTarget;
     version = 2,
     label = "MapR FS",
     description = "Writes to a MapR filesystem",
-    icon = "mapr.png",
+    icon = "mapr_xd.png",
     producesEvents = true,
     privateClassLoader = false,
     upgrader = MapRFSTargetUpgrader.class,
-    onlineHelpRefUrl = "index.html#Destinations/MapRFS.html#task_spl_1fj_fv"
+    onlineHelpRefUrl ="index.html?contextID=task_spl_1fj_fv"
 )
 @HideConfigs(
     value = {

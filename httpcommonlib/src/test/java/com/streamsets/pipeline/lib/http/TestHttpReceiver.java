@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,14 +30,14 @@ public class TestHttpReceiver {
   @Test
   public void testReceiver() throws Exception {
     HttpConfigs configs = Mockito.mock(HttpConfigs.class);
-    Mockito.when(configs.getAppId()).thenReturn("id");
+    Mockito.when(configs.getAppId()).thenReturn(() -> "id");
     HttpRequestFragmenter fragmenter = Mockito.mock(HttpRequestFragmenter.class);
     FragmentWriter writer = Mockito.mock(FragmentWriter.class);
     HttpReceiver receiver = new HttpReceiverWithFragmenterWriter("/", configs, fragmenter, writer);
 
     Assert.assertEquals("/", receiver.getUriPath());
 
-    Assert.assertEquals("id", receiver.getAppId());
+    Assert.assertEquals("id", receiver.getAppId().get());
 
     Mockito
         .when(fragmenter.validate(Mockito.any(HttpServletRequest.class), Mockito.any(HttpServletResponse.class)))
@@ -52,7 +52,7 @@ public class TestHttpReceiver {
     List<byte[]> fragments = new ArrayList<>();
     Mockito.when(fragmenter.fragment(Mockito.eq(is), Mockito.eq(1), Mockito.eq(2))).thenReturn(fragments);
 
-    receiver.process(req, is);
+    receiver.process(req, is, null);
     Mockito.verify(fragmenter, Mockito.times(1)).fragment(Mockito.eq(is), Mockito.eq(1), Mockito.eq(2));
     Mockito.verify(writer, Mockito.times(1)).write(Mockito.eq(fragments));
 

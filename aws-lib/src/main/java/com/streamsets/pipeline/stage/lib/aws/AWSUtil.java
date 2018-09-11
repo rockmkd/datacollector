@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,20 +21,21 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.streamsets.pipeline.api.Config;
+import com.streamsets.pipeline.api.StageException;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class AWSUtil {
-
+  private static final int MILLIS = 1000;
   private AWSUtil() {}
 
-  public static AWSCredentialsProvider getCredentialsProvider(AWSConfig config) {
+  public static AWSCredentialsProvider getCredentialsProvider(AWSConfig config) throws StageException {
     AWSCredentialsProvider credentialsProvider;
-    if (!StringUtils.isEmpty(config.awsAccessKeyId) && !StringUtils.isEmpty(config.awsSecretAccessKey)) {
+    if (!StringUtils.isEmpty(config.awsAccessKeyId.get()) && !StringUtils.isEmpty(config.awsSecretAccessKey.get())) {
       credentialsProvider = new AWSStaticCredentialsProvider(
-          new BasicAWSCredentials(config.awsAccessKeyId, config.awsSecretAccessKey)
+          new BasicAWSCredentials(config.awsAccessKeyId.get(), config.awsSecretAccessKey.get())
       );
     } else {
       credentialsProvider = new DefaultAWSCredentialsProviderChain();
@@ -42,8 +43,12 @@ public class AWSUtil {
     return credentialsProvider;
   }
 
-  public static ClientConfiguration getClientConfiguration(ProxyConfig config) {
+  public static ClientConfiguration getClientConfiguration(ProxyConfig config) throws StageException {
     ClientConfiguration clientConfig = new ClientConfiguration();
+
+    clientConfig.setConnectionTimeout(config.connectionTimeout * MILLIS);
+    clientConfig.setSocketTimeout(config.socketTimeout * MILLIS);
+    clientConfig.withMaxErrorRetry(config.retryCount);
 
     // Optional proxy settings
     if (config.useProxy) {
@@ -51,12 +56,12 @@ public class AWSUtil {
         clientConfig.setProxyHost(config.proxyHost);
         clientConfig.setProxyPort(config.proxyPort);
 
-        if (config.proxyUser != null && !config.proxyUser.isEmpty()) {
-          clientConfig.setProxyUsername(config.proxyUser);
+        if (config.proxyUser != null && !config.proxyUser.get().isEmpty()) {
+          clientConfig.setProxyUsername(config.proxyUser.get());
         }
 
         if (config.proxyPassword != null) {
-          clientConfig.setProxyPassword(config.proxyPassword);
+          clientConfig.setProxyPassword(config.proxyPassword.get());
         }
       }
     }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +15,13 @@
  */
 package com.streamsets.pipeline.stage.processor.hive;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedProcessor;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.config.TimeZoneChooserValues;
-import com.streamsets.pipeline.configurablestage.DProcessor;
 import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.lib.el.RecordEL;
@@ -31,6 +30,7 @@ import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.stage.lib.hive.FieldPathEL;
 import com.streamsets.pipeline.stage.lib.hive.HiveConfigBean;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -42,7 +42,7 @@ import java.util.TimeZone;
     icon="metadata.png",
     outputStreams = HiveMetadataOutputStreams.class,
     privateClassLoader = true,
-    onlineHelpRefUrl = "index.html#Processors/HiveMetadata.html#task_hpg_pft_zv",
+    onlineHelpRefUrl ="index.html?contextID=task_hpg_pft_zv",
     upgrader = HiveMetadataProcessorUpgrader.class
 )
 
@@ -203,7 +203,7 @@ public class HiveMetadataDProcessor extends DProcessor {
 
   @Override
   protected Processor createProcessor() {
-    return new HadoopConfigurationSynchronizedProcessor(new HiveMetadataProcessor(
+    return new HiveMetadataProcessor(
       dbNameEL,
       tableNameEL,
       partitionList,
@@ -213,11 +213,11 @@ public class HiveMetadataDProcessor extends DProcessor {
       hiveConfigBean,
       timeDriver,
       decimalDefaultsConfig,
-      TimeZone.getTimeZone(timeZoneID),
+      TimeZone.getTimeZone(ZoneId.of(timeZoneID)),
       dataFormat,
       commentExpression,
       metadataHeaderAttributeConfigs
-    ));
+    );
   }
 
 }

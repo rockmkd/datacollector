@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ import com.streamsets.datacollector.config.DataRuleDefinition;
 import com.streamsets.datacollector.config.DriftRuleDefinition;
 import com.streamsets.datacollector.config.ThresholdType;
 import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
+import com.streamsets.datacollector.definition.ConcreteELDefinitionExtractor;
 import com.streamsets.datacollector.el.ELEvaluator;
 import com.streamsets.datacollector.el.ELVariables;
 import com.streamsets.datacollector.execution.EventListenerManager;
@@ -70,7 +71,7 @@ public class TestDataRuleEvaluator {
   public static void setUp() {
     metrics = new MetricRegistry();
     variables = new ELVariables();
-    elEvaluator = new ELEvaluator("TestDataRuleEvaluator", RecordEL.class, StringEL.class);
+    elEvaluator = new ELEvaluator("TestDataRuleEvaluator", ConcreteELDefinitionExtractor.get(), RecordEL.class, StringEL.class);
     runtimeInfo = new StandaloneRuntimeInfo(RuntimeModule.SDC_PROPERTY_PREFIX, new MetricRegistry(),
       Arrays.asList(TestDataRuleEvaluator.class.getClassLoader()));
   }
@@ -82,7 +83,7 @@ public class TestDataRuleEvaluator {
       "testAlertEnabledMeterEnabled", lane, 100, 10, "${record:value(\"/name\")==null}", true,
       "testAlertEnabledMeterEnabled", ThresholdType.COUNT, "2", 5, true, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator("name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()),  new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -104,7 +105,7 @@ public class TestDataRuleEvaluator {
       100, 10, "${record:value(\"/name\")==null}", false, null, ThresholdType.COUNT, "2", 5, true,
       false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()),  new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -124,7 +125,7 @@ public class TestDataRuleEvaluator {
       100, 10, "${record:value(\"/name\")==null}", true, "testAlertEnabledMeterDisabled", ThresholdType.COUNT, "2",
       5, false, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -145,7 +146,7 @@ public class TestDataRuleEvaluator {
       100, 10, "${record:value(\"/name\")==null}", true, "testAlertRaisedCountRuleDisabled", ThresholdType.COUNT, "2",
       5, true, false, false, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()),  new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -162,7 +163,7 @@ public class TestDataRuleEvaluator {
       100, 10, "${record:value(\"/name\")==null", true, "testNoExceptionInvalidExpression", ThresholdType.COUNT, "2",
       5, true, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, null), null, new RuleDefinitionsConfigBean(), new HashMap<String, Object>(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, null),  new RuleDefinitionsConfigBean(), new HashMap<String, Object>(),
         dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -179,7 +180,7 @@ public class TestDataRuleEvaluator {
       lane, 100, 10, "${record:value(\"/name\")==null}", true, "testNoAlertRaisedCount", ThresholdType.COUNT, "3",
       5, true, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -195,7 +196,7 @@ public class TestDataRuleEvaluator {
       100, 10, "${record:value(\"/name\")==null}", true, "testAlertRaisedPercentage", ThresholdType.PERCENTAGE, "40",
       5, true, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -211,7 +212,7 @@ public class TestDataRuleEvaluator {
     DataRuleDefinition dataRuleDefinition = new DataRuleDefinition("testNoAlertRaisedPercentage",
       "testNoAlertRaisedPercentage", lane, 100, 10, "${record:value(\"/name\")==null}", true,
       "testNoAlertRaisedPercentage", ThresholdType.PERCENTAGE, "60", 5, true, false, true, System.currentTimeMillis());
-    DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,  null, null, new RuleDefinitionsConfigBean(),
+    DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,  null, new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
     evaluateRule(dataRuleEvaluator, lane);
     Gauge<Object> gauge = MetricsConfigurator.getGauge(metrics,
@@ -226,7 +227,7 @@ public class TestDataRuleEvaluator {
       100, 10, "${record:value(\"/name\")==null}", true, "testGaugeChange", ThresholdType.COUNT, "2", 5, true,
       false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), dataRuleDefinition, new Configuration(), null, null);
 
     evaluateRule(dataRuleEvaluator, lane);
@@ -255,7 +256,7 @@ public class TestDataRuleEvaluator {
       "nameNotNull", lane, 100, 10, "${record:value(\"/name\")==null}", true,
       "nameNotNull", ThresholdType.COUNT, "2", 5, true, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), nameNotNull, new Configuration(), null, null);
 
     evaluateRule(dataRuleEvaluator, lane);
@@ -270,7 +271,7 @@ public class TestDataRuleEvaluator {
       "nameEqualsStreamSets", lane, 100, 10, "${record:value(\"/zip\")==94101}", true,
       "nameEqualsStreamSets", ThresholdType.COUNT, "1", 5, true, false, true, System.currentTimeMillis());
     DataRuleEvaluator dataRuleEvaluator2 = new DataRuleEvaluator( "name", "0", metrics,
-      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), null, new RuleDefinitionsConfigBean(),
+      new AlertManager(PIPELINE_NAME, PIPELINE_TITLE, REVISION, null, metrics, runtimeInfo, new EventListenerManager()), new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(), nameEqualsStreamSets, new Configuration(), null, null);
 
     evaluateRule(dataRuleEvaluator2, lane);
@@ -311,7 +312,6 @@ public class TestDataRuleEvaluator {
         "0",
         metrics,
         alertManager,
-        null,
         new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(),
         def,
@@ -347,7 +347,6 @@ public class TestDataRuleEvaluator {
     dataRuleEvaluator.evaluateRule(records, "lane", new HashMap<String, EvictingQueue<SampledRecord>>());
     Mockito.verify(alertManager).alert(
         Mockito.any(Object.class),
-        Mockito.any(List.class),
         Mockito.any(),
         captor.capture()
     );
@@ -377,7 +376,6 @@ public class TestDataRuleEvaluator {
         "0",
         metrics,
         alertManager,
-        null,
         new RuleDefinitionsConfigBean(),
         new HashMap<String, Object>(),
         def,

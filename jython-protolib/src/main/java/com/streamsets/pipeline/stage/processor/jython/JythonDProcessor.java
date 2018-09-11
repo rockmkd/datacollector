@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,9 +19,10 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.stage.processor.scripting.ProcessingMode;
 import com.streamsets.pipeline.stage.processor.scripting.ProcessingModeChooserValues;
 
@@ -32,7 +33,8 @@ import com.streamsets.pipeline.stage.processor.scripting.ProcessingModeChooserVa
     icon = "jython.png",
     upgrader = JythonProcessorUpgrader.class,
     producesEvents = true,
-    onlineHelpRefUrl = "index.html#Processors/Jython.html#task_fty_jwx_nr"
+    flags = StageBehaviorFlags.USER_CODE_INJECTION,
+    onlineHelpRefUrl ="index.html?contextID=task_fty_jwx_nr"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
@@ -85,6 +87,7 @@ public class JythonDProcessor extends DProcessor {
       "#                            Create new empty event with standard headers.\n" +
       "#  sdcFunctions.toEvent(Record): Send event to event stream\n" +
       "#                            Only events created with sdcFunctions.createEvent are supported.\n" +
+      "#  sdcFunctions.isPreview(): Determine if pipeline is in preview mode.\n" +
       "#\n" +
       "# Available Record Header Variables:\n" +
       "#\n" +

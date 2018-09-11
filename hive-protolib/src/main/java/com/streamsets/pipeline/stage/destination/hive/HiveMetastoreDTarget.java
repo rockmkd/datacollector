@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +16,12 @@
 package com.streamsets.pipeline.stage.destination.hive;
 
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedTarget;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @StageDef(
     version = 2,
@@ -31,7 +30,7 @@ import com.streamsets.pipeline.configurablestage.DTarget;
     icon = "hive.png",
     privateClassLoader = true,
     upgrader = HiveMetastoreTargetUpgrader.class,
-    onlineHelpRefUrl = "index.html#Destinations/HiveMetastore.html#task_a4n_1ft_zv",
+    onlineHelpRefUrl ="index.html?contextID=task_a4n_1ft_zv",
     producesEvents = true
 )
 @ConfigGroups(value = Groups.class)
@@ -41,6 +40,6 @@ public class HiveMetastoreDTarget extends DTarget {
   public HMSTargetConfigBean conf;
   @Override
   protected Target createTarget() {
-    return new HadoopConfigurationSynchronizedTarget(new HiveMetastoreTarget(conf));
+    return new HiveMetastoreTarget(conf);
   }
 }

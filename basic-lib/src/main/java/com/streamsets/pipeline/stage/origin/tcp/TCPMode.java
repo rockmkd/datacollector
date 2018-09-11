@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,8 @@ public enum TCPMode implements Label {
   NETFLOW("NetFlow"),
   SYSLOG("syslog"),
   DELIMITED_RECORDS("Separated records"),
+  CHARACTER_BASED_LENGTH_FIELD("Character data with length prefix"),
+  FLUME_AVRO_IPC("Flume Avro IPC Server"),
   ;
 
   private final String label;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@ import com.streamsets.pipeline.api.Label;
 public enum KafkaDestinationGroups implements Label {
   KAFKA("Kafka"),
   DATA_FORMAT("Data Format"),
+  RESPONSE("Response"),
   ;
 
   private final String label;

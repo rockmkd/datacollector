@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,12 +20,13 @@ import com.streamsets.pipeline.api.impl.Utils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class StageConfiguration implements Serializable {
+public class StageConfiguration implements Serializable, UserConfigurable {
 
   //basic info
   private final String instanceName;
@@ -35,10 +36,11 @@ public class StageConfiguration implements Serializable {
   private final List<Config> configuration;
   private final Map<String, Config> configurationMap;
   private final Map<String, Object> uiInfo;
+  private List<ServiceConfiguration> services;
 
   //wiring with other components
   private final List<String> inputLanes;
-  private final List<String> outputLanes;
+  private List<String> outputLanes;
   private List<String> eventLanes;
   private List<String> outputAndEventLanes; // Lazily calculated
 
@@ -47,14 +49,24 @@ public class StageConfiguration implements Serializable {
   // Will be set to true if this stage is in the event path
   private boolean inEventPath;
 
-  public StageConfiguration(String instanceName, String library, String stageName, int stageVersion,
-      List<Config> configuration, Map<String, Object> uiInfo, List<String> inputLanes,
-      List<String> outputLanes, List<String> eventLanes) {
+  public StageConfiguration(
+      String instanceName,
+      String library,
+      String stageName,
+      int stageVersion,
+      List<Config> configuration,
+      Map<String, Object> uiInfo,
+      List<ServiceConfiguration> services,
+      List<String> inputLanes,
+      List<String> outputLanes,
+      List<String> eventLanes
+  ) {
     this.instanceName = instanceName;
     this.library = library;
     this.stageName = stageName;
     this.stageVersion = stageVersion;
-    this.uiInfo = (uiInfo != null) ? new HashMap<>(uiInfo) : new HashMap<String, Object>();
+    this.uiInfo = (uiInfo != null) ? new HashMap<>(uiInfo) : new HashMap<>();
+    this.services = services;
     this.inputLanes = inputLanes;
     this.outputLanes = outputLanes;
     this.eventLanes = eventLanes;
@@ -92,12 +104,21 @@ public class StageConfiguration implements Serializable {
     return stageVersion;
   }
 
+  @Override
   public List<Config> getConfiguration() {
     return new ArrayList<>(configuration);
   }
 
   public Map<String, Object> getUiInfo() {
     return uiInfo;
+  }
+
+  public void setServices(List<ServiceConfiguration> services) {
+    this.services = services;
+  }
+
+  public List<ServiceConfiguration> getServices() {
+    return services;
   }
 
   public List<String> getInputLanes() {
@@ -108,7 +129,15 @@ public class StageConfiguration implements Serializable {
     return outputLanes;
   }
 
+  public void setOutputLanes(List<String> outputLanes) {
+    this.outputLanes = outputLanes;
+    this.outputAndEventLanes = null;
+  }
+
   public List<String> getEventLanes() {
+    if (eventLanes == null) {
+      return Collections.emptyList();
+    }
     return eventLanes;
   }
 
@@ -127,6 +156,7 @@ public class StageConfiguration implements Serializable {
     return outputAndEventLanes;
   }
 
+  @Override
   public Config getConfig(String name) {
     return configurationMap.get(name);
   }

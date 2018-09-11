@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 package com.streamsets.pipeline.stage.destination.mapreduce;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.streamsets.datacollector.stage.HadoopConfigurationUtils;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
@@ -31,7 +30,10 @@ import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.destination.mapreduce.config.JobConfig;
 import com.streamsets.pipeline.stage.destination.mapreduce.config.MapReduceConfig;
-import com.streamsets.pipeline.stage.destination.mapreduce.jobtype.avroparquet.AvroParquetConstants;
+import com.streamsets.pipeline.stage.destination.mapreduce.jobtype.avroconvert.AvroConversionCommonConstants;
+import com.streamsets.pipeline.stage.destination.mapreduce.jobtype.avroorc.AvroOrcConstants;
+import com.streamsets.pipeline.lib.converter.AvroParquetConstants;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -91,8 +93,14 @@ public class MapReduceExecutor extends BaseExecutor {
       RecordEL.setRecordInContext(variables, record);
     }
 
-    public String evaluateToString(String name, String expr) throws ELEvalException {
-      return evaluate(name, expr, String.class);
+    public String evaluateToString(String name, String expr, boolean failOnEmptyString) throws ELEvalException {
+      String evaluated = evaluate(name, expr, String.class);
+
+      if(failOnEmptyString && StringUtils.isEmpty(evaluated)) {
+        throw new ELEvalException(MapReduceErrors.MAPREDUCE_0007, expr, name);
+      }
+
+      return evaluated;
     }
 
     public <T> T evaluate(String name, String expr, Class<T> klass) throws ELEvalException {
@@ -119,43 +127,51 @@ public class MapReduceExecutor extends BaseExecutor {
       final Record record = it.next();
       eval.setRecord(record);
 
-      // Job configuration object is a clone of the original one that we're keeping in mapReduceConfig class
-      final Configuration jobConfiguration = new Configuration(mapReduceConfig.getConfiguration());
-
-      // Evaluate all dynamic properties and store them in the configuration job
-      for(Map.Entry<String, String> entry : jobConfig.jobConfigs.entrySet()) {
-        String key = eval.evaluateToString("jobConfigs", entry.getKey());
-        String value = eval.evaluateToString("jobConfigs", entry.getValue());
-
-        jobConfiguration.set(key, value);
-      }
-
-      // For build-in job creators, evaluate their properties and persist them in the MR config
-      switch(jobConfig.jobType) {
-        case AVRO_PARQUET:
-          jobConfiguration.set(AvroParquetConstants.INPUT_FILE, eval.evaluateToString("inputFile", jobConfig.avroParquetConfig.inputFile));
-          jobConfiguration.set(AvroParquetConstants.OUTPUT_DIR, eval.evaluateToString("outputDirectory", jobConfig.avroParquetConfig.outputDirectory));
-          jobConfiguration.setBoolean(AvroParquetConstants.KEEP_INPUT_FILE, jobConfig.avroParquetConfig.keepInputFile);
-          jobConfiguration.set(AvroParquetConstants.COMPRESSION_CODEC_NAME, eval.evaluateToString("compressionCodec", jobConfig.avroParquetConfig.compressionCodec));
-          jobConfiguration.setInt(AvroParquetConstants.ROW_GROUP_SIZE, jobConfig.avroParquetConfig.rowGroupSize);
-          jobConfiguration.setInt(AvroParquetConstants.PAGE_SIZE, jobConfig.avroParquetConfig.pageSize);
-          jobConfiguration.setInt(AvroParquetConstants.DICTIONARY_PAGE_SIZE, jobConfig.avroParquetConfig.dictionaryPageSize);
-          jobConfiguration.setInt(AvroParquetConstants.MAX_PADDING_SIZE, jobConfig.avroParquetConfig.maxPaddingSize);
-          jobConfiguration.setBoolean(AvroParquetConstants.OVERWRITE_TMP_FILE, jobConfig.avroParquetConfig.overwriteTmpFile);
-          break;
-        case CUSTOM:
-          // Nothing because custom is generic one that have no special config properties
-          break;
-        default:
-          throw new UnsupportedOperationException("Unsupported JobType: " + jobConfig.jobType);
-      }
-
       Job job = null;
+
       try {
+        // Job configuration object is a clone of the original one that we're keeping in mapReduceConfig class
+        final Configuration jobConfiguration = new Configuration(mapReduceConfig.getConfiguration());
+
+        // Evaluate all dynamic properties and store them in the configuration job
+        for (Map.Entry<String, String> entry : jobConfig.jobConfigs.entrySet()) {
+          String key = eval.evaluateToString("jobConfigs", entry.getKey(), true);
+          String value = eval.evaluateToString("jobConfigs", entry.getValue(), false);
+
+          jobConfiguration.set(key, value);
+        }
+
+        // For build-in job creators, evaluate their properties and persist them in the MR config
+        switch (jobConfig.jobType) {
+          case AVRO_PARQUET:
+            jobConfiguration.set(AvroConversionCommonConstants.INPUT_FILE, eval.evaluateToString("inputFile", jobConfig.avroConversionCommonConfig.inputFile, true));
+            jobConfiguration.set(AvroConversionCommonConstants.OUTPUT_DIR, eval.evaluateToString("outputDirectory", jobConfig.avroConversionCommonConfig.outputDirectory, true));
+            jobConfiguration.setBoolean(AvroConversionCommonConstants.KEEP_INPUT_FILE, jobConfig.avroConversionCommonConfig.keepInputFile);
+            jobConfiguration.set(AvroParquetConstants.COMPRESSION_CODEC_NAME, eval.evaluateToString("compressionCodec", jobConfig.avroParquetConfig.compressionCodec, false));
+            jobConfiguration.setInt(AvroParquetConstants.ROW_GROUP_SIZE, jobConfig.avroParquetConfig.rowGroupSize);
+            jobConfiguration.setInt(AvroParquetConstants.PAGE_SIZE, jobConfig.avroParquetConfig.pageSize);
+            jobConfiguration.setInt(AvroParquetConstants.DICTIONARY_PAGE_SIZE, jobConfig.avroParquetConfig.dictionaryPageSize);
+            jobConfiguration.setInt(AvroParquetConstants.MAX_PADDING_SIZE, jobConfig.avroParquetConfig.maxPaddingSize);
+            jobConfiguration.setBoolean(AvroConversionCommonConstants.OVERWRITE_TMP_FILE, jobConfig.avroConversionCommonConfig.overwriteTmpFile);
+            break;
+          case AVRO_ORC:
+            jobConfiguration.set(AvroConversionCommonConstants.INPUT_FILE, eval.evaluateToString("inputFile", jobConfig.avroConversionCommonConfig.inputFile, true));
+            jobConfiguration.set(AvroConversionCommonConstants.OUTPUT_DIR, eval.evaluateToString("outputDirectory", jobConfig.avroConversionCommonConfig.outputDirectory, true));
+            jobConfiguration.setBoolean(AvroConversionCommonConstants.KEEP_INPUT_FILE, jobConfig.avroConversionCommonConfig.keepInputFile);
+            jobConfiguration.setBoolean(AvroConversionCommonConstants.OVERWRITE_TMP_FILE, jobConfig.avroConversionCommonConfig.overwriteTmpFile);
+            jobConfiguration.setInt(AvroOrcConstants.ORC_BATCH_SIZE, jobConfig.avroOrcConfig.orcBatchSize);
+            break;
+          case CUSTOM:
+            // Nothing because custom is generic one that have no special config properties
+            break;
+          default:
+            throw new UnsupportedOperationException("Unsupported JobType: " + jobConfig.jobType);
+        }
+
         job = createAndSubmitJob(jobConfiguration);
-      } catch (IOException|InterruptedException e) {
+      } catch (IOException|InterruptedException|ELEvalException e) {
         LOG.error("Can't submit mapreduce job", e);
-        errorRecordHandler.onError(new OnRecordErrorException(record, MapReduceErrors.MAPREDUCE_0005, e.getMessage()));
+        errorRecordHandler.onError(new OnRecordErrorException(record, MapReduceErrors.MAPREDUCE_0005, e.getMessage(), e));
       }
 
       if(job != null) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.lib.jdbc;
 
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.stage.origin.jdbc.table.QuoteChar;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.After;
@@ -26,12 +27,21 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Date;
-import java.util.Properties;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+
+import static org.junit.Assert.assertThat;
 
 public class TestJdbcUtil {
 
@@ -43,13 +53,15 @@ public class TestJdbcUtil {
   private final String schema = "SCHEMA_TEST";
   private final String tableName = "MYAPP";
   private final String tableNameWithSpecialChars = "MYAPP.TEST_TABLE1.CUSTOMER";
+  private final String emptyTableName = "EMPTY_TABLE";
   private final String dataTypesTestTable = "DATA_TYPES_TEST";
 
   private HikariPoolConfigBean createConfigBean() {
     HikariPoolConfigBean bean = new HikariPoolConfigBean();
     bean.connectionString = h2ConnectionString;
-    bean.username = username;
-    bean.password = password;
+    bean.useCredentials = true;
+    bean.username = () -> username;
+    bean.password = () -> password;
 
     return bean;
   }
@@ -86,6 +98,10 @@ public class TestJdbcUtil {
           "INSERT INTO " + schema + "." + dataTypesTestTable + " VALUES (1, CAST('1970-01-01 00:00:00+02:00' " +
               "AS TIMESTAMP WITH TIME ZONE));"
       );
+      statement.addBatch(
+          "CREATE TABLE IF NOT EXISTS " + schema + "." + "\"" + emptyTableName + "\"" +
+              "(P_ID TIMESTAMP NOT NULL, PRIMARY KEY(P_ID));"
+      );
       String unprivUser = "unpriv_user";
       String unprivPassword = "unpriv_pass";
       statement.addBatch("CREATE USER IF NOT EXISTS " + unprivUser + " PASSWORD '" + unprivPassword + "';");
@@ -112,7 +128,7 @@ public class TestJdbcUtil {
     HikariPoolConfigBean config = createConfigBean();
     config.transactionIsolation = TransactionIsolationLevel.TRANSACTION_READ_COMMITTED;
 
-    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config, new Properties());
+    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config);
     Connection connection = dataSource.getConnection();
     assertNotNull(connection);
     assertEquals(Connection.TRANSACTION_READ_COMMITTED, connection.getTransactionIsolation());
@@ -123,7 +139,7 @@ public class TestJdbcUtil {
   public void testGetTableMetadata() throws Exception {
     HikariPoolConfigBean config = createConfigBean();
 
-    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config, new Properties());
+    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config);
     Connection connection = dataSource.getConnection();
 
     boolean caseSensitive = false;
@@ -135,7 +151,7 @@ public class TestJdbcUtil {
   public void testGetTableMetadataWithDots() throws Exception {
     HikariPoolConfigBean config = createConfigBean();
 
-    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config, new Properties());
+    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config);
     Connection connection = dataSource.getConnection();
 
     boolean caseSensitive = true;
@@ -147,7 +163,7 @@ public class TestJdbcUtil {
   @Test
   public void testResultToField() throws Exception {
     HikariPoolConfigBean config = createConfigBean();
-    try (HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config, new Properties())) {
+    try (HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config)) {
       try (Connection connection = dataSource.getConnection()) {
         try (Statement stmt = connection.createStatement()) {
           // Currently only validates TIMESTAMP WITH TIME ZONE (H2 does not support TIME WITH TIME ZONE)
@@ -161,11 +177,44 @@ public class TestJdbcUtil {
             0,
             UnknownTypeAction.STOP_PIPELINE
           );
-          assertEquals(Field.Type.DATETIME, field.getType());
-          assertEquals(new Date(MINUS_2HRS_OFFSET), field.getValueAsDatetime());
+          assertEquals(Field.Type.ZONED_DATETIME, field.getType());
+          assertEquals(
+              ZonedDateTime.ofInstant(Instant.ofEpochMilli(MINUS_2HRS_OFFSET), ZoneId.ofOffset(
+                  "",
+                  ZoneOffset.ofHours(2)
+              )),
+              field.getValueAsZonedDateTime()
+          );
         }
       }
     }
+  }
+
+  @Test
+  public void testGetMinValues() throws Exception {
+    HikariPoolConfigBean config = createConfigBean();
+
+    HikariDataSource dataSource = JdbcUtil.createDataSourceForRead(config);
+    Connection connection = dataSource.getConnection();
+
+    Map<String, String> emptyTableMin = JdbcUtil.getMinimumOffsetValues(
+        connection,
+        schema,
+        emptyTableName,
+        QuoteChar.NONE,
+        Arrays.asList("P_ID")
+    );
+    assertThat(emptyTableMin.size(), equalTo(0));
+
+    Map<String, String> typedTableMin = JdbcUtil.getMinimumOffsetValues(
+        connection,
+        schema,
+        dataTypesTestTable,
+        QuoteChar.NONE,
+        Arrays.asList("P_ID")
+    );
+    assertThat(typedTableMin.size(), equalTo(1));
+    assertThat(typedTableMin, hasEntry("P_ID", "1"));
   }
 
 }

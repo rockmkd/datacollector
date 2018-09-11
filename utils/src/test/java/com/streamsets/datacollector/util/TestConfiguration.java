@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -125,6 +125,16 @@ public class TestConfiguration {
 
     Assert.assertEquals(ImmutableSet.of("a.s", "a.b"), subSet.getNames());
 
+  }
+
+  @Test
+  public void testFilterSensitive() {
+    Configuration conf = new Configuration();
+
+    conf.set("realPassword", "secret password");
+
+    Configuration redacted = conf.maskSensitiveConfigs();
+    Assert.assertEquals(Configuration.SENSITIVE_MASK, redacted.get("realPassword", null));
   }
 
   @Test

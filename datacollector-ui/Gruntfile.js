@@ -24,7 +24,7 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-concat');
   grunt.loadNpmTasks('grunt-contrib-watch');
-  grunt.loadNpmTasks('grunt-contrib-uglify');
+  grunt.loadNpmTasks('grunt-contrib-uglify-es');
   grunt.loadNpmTasks('grunt-contrib-less');
   grunt.loadNpmTasks('grunt-karma');
   grunt.loadNpmTasks('grunt-ng-annotate');
@@ -40,7 +40,7 @@ module.exports = function(grunt) {
     build_dir: 'target/dist',
     target_dir: 'target',
     base_dir: 'src/main/webapp/',
-    common_base_dir: '../common-ui/src/main/webapp/',
+    common_base_dir: 'src/main/webapp/',
     docs_dir: '../docs/generated',
 
     /**
@@ -183,17 +183,13 @@ module.exports = function(grunt) {
         ' * <%= pkg.name %> - v<%= pkg.version %> - <%= buildTime %>\n' +
         ' * <%= pkg.homepage %>\n' +
         ' *\n' +
-        ' * Copyright 2015 StreamSets Inc.\n' +
+        ' * Copyright 2017 StreamSets Inc.\n' +
         ' *\n' +
-        ' * Licensed under the Apache Software Foundation (ASF) under one\n' +
-        ' * or more contributor license agreements.  See the NOTICE file\n' +
-        ' * distributed with this work for additional information\n' +
-        ' * regarding copyright ownership.  The ASF licenses this file\n' +
-        ' * to you under the Apache License, Version 2.0 (the\n' +
-        ' * "License"); you may not use this file except in compliance\n' +
-        ' * with the License.  You may obtain a copy of the License at\n' +
+        ' * Licensed under the Apache License, Version 2.0 (the "License");\n' +
+        ' * you may not use this file except in compliance with the License.\n' +
+        ' * You may obtain a copy of the License at\n' +
         ' *\n' +
-        ' *     http://www.apache.org/licenses/LICENSE-2.0\n' +
+        ' *    http://www.apache.org/licenses/LICENSE-2.0\n' +
         ' *\n' +
         ' * Unless required by applicable law or agreed to in writing, software\n' +
         ' * distributed under the License is distributed on an "AS IS" BASIS,\n' +
@@ -440,7 +436,9 @@ module.exports = function(grunt) {
         boss: true,
         eqnull: true,
         esnext: true,
-        debug: true  //TODO: Set this flag only for development mode.
+        debug: false,
+        loopfunc: true,
+        reporterOutput: ""
       },
       globals: {}
     },
@@ -580,7 +578,7 @@ module.exports = function(grunt) {
           '<%= base_dir %>app/**/*.js',
           '<%= common_base_dir %>common/**/*.js'
         ],
-        tasks: [ 'jshint:src', 'karma:unit:run', 'copy:build_appjs', 'copy:build_common_appjs', 'index:build' ]
+        tasks: [ 'jshint:src', 'copy:build_appjs', 'copy:build_common_appjs', 'index:build' ]
       },
 
       /**
@@ -636,7 +634,7 @@ module.exports = function(grunt) {
         files: [
           '<%= app_files.jsunit %>'
         ],
-        tasks: [ 'jshint:test', 'karma:unit:run' ],
+        tasks: [ 'jshint:test' ],
         options: {
           livereload: false
         }
@@ -655,26 +653,26 @@ module.exports = function(grunt) {
    * before watching for changes.
    */
   grunt.renameTask( 'watch', 'delta' );
-  grunt.registerTask( 'watch', [ 'build', 'delta' ] );
+  grunt.registerTask( 'watch', [ 'build-dev', 'delta' ] );
 
   /**
    * The default task is to build and compile.
    */
-  grunt.registerTask( 'default', [ 'build', 'compile' ] );
-  //grunt.registerTask( 'default', [ 'build' ] );
+  grunt.registerTask( 'default', [ 'build' ] );
+
+  grunt.registerTask( 'build', [ 'build-dev', 'compile' ] );
 
   grunt.registerTask( 'test', []);
 
   /**
    * The `build` task gets your app ready to run for development and testing.
    */
-  grunt.registerTask( 'build', [
+  grunt.registerTask( 'build-dev', [
     'clean:build', 'html2js', 'jshint', 'less:build', 'concat:build_css',
     'copy:build_app_assets', 'copy:build_appjs',
     'copy:build_common_app_assets', 'copy:build_common_appjs',
     'copy:build_vendor_assets', 'copy:build_vendor_fonts',
-    'copy:build_vendorjs', 'copy:build_docs', 'index:build', 'login:build', 'karmaconfig'
-    //,'karma:continuous'
+    'copy:build_vendorjs', 'copy:build_docs', 'index:build', 'login:build'
   ]);
 
   /**

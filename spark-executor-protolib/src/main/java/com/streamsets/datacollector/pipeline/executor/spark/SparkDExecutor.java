@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,20 +20,23 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.Executor;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DExecutor;
+import com.streamsets.pipeline.api.base.configurablestage.DExecutor;
 
 @StageDef(
-    version = 1,
+    version = 2,
     label = "Spark Executor",
     description = "Run Spark Applications",
     icon = "spark-logo-hd.png",
-    onlineHelpRefUrl = "index.html#Executors/Spark.html#task_cdw_wxb_1z",
+    upgrader = SparkExecutorUpgrader.class,
+    onlineHelpRefUrl ="index.html?contextID=task_cdw_wxb_1z",
     producesEvents = true
 )
 @ConfigGroups(Groups.class)
 @HideConfigs("conf.yarnConfigBean.waitForCompletion")
 @GenerateResourceBundle
+@PipelineLifecycleStage
 public class SparkDExecutor extends DExecutor {
 
   @ConfigDefBean

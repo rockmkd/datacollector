@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +19,21 @@ import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.config.ConfigDefinition;
 import com.streamsets.datacollector.config.ConfigGroupDefinition;
 import com.streamsets.datacollector.config.RawSourceDefinition;
+import com.streamsets.datacollector.config.ServiceDependencyDefinition;
 import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.config.StageLibraryDefinition;
-import com.streamsets.datacollector.config.StageType;
 import com.streamsets.datacollector.creation.PipelineBeanCreator;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
+import com.streamsets.datacollector.creation.PipelineFragmentConfigBean;
 import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
 import com.streamsets.datacollector.creation.StageConfigBean;
+import com.streamsets.pipeline.api.HideStage;
 import com.streamsets.pipeline.api.OffsetCommitTrigger;
 import com.streamsets.pipeline.api.OffsetCommitter;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
 import com.streamsets.pipeline.api.ProtoSource;
 import com.streamsets.pipeline.api.Source;
+import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.StatsAggregatorStage;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.ErrorStage;
@@ -43,15 +47,20 @@ import com.streamsets.pipeline.api.StageUpgrader;
 import com.streamsets.pipeline.api.Target;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.service.ServiceConfiguration;
+import com.streamsets.pipeline.api.service.ServiceDependency;
 import org.apache.commons.lang3.ClassUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public abstract class StageDefinitionExtractor {
@@ -66,7 +75,7 @@ public abstract class StageDefinitionExtractor {
     return klass.getName().replace(".", "_").replace("$", "_");
   }
 
-  public static List<String> getGroups(Class<? extends Stage> klass) {
+  public static List<String> getGroups(Class klass) {
     Set<String> set = new LinkedHashSet<>();
     addGroupsToList(klass, set);
     List<Class<?>> allSuperclasses = ClassUtils.getAllSuperclasses(klass);
@@ -199,6 +208,7 @@ public abstract class StageDefinitionExtractor {
         StageType type = extractStageType(klass);
         boolean errorStage = klass.getAnnotation(ErrorStage.class) != null;
         boolean statsAggregatorStage = klass.getAnnotation(StatsAggregatorStage.class) != null;
+        boolean pipelineLifecycleStage = klass.getAnnotation(PipelineLifecycleStage.class) != null;
         HideConfigs hideConfigs = klass.getAnnotation(HideConfigs.class);
         boolean preconditions = !errorStage && type != StageType.SOURCE &&
             ((hideConfigs == null) || !hideConfigs.preconditions());
@@ -217,6 +227,14 @@ public abstract class StageDefinitionExtractor {
         }
         List<String> libJarsRegex = ImmutableList.copyOf(sDef.libJarsRegex());
         boolean recordsByRef = sDef.recordsByRef();
+        List<ServiceDependencyDefinition> services = extractServiceDependencies(sDef);
+
+        // Should the stage be hidden from canvas? If so, where else should it be displayed?
+        HideStage hideStageDef = klass.getAnnotation(HideStage.class);
+        List<HideStage.Type> hideStage = new ArrayList<>();
+        if(hideStageDef != null) {
+          hideStage.addAll(Arrays.asList(hideStageDef.value()));
+        }
 
         // If not a stage library, then dont add stage system configs
         if (!PipelineBeanCreator.PIPELINE_LIB_DEFINITION.equals(libraryDef.getName())) {
@@ -271,6 +289,7 @@ public abstract class StageDefinitionExtractor {
         boolean producesEvents = sDef.producesEvents();
 
         return new StageDefinition(
+            sDef,
             libraryDef,
             privateClassLoader,
             klass,
@@ -296,8 +315,12 @@ public abstract class StageDefinitionExtractor {
             resetOffset,
             onlineHelpRefUrl,
             statsAggregatorStage,
+            pipelineLifecycleStage,
             offsetCommitController,
-            producesEvents
+            producesEvents,
+            services,
+            hideStage,
+            sDef.sendsResponse()
         );
       } catch (Exception e) {
         throw new IllegalStateException("Exception while extracting stage definition for " + getStageName(klass), e);
@@ -349,12 +372,26 @@ public abstract class StageDefinitionExtractor {
     } else if (Target.class.isAssignableFrom(klass)) {
       type = StageType.TARGET;
     } else if (PipelineConfigBean.class.isAssignableFrom(klass) ||
+        PipelineFragmentConfigBean.class.isAssignableFrom(klass) ||
         RuleDefinitionsConfigBean.class.isAssignableFrom(klass)) {
       type = StageType.PIPELINE;
     } else {
       type = null;
     }
     return type;
+  }
+
+  private List<ServiceDependencyDefinition> extractServiceDependencies(StageDef stageDef) {
+    List<ServiceDependencyDefinition> services = new LinkedList<>();
+    for (ServiceDependency dependency : stageDef.services()) {
+      Map<String, String> configuration = new HashMap<>();
+      for (ServiceConfiguration conf : dependency.configuration()) {
+        configuration.put(conf.name(), conf.value());
+      }
+
+      services.add(new ServiceDependencyDefinition(dependency.service(), configuration));
+    }
+    return services;
   }
 
   private List<ErrorMessage> validateConfigGroups(List<ConfigDefinition> configs, ConfigGroupDefinition

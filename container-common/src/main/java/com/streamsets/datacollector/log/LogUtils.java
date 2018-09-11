@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,6 @@ import com.streamsets.pipeline.lib.parser.shaded.org.aicer.grok.dictionary.GrokD
 import com.streamsets.pipeline.lib.parser.shaded.org.aicer.grok.util.Grok;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;

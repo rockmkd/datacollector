@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ public enum ElasticsearchOperationType implements Label {
   CREATE(OperationType.INSERT_CODE),
   UPDATE(OperationType.UPDATE_CODE),
   DELETE(OperationType.DELETE_CODE),
+  MERGE(OperationType.MERGE_CODE)
   ;
 
   final int code;
@@ -45,6 +46,8 @@ public enum ElasticsearchOperationType implements Label {
         return "UPDATE";
       case OperationType.DELETE_CODE:
         return "DELETE";
+      case OperationType.MERGE_CODE:
+        return "UPDATE with doc_as_upsert";
       default:
         return null;
     }

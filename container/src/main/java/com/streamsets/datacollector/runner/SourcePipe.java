@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@ import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -93,8 +94,6 @@ public class SourcePipe extends StagePipe implements ReportErrorDelegate {
       getStage().getInfo().getInstanceName(),
       getStage().getInfo().getLabel()
     );
-
-    updateStatsAtStart(batchContext.getStartTime());
   }
 
   /**
@@ -103,7 +102,7 @@ public class SourcePipe extends StagePipe implements ReportErrorDelegate {
    * @param batchContext Batch context enriched by prepareBatchContext
    * @return Map with statistics that are usually stored inside the Pipe object itself.
    */
-  public Map<String, Object> finishBatchContext(BatchContextImpl batchContext) {
+  public Map<String, Object> finishBatchContext(BatchContextImpl batchContext) throws StageException {
     return finishBatchAndCalculateMetrics(
       batchContext.getStartTime(),
       batchContext.getPipeBatch(),

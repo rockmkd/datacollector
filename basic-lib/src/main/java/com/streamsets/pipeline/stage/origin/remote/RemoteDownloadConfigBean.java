@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
  */
 package com.streamsets.pipeline.stage.origin.remote;
 
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ValueChooserModel;
@@ -55,29 +55,27 @@ public class RemoteDownloadConfigBean {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Username",
       description = "Username to use to login to the remote server",
       displayPosition = 15,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "auth",
       triggeredByValue = {"PASSWORD", "PRIVATE_KEY"}
   )
-  public String username;
+  public CredentialValue username;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Password",
       description = "Password to use to login to the remote server. If private key is specified, that is used.",
       displayPosition = 20,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "auth",
       triggeredByValue = {"PASSWORD"}
   )
-  public String password;
+  public CredentialValue password;
 
   @ConfigDef(
       required = true,
@@ -93,16 +91,15 @@ public class RemoteDownloadConfigBean {
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Private Key Passphrase",
       description = "Passphrase to use to open the private key file.",
       displayPosition = 40,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "auth",
       triggeredByValue = {"PRIVATE_KEY"}
   )
-  public String privateKeyPassphrase;
+  public CredentialValue privateKeyPassphrase;
 
   @ConfigDef(
       required = true,
@@ -119,7 +116,7 @@ public class RemoteDownloadConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.BOOLEAN,
-      defaultValue = "false",
+      defaultValue = "true",
       label = "Strict Host Checking",
       description = "If enabled, this client will only connect to the host if the host is in the known hosts file.",
       displayPosition = 50,

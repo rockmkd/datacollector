@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +17,15 @@ package com.streamsets.datacollector.cluster;
 
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
+import com.streamsets.datacollector.creation.PipelineConfigBean;
+import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
-import com.streamsets.datacollector.util.SystemProcessFactory;
 import com.streamsets.lib.security.acl.dto.Acl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URLClassLoader;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -36,11 +38,15 @@ public class MockClusterProvider implements ClusterProvider {
   public boolean isRunningCommandFails = false;
   public boolean isSucceeded = false;
   public boolean isRunning = true;
-  public String appId = null;
+  public String appId = "appId";
 
   @Override
-  public void killPipeline(SystemProcessFactory systemProcessFactory, File sparkManager, File tempDir, String appId,
-                           PipelineConfiguration pipelineConfiguration)
+  public void killPipeline(
+      File tempDir,
+      ApplicationState applicationState,
+      PipelineConfiguration pipelineConfiguration,
+      PipelineConfigBean pipelineConfigBean
+  )
     throws TimeoutException {
     LOG.info("killPipeline");
     if (killTimesOut) {
@@ -49,8 +55,11 @@ public class MockClusterProvider implements ClusterProvider {
   }
 
   @Override
-  public ClusterPipelineStatus getStatus(SystemProcessFactory systemProcessFactory, File sparkManager, File tempDir, String appId,
-                           PipelineConfiguration pipelineConfiguration) throws TimeoutException {
+  public ClusterPipelineStatus getStatus(
+      File tempDir,
+      ApplicationState applicationState,
+      PipelineConfiguration pipelineConfiguration, PipelineConfigBean pipelineConfigBean
+  ) throws TimeoutException {
     LOG.info("isRunning");
     if (isRunningTimesOut) {
       throw new TimeoutException();
@@ -69,18 +78,36 @@ public class MockClusterProvider implements ClusterProvider {
   }
 
   @Override
-  public ApplicationState startPipeline(SystemProcessFactory systemProcessFactory, File sparkManager, File tempDir,
-                              Map<String, String> environment, Map<String, String> sourceInfo,
-                              PipelineConfiguration pipelineConfiguration, StageLibraryTask stageLibrary,
-                              File etcDir, File resourcesDir, File staticWebDir, File bootstrapDir, URLClassLoader apiCL,
-                              URLClassLoader containerCL, long timeout, RuleDefinitions ruleDefinitions, Acl acl)
+  public ApplicationState startPipeline(
+      File tempDir, Map<String, String> sourceInfo,
+      PipelineConfiguration pipelineConfiguration, PipelineConfigBean pipelineConfigBean, StageLibraryTask stageLibrary,
+      CredentialStoresTask credentialStoresTask,
+      File etcDir,
+      File resourcesDir,
+      File staticWebDir,
+      File bootstrapDir,
+      URLClassLoader apiCL,
+      URLClassLoader containerCL,
+      long timeout,
+      RuleDefinitions ruleDefinitions,
+      Acl acl
+  )
   throws TimeoutException {
     LOG.info("startPipeline");
     if (submitTimesOut) {
       throw new TimeoutException();
     }
     ApplicationState applicationState = new ApplicationState();
-    applicationState.setId(appId);
+    applicationState.setAppId(appId);
     return applicationState;
+  }
+
+  @Override
+  public void cleanUp(
+      ApplicationState applicationState,
+      PipelineConfiguration pipelineConfiguration,
+      PipelineConfigBean pipelineConfigBean
+  ) throws IOException {
+
   }
 }

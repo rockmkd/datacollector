@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,8 @@ import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.common.InterfaceAudience;
 import com.streamsets.pipeline.common.InterfaceStability;
+import com.streamsets.pipeline.lib.event.CommonEvents;
+import com.streamsets.pipeline.api.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +38,10 @@ public abstract class AbstractAmazonS3Source extends BaseSource {
 
   private static final String OFFSET_SEPARATOR = "::";
   private static final String ZERO = "0";
+
+  protected long noMoreDataRecordCount;
+  protected long noMoreDataErrorCount;
+  protected long noMoreDataFileCount;
 
   protected final S3ConfigBean s3ConfigBean;
   protected S3Spooler spooler;
@@ -97,6 +103,10 @@ public abstract class AbstractAmazonS3Source extends BaseSource {
       spooler.init();
     }
 
+    noMoreDataRecordCount = 0;
+    noMoreDataErrorCount = 0;
+    noMoreDataFileCount = 0;
+
     return issues;
   }
 
@@ -154,6 +164,17 @@ public abstract class AbstractAmazonS3Source extends BaseSource {
         // from the spooler
         s3Offset.setOffset(S3Constants.MINUS_ONE);
       }
+    } else if (noMoreDataRecordCount > 0 || noMoreDataErrorCount > 0) {
+      LOG.info("sending no-more-data event.  records {} errors {} files {} ",
+          noMoreDataRecordCount, noMoreDataErrorCount, noMoreDataFileCount);
+      CommonEvents.NO_MORE_DATA.create(getContext())
+          .with("record-count", noMoreDataRecordCount)
+          .with("error-count", noMoreDataErrorCount)
+          .with("file-count", noMoreDataFileCount)
+          .createAndSend();
+      noMoreDataRecordCount = 0;
+      noMoreDataErrorCount = 0;
+      noMoreDataFileCount = 0;
     }
     return s3Offset.toString();
   }
@@ -274,13 +295,19 @@ public abstract class AbstractAmazonS3Source extends BaseSource {
 
     @Override
     public String toString() {
-      return key + OFFSET_SEPARATOR + offset + OFFSET_SEPARATOR + eTag + OFFSET_SEPARATOR + timestamp;
+      // Excel Data Format's offset is "sheet name::offset". We don't expect offset to include "::" so we'll modify a bit
+      return key + OFFSET_SEPARATOR + offset.replaceAll("::", ":\\\\:") + OFFSET_SEPARATOR + eTag + OFFSET_SEPARATOR + timestamp;
     }
 
     public static S3Offset fromString(String lastSourceOffset) throws StageException {
+
       if (lastSourceOffset != null) {
-        String[] split = lastSourceOffset.split(OFFSET_SEPARATOR);
-        if (split.length == 4) {
+        String savedOffset = lastSourceOffset.replaceAll(":\\\\:", "::");
+        String[] split = savedOffset.split(OFFSET_SEPARATOR);
+        if (split.length == 5) {
+          // Excel Data Format's offset is "sheet name::offset".
+          return new S3Offset(split[0], Utils.format("{}::{}", split[1], split[2]), split[3], split[4]);
+        } else if (split.length == 4) {
           return new S3Offset(split[0], split[1], split[2], split[3]);
         } else {
           throw new StageException(Errors.S3_SPOOLDIR_21, lastSourceOffset);

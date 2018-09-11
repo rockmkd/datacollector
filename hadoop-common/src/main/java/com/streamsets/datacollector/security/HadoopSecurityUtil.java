@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,24 +20,23 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.zookeeper.server.util.KerberosUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.util.List;
 import java.util.Optional;
 
 public class HadoopSecurityUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(HadoopSecurityUtil.class);
 
   public static UserGroupInformation getLoginUser(Configuration hdfsConfiguration) throws IOException {
     return LoginUgiProviderFactory.getLoginUgiProvider().getLoginUgi(hdfsConfiguration);
   }
 
   public static String getDefaultRealm() throws ReflectiveOperationException {
-    AccessControlContext accessContext = AccessController.getContext();
-    synchronized (SecurityUtil.getSubjectDomainLock(accessContext)) {
-      return KerberosUtil.getDefaultRealm();
-    }
+    return KerberosUtil.getDefaultRealm();
   }
 
   /**
@@ -64,8 +63,7 @@ public class HadoopSecurityUtil {
       if(!StringUtils.isEmpty(user)) {
         issues.add(context.createConfigIssue(configGroup, configName, Errors.HADOOP_00001));
       }
-
-      user = context.getUserContext().getUser();
+      user = context.getUserContext().getAliasName();
     }
 
     // If impersonated user is empty, simply return login UGI (no impersonation performed)
@@ -80,12 +78,8 @@ public class HadoopSecurityUtil {
     if(Boolean.parseBoolean(lowercasedString)) {
       user = user.toLowerCase();
     }
-
-    // Otherwise impersonate the "user"
-    AccessControlContext accessContext = AccessController.getContext();
-    synchronized (SecurityUtil.getSubjectDomainLock(accessContext)) {
-      return UserGroupInformation.createProxyUser(user, loginUser);
-    }
+    return UserGroupInformation.createProxyUser(user, loginUser);
   }
+
 
 }

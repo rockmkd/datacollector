@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@ package com.streamsets.datacollector.definition;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.streamsets.datacollector.config.ConfigDefinition;
 import com.streamsets.datacollector.el.ElConstantDefinition;
 import com.streamsets.datacollector.el.ElFunctionDefinition;
@@ -29,6 +30,7 @@ import com.streamsets.pipeline.api.ElParam;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.PredicateModel;
 
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import org.junit.Assert;
 import org.junit.Test;
@@ -57,6 +59,13 @@ public class TestConfigDefinitionExtractor {
 
   }
 
+  public static class ImplicitOnlyEls {
+    @ElFunction(prefix = "p", name = "fi", description = "ff", implicitOnly = true)
+    public static String fi() {
+      return null;
+    }
+  }
+
   public static class Ok1 {
 
     @ConfigDef(
@@ -72,7 +81,7 @@ public class TestConfigDefinitionExtractor {
         max = 4,
         evaluation = ConfigDef.Evaluation.EXPLICIT,
         mode = ConfigDef.Mode.JAVA,
-        elDefs = ELs.class
+        elDefs = {ELs.class }
     )
     public int config;
   }
@@ -101,7 +110,7 @@ public class TestConfigDefinitionExtractor {
         description = "D",
         type = ConfigDef.Type.MODEL,
         required = true,
-        elDefs = ELs.class
+        elDefs = {ELs.class, ImplicitOnlyEls.class }
     )
     @PredicateModel
     public List<String> predicates;
@@ -269,6 +278,24 @@ public class TestConfigDefinitionExtractor {
         required = true
     )
     public String b;
+  }
+
+  public static class Fail4 {
+
+    @ConfigDef(
+        label = "L",
+        type = ConfigDef.Type.STRING,
+        required = false,
+        min = 0,
+        evaluation = ConfigDef.Evaluation.EXPLICIT,
+        elDefs = ImplicitOnlyEls.class
+    )
+    public static String config;
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testStringConfigFail4() {
+    ConfigDefinitionExtractor.get().extract(Fail4.class, Collections.<String>emptyList(), "x");
   }
 
   @Test
@@ -760,6 +787,28 @@ public class TestConfigDefinitionExtractor {
     List<ErrorMessage> errorMessages =
         ConfigDefinitionExtractor.get().validate(Bean3.class, Collections.<String>emptyList(), "x");
     Assert.assertEquals(4, errorMessages.size());
+  }
+
+  public static class Bean4 {
+
+    @ConfigDef(
+        label = "L",
+        required = true,
+        type = ConfigDef.Type.CREDENTIAL
+    )
+    public CredentialValue credential;
+
+  }
+
+  @Test
+  public void testCredentialValue() {
+    List<ConfigDefinition> defs = ConfigDefinitionExtractor.get().extract(Bean4.class, Collections.<String>emptyList(), "x");
+    Assert.assertEquals(1, defs.size());
+    ConfigDefinition def = defs.get(0);
+    List<ElFunctionDefinition> fDefs = def.getElFunctionDefinitions();
+    Set<String> fNames = ImmutableSet.copyOf(Lists.transform(fDefs, input -> input.getName()));
+    Assert.assertTrue(fNames.contains("credential:get"));
+    Assert.assertTrue(fNames.contains("credential:getWithOptions"));
   }
 
 }

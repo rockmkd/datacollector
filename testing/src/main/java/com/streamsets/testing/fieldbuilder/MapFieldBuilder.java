@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ import com.streamsets.pipeline.api.Field;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.Map;
 
 public class MapFieldBuilder extends BaseFieldBuilder<MapFieldBuilder> {
   private final ImmutableMap.Builder builder = ImmutableMap.builder();
@@ -37,10 +38,19 @@ public class MapFieldBuilder extends BaseFieldBuilder<MapFieldBuilder> {
 
   @Override
   public BaseFieldBuilder<? extends BaseFieldBuilder> end() {
+    return end(new String[0]);
+  }
+
+  @Override
+  public BaseFieldBuilder<? extends BaseFieldBuilder> end(String... attributes) {
     if (parentBuilder == null) {
       throw new IllegalStateException("Do not call end on the root builder; just call build when finished");
     }
-    parentBuilder.handleEndChildField(field, Field.create(Field.Type.MAP, this.builder.build()));
+    final Field field = Field.create(Field.Type.MAP, this.builder.build());
+    for (Map.Entry<String, String> attr : buildAttributeMap(attributes).entrySet()) {
+      field.setAttribute(attr.getKey(), attr.getValue());
+    }
+    parentBuilder.handleEndChildField(this.field, field);
     return parentBuilder;
   }
 
@@ -65,6 +75,11 @@ public class MapFieldBuilder extends BaseFieldBuilder<MapFieldBuilder> {
   }
 
   public MapFieldBuilder add(String field, Short value) {
+    builder.put(field, Field.create(value));
+    return this;
+  }
+
+  public MapFieldBuilder add(String field, Integer value) {
     builder.put(field, Field.create(value));
     return this;
   }

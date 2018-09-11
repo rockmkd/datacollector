@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,5 +32,7 @@ public interface SnapshotInfo {
   public boolean isInProgress();
 
   public long getBatchNumber();
+
+  public boolean isFailureSnapshot();
 
 }

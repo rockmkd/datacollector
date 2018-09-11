@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -81,14 +81,28 @@ public class AsyncPreviewer implements Previewer {
   }
 
   @Override
-  public void start(final int batches, final int batchSize, final boolean skipTargets, final String stopStage,
-                    final List<StageOutput> stagesOverride, final long timeoutMillis) {
-    Callable<Object> callable = new Callable<Object>() {
-      @Override
-      public Object call() throws PipelineException {
-        syncPreviewer.start(batches, batchSize, skipTargets, stopStage, stagesOverride, timeoutMillis);
-        return null;
-      }
+  public void start(
+      final int batches,
+      final int batchSize,
+      final boolean skipTargets,
+      final boolean skipLifecycleEvents,
+      final String stopStage,
+      final List<StageOutput> stagesOverride,
+      final long timeoutMillis,
+      final boolean testOrigin
+  ) {
+    Callable<Object> callable = () -> {
+      syncPreviewer.start(
+          batches,
+          batchSize,
+          skipTargets,
+          skipLifecycleEvents,
+          stopStage,
+          stagesOverride,
+          timeoutMillis,
+          testOrigin
+      );
+      return null;
     };
     future = executorService.submit(callable);
     scheduleTimeout(timeoutMillis);
@@ -99,6 +113,7 @@ public class AsyncPreviewer implements Previewer {
     if (future != null) {
       synchronized (future) {
         if(!future.isDone()) {
+          syncPreviewer.prepareForTimeout();
           future.cancel(true);
           syncPreviewer.stop();
         }
@@ -144,6 +159,7 @@ public class AsyncPreviewer implements Previewer {
         if (future != null) {
           synchronized (future) {
             if (!future.isDone()) {
+              syncPreviewer.prepareForTimeout();
               future.cancel(true);
               syncPreviewer.timeout();
               return true;

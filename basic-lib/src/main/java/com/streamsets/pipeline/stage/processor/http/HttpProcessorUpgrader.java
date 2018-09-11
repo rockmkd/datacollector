@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.config.upgrade.DataFormatUpgradeHelper;
 import com.streamsets.pipeline.lib.http.HttpCompressionType;
 import com.streamsets.pipeline.lib.http.JerseyClientUtil;
+import com.streamsets.pipeline.lib.http.logging.HttpConfigUpgraderUtil;
 import com.streamsets.pipeline.stage.util.tls.TlsConfigBeanUpgradeUtil;
 
 import java.util.ArrayList;
@@ -85,6 +86,18 @@ public class HttpProcessorUpgrader implements StageUpgrader {
         // fall through
       case 8:
         upgradeV8ToV9(configs);
+        if (toVersion == 9) {
+          break;
+        }
+        // fall through
+      case 9:
+        upgradeV9ToV10(configs);
+        if (toVersion == 10) {
+          break;
+        }
+        // fall through
+      case 10:
+        upgradeV10ToV11(configs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
@@ -135,5 +148,26 @@ public class HttpProcessorUpgrader implements StageUpgrader {
 
   private void upgradeV8ToV9(List<Config> configs) {
     TlsConfigBeanUpgradeUtil.upgradeHttpSslConfigBeanToTlsConfigBean(configs, "conf.client.");
+  }
+
+  private void upgradeV9ToV10(List<Config> configs) {
+    configsToAdd.clear();
+    configsToRemove.clear();
+
+    String key = joiner.join(CONF, "rateLimit");
+
+    for (Config config : configs) {
+      if (key.equals(config.getName())) {
+        configsToRemove.add(config);
+        configsToAdd.add(new Config(key, (int)config.getValue() == 0 ? 0 : (int)(1000.0 / (int)config.getValue())));
+      }
+    }
+
+    configs.removeAll(configsToRemove);
+    configs.addAll(configsToAdd);
+  }
+
+  private void upgradeV10ToV11(List<Config> configs) {
+    HttpConfigUpgraderUtil.addDefaultRequestLoggingConfigs(configs, "conf.client");
   }
 }

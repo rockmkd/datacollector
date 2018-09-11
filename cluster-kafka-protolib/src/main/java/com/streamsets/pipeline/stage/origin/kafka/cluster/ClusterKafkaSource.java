@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,8 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+
+import static com.streamsets.pipeline.Utils.KAFKA_CONFIG_BEAN_PREFIX;
 
 /**
  * Ingests kafka produce data from spark streaming
@@ -98,6 +99,7 @@ public class ClusterKafkaSource extends BaseKafkaSource implements OffsetCommitt
   @Override
   public void destroy() {
     shutdown();
+    kafkaConsumer.destroy();
     super.destroy();
   }
 
@@ -146,6 +148,24 @@ public class ClusterKafkaSource extends BaseKafkaSource implements OffsetCommitt
           ClusterModeConstants.EXTRA_KAFKA_CONFIG_PREFIX + k,
           v
       ));
+
+      // MapR Streams Origin doesn't have broker list and zookeeper connect
+      if (conf.metadataBrokerList != null) {
+        configBeanPrefixedMap.put(
+            KAFKA_CONFIG_BEAN_PREFIX + BROKER_LIST,
+            conf.metadataBrokerList);
+      }
+      if (conf.zookeeperConnect != null) {
+        configBeanPrefixedMap.put(
+            KAFKA_CONFIG_BEAN_PREFIX + ZOOKEEPER_CONNECT,
+            conf.zookeeperConnect);
+      }
+      configBeanPrefixedMap.put(
+          KAFKA_CONFIG_BEAN_PREFIX + TOPIC,
+          conf.topic);
+      configBeanPrefixedMap.put(
+          KAFKA_CONFIG_BEAN_PREFIX + CONSUMER_GROUP,
+          conf.consumerGroup);
       return new ImmutableMap.Builder<String, String>().put(NO_OF_PARTITIONS, String.valueOf(getParallelism())).putAll(
           configBeanPrefixedMap).build();
     } catch (StageException e) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,7 +61,17 @@ public class AmazonS3Executor extends BaseExecutor {
     // Initialize ELs
     validateEL("bucketTemplate", config.s3Config.bucketTemplate, issues);
     validateEL("objectPath", config.taskConfig.objectPath, issues);
-    validateEL("tags", null, issues);
+    switch (config.taskConfig.taskType) {
+      case CREATE_NEW_OBJECT:
+        validateEL("content", config.taskConfig.content, issues);
+        break;
+      case CHANGE_EXISTING_OBJECT:
+        validateEL("tags", null, issues);
+        break;
+      case COPY_OBJECT:
+        validateEL("copyTargetLocation", config.taskConfig.copyTargetLocation, issues);
+        break;
+    }
 
     return issues;
   }
@@ -82,11 +92,31 @@ public class AmazonS3Executor extends BaseExecutor {
     Iterator<Record> it = batch.getRecords();
     while(it.hasNext()) {
       Record record = it.next();
+      ELVars variables = getContext().createELVars();
+      RecordEL.setRecordInContext(variables, record);
 
       try {
+        // Calculate working file (the same for all task types)
+        String bucket = evaluate(record, "bucketTemplate", variables, config.s3Config.bucketTemplate);
+        String objectPath = evaluate(record, "objectPath", variables, config.taskConfig.objectPath);
+        if(bucket.isEmpty()) {
+          throw new OnRecordErrorException(record, Errors.S3_EXECUTOR_0003);
+        }
+        if(objectPath.isEmpty()) {
+          throw new OnRecordErrorException(record, Errors.S3_EXECUTOR_0004);
+        }
+        LOG.debug("Working on {}:{}", bucket, objectPath);
+
+        // And execute given task
         switch (config.taskConfig.taskType) {
+          case CREATE_NEW_OBJECT:
+            createNewObject(record, variables, bucket, objectPath);
+            break;
+          case COPY_OBJECT:
+            copyObject(record, variables, bucket, objectPath);
+            break;
           case CHANGE_EXISTING_OBJECT:
-            changeExistingObject(record);
+            changeExistingObject(record, variables, bucket, objectPath);
             break;
           default:
             throw new StageException(Errors.S3_EXECUTOR_0000, "Unknown task type: " + config.taskConfig.taskType);
@@ -100,21 +130,47 @@ public class AmazonS3Executor extends BaseExecutor {
     }
   }
 
-  private void changeExistingObject(Record record) throws OnRecordErrorException {
-    ELVars variables = getContext().createELVars();
-    RecordEL.setRecordInContext(variables, record);
+  private void copyObject(
+    Record record,
+    ELVars variables,
+    String bucket,
+    String objectPath
+  ) throws StageException {
+    // Copy is currently limited to the same bucket
+    String newLocation = evaluate(record, "copyTargetLocation", variables, config.taskConfig.copyTargetLocation);
+    config.s3Config.getS3Client().copyObject(bucket, objectPath, bucket, newLocation);
 
-    // Working file
-    String bucket = evaluate(record, "bucketTemplate", variables, config.s3Config.bucketTemplate);
-    String objectPath = evaluate(record, "objectPath", variables, config.taskConfig.objectPath);
-    if(bucket.isEmpty()) {
-      throw new OnRecordErrorException(record, Errors.S3_EXECUTOR_0003);
+    if(config.taskConfig.dropAfterCopy) {
+      config.s3Config.getS3Client().deleteObject(bucket, objectPath);
     }
-    if(objectPath.isEmpty()) {
-      throw new OnRecordErrorException(record, Errors.S3_EXECUTOR_0004);
-    }
-    LOG.debug("Working on {}:{}", bucket, objectPath);
 
+    Events.FILE_COPIED.create(getContext())
+      .with("object_key", newLocation)
+      .createAndSend();
+  }
+
+  private void createNewObject(
+    Record record,
+    ELVars variables,
+    String bucket,
+    String objectPath
+  ) throws OnRecordErrorException {
+    // Evaluate content
+    String content = evaluate(record, "content", variables, config.taskConfig.content);
+
+    config.s3Config.getS3Client().putObject(bucket, objectPath, content);
+
+    Events.FILE_CREATED.create(getContext())
+      .with("object_key", objectPath)
+      .createAndSend();
+  }
+
+  private void changeExistingObject(
+    Record record,
+    ELVars variables,
+    String bucket,
+    String objectPath
+  ) throws OnRecordErrorException {
     // Tag application
     if(!config.taskConfig.tags.isEmpty()) {
       List<Tag> newTags = new ArrayList<>();
@@ -133,6 +189,10 @@ public class AmazonS3Executor extends BaseExecutor {
         objectPath,
         new ObjectTagging(newTags)
       ));
+
+      Events.FILE_CHANGED.create(getContext())
+        .with("object_key", objectPath)
+        .createAndSend();
     }
   }
 

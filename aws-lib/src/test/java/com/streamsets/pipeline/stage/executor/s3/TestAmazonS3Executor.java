@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,10 +21,14 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GetObjectTaggingRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.Tag;
 import com.google.common.collect.ImmutableList;
+import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Record;
@@ -106,6 +110,105 @@ public class TestAmazonS3Executor {
   }
 
   @Test
+  public void testCreateObject() throws Exception {
+    AmazonS3ExecutorConfig config = getConfig();
+    config.taskConfig.taskType = TaskType.CREATE_NEW_OBJECT;
+    config.taskConfig.content = "${record:value('/content')}";
+
+    AmazonS3Executor executor = new AmazonS3Executor(config);
+    TargetRunner runner = new TargetRunner.Builder(AmazonS3DExecutor.class, executor)
+      .build();
+    runner.runInit();
+
+    try {
+      runner.runWrite(ImmutableList.of(getTestRecord()));
+
+      //Make sure the prefix is empty
+      ObjectListing objectListing = s3client.listObjects(BUCKET_NAME, objectName);
+      Assert.assertEquals(1, objectListing.getObjectSummaries().size());
+
+      S3Object object = s3client.getObject(BUCKET_NAME, objectName);
+      S3ObjectInputStream objectContent = object.getObjectContent();
+
+      List<String> stringList = IOUtils.readLines(objectContent);
+      Assert.assertEquals(1, stringList.size());
+      Assert.assertEquals("Secret", stringList.get(0));
+
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      assertEvent(runner.getEventRecords().get(0), objectName);
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testCopyObject() throws Exception {
+    String newName = UUID.randomUUID().toString();
+
+    AmazonS3ExecutorConfig config = getConfig();
+    config.taskConfig.taskType = TaskType.COPY_OBJECT;
+    config.taskConfig.copyTargetLocation = newName;
+
+    AmazonS3Executor executor = new AmazonS3Executor(config);
+    TargetRunner runner = new TargetRunner.Builder(AmazonS3DExecutor.class, executor)
+      .build();
+    runner.runInit();
+
+    try {
+      s3client.putObject(new PutObjectRequest(BUCKET_NAME, objectName, IOUtils.toInputStream("content"), new ObjectMetadata()));
+      runner.runWrite(ImmutableList.of(getTestRecord()));
+
+      S3Object object = s3client.getObject(BUCKET_NAME, newName);
+      S3ObjectInputStream objectContent = object.getObjectContent();
+
+      List<String> stringList = IOUtils.readLines(objectContent);
+      Assert.assertEquals(1, stringList.size());
+      Assert.assertEquals("content", stringList.get(0));
+
+      Assert.assertTrue(s3client.doesObjectExist(BUCKET_NAME, objectName));
+
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      assertEvent(runner.getEventRecords().get(0), newName);
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testCopyObjectDeleteOriginal() throws Exception {
+    String newName = UUID.randomUUID().toString();
+
+    AmazonS3ExecutorConfig config = getConfig();
+    config.taskConfig.taskType = TaskType.COPY_OBJECT;
+    config.taskConfig.dropAfterCopy = true;
+    config.taskConfig.copyTargetLocation = newName;
+
+    AmazonS3Executor executor = new AmazonS3Executor(config);
+    TargetRunner runner = new TargetRunner.Builder(AmazonS3DExecutor.class, executor)
+      .build();
+    runner.runInit();
+
+    try {
+      s3client.putObject(new PutObjectRequest(BUCKET_NAME, objectName, IOUtils.toInputStream("dropAfterCopy"), new ObjectMetadata()));
+      runner.runWrite(ImmutableList.of(getTestRecord()));
+
+      S3Object object = s3client.getObject(BUCKET_NAME, newName);
+      S3ObjectInputStream objectContent = object.getObjectContent();
+
+      List<String> stringList = IOUtils.readLines(objectContent);
+      Assert.assertEquals(1, stringList.size());
+      Assert.assertEquals("dropAfterCopy", stringList.get(0));
+
+      Assert.assertFalse(s3client.doesObjectExist(BUCKET_NAME, objectName));
+
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      assertEvent(runner.getEventRecords().get(0), newName);
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
   public void testApplyTags() throws Exception {
     AmazonS3ExecutorConfig config = getConfig();
     config.taskConfig.tags = ImmutableMap.of(
@@ -126,13 +229,15 @@ public class TestAmazonS3Executor {
       Assert.assertEquals("Owner", tags.get(0).getKey());
       Assert.assertEquals("Earth", tags.get(0).getValue());
 
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      assertEvent(runner.getEventRecords().get(0), objectName);
     } finally {
       runner.runDestroy();
     }
   }
 
   @Test
-  public void testBrokenEL() throws Exception {
+  public void testApplyTagsBrokenEL() throws Exception {
     AmazonS3ExecutorConfig config = getConfig();
     config.taskConfig.tags = ImmutableMap.of(
       "${record:value('/ke", "${record:value('/value')}"
@@ -174,7 +279,7 @@ public class TestAmazonS3Executor {
   }
 
   @Test
-  public void testEmptyObjectpath() throws Exception {
+  public void testEmptyObjectPath() throws Exception {
     AmazonS3ExecutorConfig config = getConfig();
     config.taskConfig.objectPath = "";
 
@@ -200,8 +305,8 @@ public class TestAmazonS3Executor {
     config.s3Config.endpoint = "http://localhost:" + port;
     config.s3Config.bucketTemplate = "${record:attribute('bucket')}";
     config.s3Config.awsConfig = new AWSConfig();
-    config.s3Config.awsConfig.awsAccessKeyId = "foo";
-    config.s3Config.awsConfig.awsSecretAccessKey = "bar";
+    config.s3Config.awsConfig.awsAccessKeyId = () -> "foo";
+    config.s3Config.awsConfig.awsSecretAccessKey = () -> "bar";
     config.s3Config.awsConfig.disableChunkedEncoding = true;
 
     config.taskConfig.taskType = TaskType.CHANGE_EXISTING_OBJECT;
@@ -216,9 +321,19 @@ public class TestAmazonS3Executor {
     record.set(Field.create(Field.Type.MAP, ImmutableMap.of(
       "object", Field.create(objectName),
       "key", Field.create("Owner"),
-      "value", Field.create("Earth")
+      "value", Field.create("Earth"),
+      "content", Field.create("Secret")
     )));
 
     return record;
   }
+
+  private void assertEvent(EventRecord eventRecord, String objectName) {
+    Assert.assertNotNull(eventRecord);
+    Assert.assertNotNull(objectName);
+
+    Assert.assertTrue(eventRecord.has("/object_key"));
+    Assert.assertEquals(objectName, eventRecord.get("/object_key").getValueAsString());
+  }
+
 }

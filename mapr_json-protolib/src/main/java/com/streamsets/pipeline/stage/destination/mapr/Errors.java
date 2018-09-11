@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,6 +35,9 @@ public enum Errors implements ErrorCode {
   MAPR_JSON_14("Conversion to byte array failed for Row Key - type '{}' "),
   MAPR_JSON_15("Field selected for record key '{}' does not exist."),
   MAPR_JSON_16("Error Validating EL '{}' in Table Name UI field. "),
+  MAPR_JSON_17("Unsupported operation type {}"),
+  MAPR_JSON_18("Exception while Updating record. '{}' "),
+  MAPR_JSON_19("Exception while Deleting record. '{}' "),
   ;
 
   private final String msg;

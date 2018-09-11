@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,9 +30,13 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 
 import static com.streamsets.pipeline.lib.jdbc.JdbcErrors.JDBC_14;
@@ -106,17 +110,34 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
     this.caseSensitive = caseSensitive;
   }
 
+  @Override
+  public List<OnRecordErrorException> writePerRecord(Collection<Record> batch) throws StageException {
+    final boolean perRecord = true;
+    return write(batch, perRecord);
+  }
+
   /** {@inheritDoc} */
   @SuppressWarnings("unchecked")
   @Override
   public List<OnRecordErrorException> writeBatch(Collection<Record> batch) throws StageException {
-    List<OnRecordErrorException> errorRecords = new LinkedList<>();
-    Connection connection = null;
-    PreparedStatementMap statementsForBatch = null;
-    List<PreparedStatement> statementsToExecute = new ArrayList<>();
-    try {
-      connection = getDataSource().getConnection();
+    final boolean perRecord = false;
+    return write(batch, perRecord);
+  }
 
+  /**
+   * write the batch of the records if it is not perRecord
+   * otherwise, execute one statement per record
+   * @param batch
+   * @param perRecord
+   * @return List<OnRecordErrorException>
+   * @throws StageException
+   */
+  private List<OnRecordErrorException> write(Collection<Record> batch, boolean perRecord) throws StageException {
+    List<OnRecordErrorException> errorRecords = new LinkedList<>();
+    PreparedStatementMap statementsForBatch = null;
+    // Map that keeps list of records that has been used for each statement -- for error handling
+    Map<PreparedStatement, List<Record>> statementsToRecords  = new LinkedHashMap<>();
+    try (Connection connection = getDataSource().getConnection()) {
       statementsForBatch = new PreparedStatementMap(
           connection,
           getTableName(),
@@ -137,53 +158,66 @@ public class JdbcGenericRecordWriter extends JdbcBaseRecordWriter {
             record,
             opCode,
             getColumnsToParameters(),
-            getColumnsToFields()
+            opCode == OperationType.UPDATE_CODE ? getColumnsToFieldNoPK() : getColumnsToFields()
         );
+
+        if (columnsToParameters.isEmpty()) {
+          // no parameters found for configured columns
+          if (LOG.isWarnEnabled()) {
+            LOG.warn("No parameters found for record with ID {}; skipping", record.getHeader().getSourceId());
+          }
+          continue;
+        }
+
         PreparedStatement statement;
         try {
-          statement = statementsForBatch.getPreparedStatement(
-              opCode,
-              columnsToParameters
-          );
+          statement = statementsForBatch.getPreparedStatement(opCode, columnsToParameters);
+          statementsToRecords.computeIfAbsent(statement, (key) -> new ArrayList<>()).add(record);
 
           setParameters(opCode, columnsToParameters, record, connection, statement);
-          statement.addBatch();
-          if (!statementsToExecute.contains(statement)) {
-            statementsToExecute.add(statement);
-          }
+
           if (LOG.isDebugEnabled()) {
             LOG.debug("Bound Query: {}", statement.toString());
           }
+
+          if (!perRecord) {
+            statement.addBatch();
+          } else {
+            statement.executeUpdate();
+
+            if (getGeneratedColumnMappings() != null) {
+              writeGeneratedColumns(statement, Arrays.asList(record).iterator(), errorRecords);
+            }
+          }
         } catch (SQLException ex) { // These don't trigger a rollback
           errorRecords.add(new OnRecordErrorException(record, JDBC_14, ex));
-        } catch (OnRecordErrorException ex){
+        } catch (OnRecordErrorException ex) {
           errorRecords.add(ex);
         }
       }
-      for (PreparedStatement statement : statementsToExecute) {
-        try {
-          statement.executeBatch();
-        } catch (SQLException e) {
-          if (getRollbackOnError()) {
-            connection.rollback();
+
+      if (!perRecord) {
+        for (Map.Entry<PreparedStatement, List<Record>> entry : statementsToRecords.entrySet()) {
+          PreparedStatement statement = entry.getKey();
+          List<Record> statementRecords = entry.getValue();
+          try {
+            statement.executeBatch();
+          } catch(SQLException e){
+            if (getRollbackOnError()) {
+              connection.rollback();
+            }
+            handleBatchUpdateException(statementRecords, e, errorRecords);
           }
-          handleBatchUpdateException(batch, e, errorRecords);
-        }
-        if (getGeneratedColumnMappings() != null) {
-          writeGeneratedColumns(statement, batch.iterator(), errorRecords);
+
+          if (getGeneratedColumnMappings() != null) {
+            writeGeneratedColumns(statement, statementRecords.iterator(), errorRecords);
+          }
         }
       }
+
       connection.commit();
     } catch (SQLException e) {
       handleSqlException(e);
-    } finally {
-      if (connection != null) {
-        try {
-          connection.close();
-        } catch (SQLException e) {
-          handleSqlException(e);
-        }
-      }
     }
     return errorRecords;
   }

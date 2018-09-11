@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,8 @@ import com.streamsets.pipeline.api.Label;
 @GenerateResourceBundle
 public enum Groups implements Label {
   CASSANDRA("Cassandra"),
-  CREDENTIALS("Credentials")
+  CREDENTIALS("Credentials"),
+  TLS("TLS"),
   ;
 
   private final String label;

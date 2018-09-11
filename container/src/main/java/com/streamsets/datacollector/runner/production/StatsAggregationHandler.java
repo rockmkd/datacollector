@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,6 @@ import com.streamsets.datacollector.runner.StageRuntime;
 import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.api.Target;
 
 import java.util.List;
 
@@ -44,12 +43,20 @@ public class StatsAggregationHandler {
   public void handle(String sourceEntity, String sourceOffset, List<Record> statsRecords) throws StageException {
     synchronized (statsAggregator) {
       statsAggregator.execute(
-        sourceOffset,     // Source offset for this batch
-        -1,     // BatchSize is not used for target
-        new BatchImpl(STATS_AGGREGATOR, sourceEntity, sourceOffset, statsRecords),
-        null,  // BatchMaker doesn't make sense for target
-        null,    // Stats stage can't generate error records
-        null    // And also can't generate events
+          sourceOffset,
+          // Source offset for this batch
+          -1,
+          // BatchSize is not used for target
+          new BatchImpl(STATS_AGGREGATOR, sourceEntity, sourceOffset, statsRecords),
+          null,
+          // BatchMaker doesn't make sense for target
+          null,
+          // Stats stage can't generate error records
+          null,
+          // And also can't generate events
+          null,
+          // Doesn't support user defined metrics
+          null
       );
     }
   }

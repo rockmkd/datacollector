@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.security;
 
+import com.streamsets.datacollector.stage.HadoopConfigurationUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
@@ -41,29 +42,30 @@ public class MapRLoginUgiProvider extends LoginUgiProvider {
     boolean isMapRLogin = Boolean.parseBoolean(maprLoginEnabled);
     AccessControlContext accessControlContext = AccessController.getContext();
     Subject subject = Subject.getSubject(accessControlContext);
+    //HADOOP-13805
+    HadoopConfigurationUtils.configureHadoopTreatSubjectExternal(hdfsConfiguration);
     // SDC-4015 As privateclassloader is false for MapR, UGI is shared and it also needs to be under jvm lock
-    synchronized (SecurityUtil.getSubjectDomainLock(accessControlContext)) {
-      UserGroupInformation.setConfiguration(hdfsConfiguration);
-      UserGroupInformation loginUgi;
+    UserGroupInformation.setConfiguration(hdfsConfiguration);
+    UserGroupInformation loginUgi;
 
-      if (UserGroupInformation.isSecurityEnabled() && !isMapRLogin) {
-        // The code in this block must only be executed in case Kerberos is enabled.
-        // MapR implementation of UserGroupInformation.isSecurityEnabled() returns true even if Kerberos is not enabled.
-        // System property helps to avoid this code path in such a case
-        loginUgi = UserGroupInformation.getUGIFromSubject(subject);
-      } else {
-        UserGroupInformation.loginUserFromSubject(subject);
-        loginUgi = UserGroupInformation.getLoginUser();
-      }
-      if (LOG.isDebugEnabled()) {
-        LOG.debug(
-            "Subject = {}, Principals = {}, Login UGI = {}",
-            subject,
-            subject == null ? "null" : subject.getPrincipals(),
-            loginUgi
-        );
-      }
-      return loginUgi;
+    if (UserGroupInformation.isSecurityEnabled() && !isMapRLogin) {
+      // The code in this block must only be executed in case Kerberos is enabled.
+      // MapR implementation of UserGroupInformation.isSecurityEnabled() returns true even if Kerberos is not enabled.
+      // System property helps to avoid this code path in such a case
+      loginUgi = UserGroupInformation.getUGIFromSubject(subject);
+    } else {
+      UserGroupInformation.loginUserFromSubject(subject);
+      loginUgi = UserGroupInformation.getLoginUser();
     }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(
+          "Subject = {}, Principals = {}, Login UGI = {}",
+          subject,
+          subject == null ? "null" : subject.getPrincipals(),
+          loginUgi
+      );
+    }
+    return loginUgi;
+
   }
 }

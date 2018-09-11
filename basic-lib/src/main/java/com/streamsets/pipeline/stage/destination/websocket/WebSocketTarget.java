@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@ import com.streamsets.pipeline.api.base.BaseTarget;
 import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
 import com.streamsets.pipeline.lib.http.Errors;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
+import com.streamsets.pipeline.lib.websocket.Groups;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
@@ -116,7 +117,7 @@ public class WebSocketTarget extends BaseTarget {
           sslContextFactory.setKeyStoreType(tlsConf.keyStoreType.getJavaValue());
         }
         if (tlsConf.keyStorePassword != null) {
-          sslContextFactory.setKeyStorePassword(tlsConf.keyStorePassword);
+          sslContextFactory.setKeyStorePassword(tlsConf.keyStorePassword.get());
         }
         if (tlsConf.trustStoreFilePath != null) {
           sslContextFactory.setTrustStorePath(tlsConf.trustStoreFilePath);
@@ -125,7 +126,7 @@ public class WebSocketTarget extends BaseTarget {
           sslContextFactory.setTrustStoreType(tlsConf.trustStoreType.getJavaValue());
         }
         if (tlsConf.trustStorePassword != null) {
-          sslContextFactory.setTrustStorePassword(tlsConf.trustStorePassword);
+          sslContextFactory.setTrustStorePassword(tlsConf.trustStorePassword.get());
         }
         if (tlsConf != null && tlsConf.isEnabled() && tlsConf.isInitialized()) {
           sslContextFactory.setSslContext(tlsConf.getSslContext());
@@ -154,8 +155,8 @@ public class WebSocketTarget extends BaseTarget {
       webSocketClient.start();
       URI webSocketUri = new URI(conf.resourceUrl);
       ClientUpgradeRequest request = new ClientUpgradeRequest();
-      for (String key : conf.headers.keySet()) {
-        request.setHeader(key, conf.headers.get(key));
+      for(HeaderBean header : conf.headers) {
+        request.setHeader(header.key, header.value.get());
       }
       Future<Session> connectFuture = webSocketClient.connect(webSocketTargetSocket, webSocketUri, request);
       wsSession = connectFuture.get();

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.cluster;
 
 public enum ClusterPipelineStatus {
+  STARTING("STARTING"),
   RUNNING("RUNNING"),
   SUCCEEDED("SUCCEEDED"),
   FAILED("FAILED"),

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -209,28 +209,28 @@ public class TestGroovyProcessor {
   public void testTypedNullPassThrough() throws Exception {
     final String script = Resources.toString(Resources.getResource("PrimitiveTypesPassthroughScript.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
-    ScriptingProcessorTestUtil.verifyPreserveTypeForNullValue(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyPreserveTypeForNullValue(GroovyDProcessor.class, processor);
   }
 
   @Test
   public void testAssignNullToTypedField() throws Exception {
     final String script = Resources.toString(Resources.getResource("AssignNullToTypedField.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
-    ScriptingProcessorTestUtil.verifyPreserveTypeForNullValue(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyPreserveTypeForNullValue(GroovyDProcessor.class, processor);
   }
 
   @Test
   public void testNestedMapWithNull() throws Exception {
     final String script = Resources.toString(Resources.getResource("NestedMapWithNull.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
-    ScriptingProcessorTestUtil.verifyNestedMap(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyNestedMap(GroovyDProcessor.class, processor);
   }
 
   @Test
   public void testChangeFieldTypeFromScripting() throws Exception {
     final String script = Resources.toString(Resources.getResource("ChangeFieldTypeScript.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH,script);
-    ScriptingProcessorTestUtil.verifyChangedTypeFromScripting(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyChangedTypeFromScripting(GroovyDProcessor.class, processor);
   }
 
   @Test
@@ -242,7 +242,7 @@ public class TestGroovyProcessor {
 
     final String script = Resources.toString(Resources.getResource("AssignTypedNullField.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH,script);
-    ScriptingProcessorTestUtil.verifyTypedFieldWithNullValue(GroovyProcessor.class, processor, record);
+    ScriptingProcessorTestUtil.verifyTypedFieldWithNullValue(GroovyDProcessor.class, processor, record);
   }
 
   @Test
@@ -264,7 +264,7 @@ public class TestGroovyProcessor {
 
     final String script = Resources.toString(Resources.getResource("AssignTypedNullField.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
-    ScriptingProcessorTestUtil.verifyTypedFieldWithNullValue(GroovyProcessor.class, processor, record);
+    ScriptingProcessorTestUtil.verifyTypedFieldWithNullValue(GroovyDProcessor.class, processor, record);
   }
 
   @Test
@@ -283,7 +283,7 @@ public class TestGroovyProcessor {
 
     final String script = Resources.toString(Resources.getResource("GetFieldNullScript.groovy"), Charsets.UTF_8);
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
-    ScriptingProcessorTestUtil.verifyNullField(GroovyProcessor.class, processor,record);
+    ScriptingProcessorTestUtil.verifyNullField(GroovyDProcessor.class, processor,record);
   }
 
   @Test
@@ -306,13 +306,14 @@ public class TestGroovyProcessor {
         ProcessingMode.RECORD,
         script
     );
-    ScriptingProcessorTestUtil.verifyCreateRecord(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyCreateRecord(GroovyDProcessor.class, processor);
   }
 
   @Test
   public void testRecordHeaderAttributes() throws Exception {
     String headerKey = "key1";
     String value = "value1";
+
     String script = "for (record in records) {\n" +
         "  record.attributes['" + headerKey + "'] = '" + value + "'\n" +
         "  output.write(record)\n" +
@@ -322,7 +323,9 @@ public class TestGroovyProcessor {
         ProcessingMode.RECORD,
         script
     );
-    ScriptingProcessorTestUtil.verifyRecordHeaderAttribute(GroovyProcessor.class, processor, RecordCreator.create());
+
+    Record record = RecordCreator.create();
+    ScriptingProcessorTestUtil.verifyRecordHeaderAttribute(GroovyDProcessor.class, processor, record);
   }
 
   @Test
@@ -341,7 +344,7 @@ public class TestGroovyProcessor {
         initScript,
         destroyScript
     );
-    ScriptingProcessorTestUtil.verifyInitDestroy(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyInitDestroy(GroovyDProcessor.class, processor);
   }
 
   @Test
@@ -351,7 +354,17 @@ public class TestGroovyProcessor {
         "  output.write(record);\n" +
         "}";
     Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
-    ScriptingProcessorTestUtil.verifyConstants(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyConstants(GroovyDProcessor.class, processor);
+  }
+
+  @Test
+  public void testIsPreview() throws Exception {
+    String script = "for(record in records) {\n" +
+        "  record.value['isPreview'] = sdcFunctions.isPreview();\n" +
+        "  output.write(record);\n" +
+        "}";
+    Processor processor = new GroovyProcessor(ProcessingMode.BATCH, script);
+    ScriptingProcessorTestUtil.verifyIsPreview(GroovyDProcessor.class, processor);
   }
 
   private static final String WRITE_ERROR_SCRIPT = "for (record in records) { error.write(record, 'oops'); }";
@@ -362,7 +375,7 @@ public class TestGroovyProcessor {
       ProcessingMode.RECORD,
       WRITE_ERROR_SCRIPT
     );
-    ScriptingProcessorTestUtil.verifyErrorRecordStopPipeline(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyErrorRecordStopPipeline(GroovyDProcessor.class, processor);
   }
 
   @Test
@@ -371,7 +384,7 @@ public class TestGroovyProcessor {
       ProcessingMode.RECORD,
       WRITE_ERROR_SCRIPT
     );
-    ScriptingProcessorTestUtil.verifyErrorRecordDiscard(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyErrorRecordDiscard(GroovyDProcessor.class, processor);
   }
 
 
@@ -381,6 +394,6 @@ public class TestGroovyProcessor {
       ProcessingMode.RECORD,
       WRITE_ERROR_SCRIPT
     );
-    ScriptingProcessorTestUtil.verifyErrorRecordErrorSink(GroovyProcessor.class, processor);
+    ScriptingProcessorTestUtil.verifyErrorRecordErrorSink(GroovyDProcessor.class, processor);
   }
 }

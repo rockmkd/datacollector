@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,10 @@
  */
 package com.streamsets.pipeline.lib.util;
 
-import com.google.common.base.Optional;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.streamsets.pipeline.config.DestinationAvroSchemaSource;
+import com.streamsets.pipeline.config.OriginAvroSchemaSource;
 import com.streamsets.pipeline.lib.data.DataFactory;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
@@ -30,6 +33,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
 import static org.apache.commons.lang.StringUtils.isEmpty;
 
@@ -60,6 +65,9 @@ public class AvroSchemaHelper {
   public static final String INCLUDE_SCHEMA_KEY = KEY_PREFIX + "includeSchema";
   public static final boolean INCLUDE_SCHEMA_DEFAULT = true;
 
+  public static final String REGISTER_SCHEMA_KEY = KEY_PREFIX + "registerSchema";
+  public static final boolean REGISTER_SCHEMA_DEFAULT = false;
+
   public static final String DEFAULT_VALUES_KEY = KEY_PREFIX + "defaultValues";
 
   public static final String COMPRESSION_CODEC_KEY = KEY_PREFIX + "compressionCodec";
@@ -67,18 +75,32 @@ public class AvroSchemaHelper {
 
   private final SchemaRegistryClient registryClient;
 
+  private final Cache<String, Integer> schemaIdCache;
+
   /**
    * AvroSchemaHelper constructor. DataFactory settings should be passed in for parsing.
    * @param settings DataFactory settings.
    */
   public AvroSchemaHelper(DataFactory.Settings settings) {
-      final List<String> schemaRepoUrls = settings.getConfig(SCHEMA_REPO_URLS_KEY);
+    final List<String> schemaRepoUrls = settings.getConfig(SCHEMA_REPO_URLS_KEY);
+    final Object schemaSource = settings.getConfig(SCHEMA_SOURCE_KEY);
+    final boolean registerSchema = settings.getConfig(REGISTER_SCHEMA_KEY);
+    final boolean schemaFromRegistry =
+        schemaSource == DestinationAvroSchemaSource.REGISTRY ||
+        schemaSource == OriginAvroSchemaSource.REGISTRY;
 
-      if (!schemaRepoUrls.isEmpty()) {
-        registryClient = new CachedSchemaRegistryClient(schemaRepoUrls, 1000);
-      } else {
-        registryClient = null;
-      }
+    // KafkaTargetConfig passes schema repo URLs in SCHEMA_REPO_URLS_KEY regardless of whether they are
+    // for schema source or schema registration, since the two are mutually exclusive
+    if ((schemaFromRegistry || registerSchema) && !schemaRepoUrls.isEmpty()) {
+      registryClient = new CachedSchemaRegistryClient(schemaRepoUrls, 1000);
+    } else {
+      registryClient = null;
+    }
+
+    // Small cache to avoid going to Schema repository all the time
+    schemaIdCache = CacheBuilder.newBuilder()
+      .maximumSize(100)
+      .build();
   }
 
   /**
@@ -127,8 +149,8 @@ public class AvroSchemaHelper {
    */
   public int registerSchema(Schema schema, String subject) throws SchemaRegistryException {
     try {
-      return registryClient.register(subject, schema);
-    } catch (IOException | RestClientException e) {
+      return schemaIdCache.get(subject + schema.hashCode(), () -> registryClient.register(subject, schema));
+    } catch (ExecutionException  e) {
       throw new SchemaRegistryException(e);
     }
   }
@@ -199,13 +221,13 @@ public class AvroSchemaHelper {
    */
   public Optional<Integer> detectSchemaId(byte[] data) {
     if (data.length < 5) {
-      return Optional.absent();
+      return Optional.empty();
     }
 
     ByteBuffer wrapped = ByteBuffer.wrap(data);
     // 5 == MAGIC_BYTE + ID_SIZE
     if (wrapped.get() != MAGIC_BYTE) {
-      return Optional.absent();
+      return Optional.empty();
     }
 
     return Optional.of(wrapped.getInt());

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 package com.streamsets.datacollector.event.dto;
+
+import com.streamsets.pipeline.api.impl.Utils;
 
 public class ServerEvent {
 
@@ -79,4 +81,10 @@ public class ServerEvent {
   public void setOrgId(String orgId) {
     this.orgId = orgId;
   }
+
+  public String toString() {
+    return Utils.format("Server Event id: {}, type: {}, isRequiresAck: {}, isAckEvent: {}, from: {}",
+        eventId, eventType, requiresAck, isAckEvent, from);
+  }
+
 }

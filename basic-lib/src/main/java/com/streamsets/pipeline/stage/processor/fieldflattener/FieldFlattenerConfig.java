@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,7 @@ public class FieldFlattenerConfig {
     type = ConfigDef.Type.BOOLEAN,
     label = "Flatten in Place",
     defaultValue = "true",
-    description = "When set, each filed will be flatten in place.",
+    description = "When set, each field will be flattened in place.",
     displayPosition = 20,
     group = "FLATTEN",
     dependsOn = "flattenType",
@@ -93,7 +93,7 @@ public class FieldFlattenerConfig {
     type = ConfigDef.Type.BOOLEAN,
     label = "Remove Flattened Field",
     defaultValue = "true",
-    description = "When set, flattened filed will be removed after successful flattening.",
+    description = "When set, flattened field will be removed after successful flattening.",
     displayPosition = 35,
     group = "FLATTEN",
     dependsOn = "flattenInPlace",

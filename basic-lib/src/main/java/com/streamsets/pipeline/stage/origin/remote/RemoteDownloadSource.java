@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,16 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.ext.io.ObjectLengthException;
 import com.streamsets.pipeline.api.ext.io.OverrunException;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.lib.io.fileref.FileRefUtil;
 import com.streamsets.pipeline.lib.parser.DataParser;
@@ -104,6 +109,13 @@ public class RemoteDownloadSource extends BaseSource {
   private ELEval rateLimitElEval;
   private ELVars rateLimitElVars;
 
+  //By default true so, between pipeline restarts we can always trigger event.
+  private boolean canTriggerNoMoreDataEvent = true;
+  private long noMoreDataRecordCount = 0;
+  private long noMoreDataErrorCount = 0;
+  private long noMoreDataFileCount = 0;
+  private long perFileRecordCount = 0;
+  private long perFileErrorCount = 0;
 
   private final NavigableSet<RemoteFile> fileQueue = new TreeSet<>(new Comparator<RemoteFile>() {
     @Override
@@ -181,7 +193,8 @@ public class RemoteDownloadSource extends BaseSource {
       switch (conf.auth) {
         case PRIVATE_KEY:
           String schemeBase = remoteURI.getScheme() + "://";
-          remoteURI = new URI(schemeBase + conf.username + "@" + remoteURI.toString().substring(schemeBase.length()));
+          String usernamne = resolveCredential(conf.username, "username", issues);
+          remoteURI = new URI(schemeBase + usernamne + "@" + remoteURI.toString().substring(schemeBase.length()));
           File privateKeyFile = new File(conf.privateKey);
           if (!privateKeyFile.exists() || !privateKeyFile.isFile() || !privateKeyFile.canRead()) {
             issues.add(getContext().createConfigIssue(
@@ -193,16 +206,24 @@ public class RemoteDownloadSource extends BaseSource {
             } else {
               SftpFileSystemConfigBuilder.getInstance().setPreferredAuthentications(options, "publickey");
               SftpFileSystemConfigBuilder.getInstance().setIdentities(options, new File[]{privateKeyFile});
-              if (conf.privateKeyPassphrase != null && !conf.privateKeyPassphrase.isEmpty()) {
+              String privateKeyPassphrase = resolveCredential(
+                conf.privateKeyPassphrase,
+                CONF_PREFIX + "privateKeyPassphrase",
+                issues
+              );
+              if (privateKeyPassphrase != null && !privateKeyPassphrase.isEmpty()) {
                 SftpFileSystemConfigBuilder.getInstance()
-                    .setUserInfo(options, new SDCUserInfo(conf.privateKeyPassphrase));
+                    .setUserInfo(options, new SDCUserInfo(privateKeyPassphrase));
               }
             }
           }
           break;
         case PASSWORD:
           StaticUserAuthenticator auth = new StaticUserAuthenticator(
-              remoteURI.getHost(), conf.username, conf.password);
+            remoteURI.getHost(),
+            resolveCredential(conf.username, "username", issues),
+            resolveCredential(conf.password, "password", issues)
+          );
           SftpFileSystemConfigBuilder.getInstance().setPreferredAuthentications(options, "password");
           DefaultFileSystemConfigBuilder.getInstance().setUserAuthenticator(options, auth);
           break;
@@ -241,8 +262,21 @@ public class RemoteDownloadSource extends BaseSource {
       }
 
       if (issues.isEmpty()) {
-        // To ensure we can connect, else we fail validation.
-        remoteDir = fsManager.resolveFile(remoteURI.toString(), options);
+        try {
+          // To ensure we can connect, else we fail validation.
+          remoteDir = fsManager.resolveFile(remoteURI.toString(), options);
+          // Ensure we can assess the remote directory...
+          remoteDir.refresh();
+          // throw away the results.
+          remoteDir.getChildren();
+        } catch (FileSystemException ex) {
+          issues.add(getContext().createConfigIssue(
+              Groups.REMOTE.getLabel(),
+              CONF_PREFIX + "remoteAddress",
+              Errors.REMOTE_18,
+              ex.getMessage()
+          ));
+        }
       }
 
     } catch (FileSystemException | URISyntaxException ex) {
@@ -256,6 +290,21 @@ public class RemoteDownloadSource extends BaseSource {
       rateLimitElVars = getContext().createELVars();
     }
     return issues;
+  }
+
+  private String resolveCredential(CredentialValue credentialValue, String config, List<ConfigIssue> issues) {
+    try {
+      return credentialValue.get();
+    } catch (StageException e) {
+      issues.add(getContext().createConfigIssue(
+        Groups.CREDENTIALS.getLabel(),
+        config,
+        Errors.REMOTE_17,
+        e.toString()
+      ));
+    }
+
+    return null;
   }
 
   private void validateFilePattern(List<ConfigIssue> issues) {
@@ -330,10 +379,19 @@ public class RemoteDownloadSource extends BaseSource {
         nextOpt = getNextFile();
         if (nextOpt.isPresent()) {
           next = nextOpt.get();
+          noMoreDataFileCount++;
           // When starting up, reset to offset 0 of the file picked up for read only if:
           // -- we are starting up for the very first time, hence current offset is null
           // -- or the next file picked up for reads is not the same as the one we left off at (because we may have completed that one).
           if (currentOffset == null || !currentOffset.fileName.equals(next.filename)) {
+            perFileRecordCount = 0;
+            perFileErrorCount = 0;
+
+            LOG.debug("Sending New File Event. File: {}", next.filename);
+            RemoteDownloadSourceEvents.NEW_FILE.create(getContext()).with("filepath", next.filename).createAndSend();
+
+            sendLineageEvent(next);
+
             currentOffset = new Offset(next.remoteObject.getName().getPath(),
                 next.remoteObject.getContent().getLastModifiedTime(), ZERO);
           }
@@ -359,11 +417,29 @@ public class RemoteDownloadSource extends BaseSource {
             parser = conf.dataFormatConfig.getParserFactory().getParser(currentOffset.offsetStr, metadata, fileRef);
           } else {
             currentStream = next.remoteObject.getContent().getInputStream();
-            LOG.info("Started reading file: " + next.filename);
+            LOG.info("Started reading file: {}", next.filename);
             parser = conf.dataFormatConfig.getParserFactory().getParser(
                 currentOffset.offsetStr, currentStream, currentOffset.offset);
           }
         } else {
+          //Only if we saw data after last trigger/after a pipeline restart, we will trigger no more data event
+          if (canTriggerNoMoreDataEvent) {
+            LOG.debug(
+                "Sending No More Data event. Files:{}.Records:{}, Errors:{}",
+                noMoreDataFileCount,
+                noMoreDataRecordCount,
+                noMoreDataErrorCount
+            );
+            RemoteDownloadSourceEvents.NO_MORE_DATA.create(getContext())
+                .with("record-count", noMoreDataRecordCount)
+                .with("error-count", noMoreDataErrorCount)
+                .with("file-count", noMoreDataFileCount)
+                .createAndSend();
+            noMoreDataErrorCount = 0;
+            noMoreDataRecordCount = 0;
+            noMoreDataFileCount = 0;
+            canTriggerNoMoreDataEvent = false;
+          }
           if (currentOffset == null) {
             return offset;
           } else {
@@ -373,6 +449,8 @@ public class RemoteDownloadSource extends BaseSource {
       }
       offset = addRecordsToBatch(batchSize, batchMaker, next);
     } catch (IOException | DataParserException ex) {
+      // Don't retry reading this file since there can be no records produced.
+      offset = MINUS_ONE;
       handleFatalException(ex, next);
     } finally {
       if (!NOTHING_READ.equals(offset) && currentOffset != null) {
@@ -397,11 +475,14 @@ public class RemoteDownloadSource extends BaseSource {
               FilenameUtils.getName(remoteFile.filename)
           );
           record.getHeader().setAttribute(
-            HeaderAttributeConstants.LAST_MODIFIED_TIME,
-            String.valueOf(remoteFile.lastModified)
+              HeaderAttributeConstants.LAST_MODIFIED_TIME,
+              String.valueOf(remoteFile.lastModified)
           );
           record.getHeader().setAttribute(HeaderAttributeConstants.OFFSET, offset == null ? "0" : offset);
           batchMaker.addRecord(record);
+          perFileRecordCount++;
+          noMoreDataRecordCount++;
+          canTriggerNoMoreDataEvent = true;
           offset = parser.getOffset();
         } else {
           try {
@@ -409,6 +490,17 @@ public class RemoteDownloadSource extends BaseSource {
             if (currentStream != null) {
               currentStream.close();
             }
+            LOG.debug(
+                "Sending Finished File Event for {}.Records:{}, Errors:{}",
+                next.filename,
+                perFileRecordCount,
+                perFileErrorCount
+            );
+            RemoteDownloadSourceEvents.FINISHED_FILE.create(getContext())
+                .with("filepath", next.filename)
+                .with("record-count", perFileRecordCount)
+                .with("error-count", perFileErrorCount)
+                .createAndSend();
           } finally {
             parser = null;
             currentStream = null;
@@ -423,14 +515,24 @@ public class RemoteDownloadSource extends BaseSource {
         // Propagate partially parsed record to error stream
         Record record = ex.getUnparsedRecord();
         errorRecordHandler.onError(new OnRecordErrorException(record, ex.getErrorCode(), ex.getParams()));
+        perFileErrorCount++;
+        noMoreDataErrorCount++;
+        //Even though we had an error in the data, we still saw some data
+        canTriggerNoMoreDataEvent = true;
       } catch (ObjectLengthException ex) {
         errorRecordHandler.onError(Errors.REMOTE_02, currentOffset.fileName, offset, ex);
+        //Even though we couldn't process data from the file, we still saw some data
+        canTriggerNoMoreDataEvent = true;
       }
     }
     return offset;
   }
 
   private void moveFileToError(RemoteFile fileToMove) {
+    if (fileToMove == null) {
+      LOG.warn("No file to move to error, since no file is currently in-process");
+      return;
+    }
     if (errorArchive != null) {
       int read;
       File errorFile = new File(errorArchive, fileToMove.filename);
@@ -451,8 +553,14 @@ public class RemoteDownloadSource extends BaseSource {
   }
 
   private void handleFatalException(Exception ex, RemoteFile next) throws StageException {
+    if (ex instanceof FileSystemException) {
+      LOG.info("FileSystemException '{}'", ex.getMessage());
+    }
+    if (next != null) {
+      LOG.error("Error while attempting to parse file: " + next.filename, ex);
+    }
     if (ex instanceof FileNotFoundException) {
-      LOG.warn("File: " + next.filename + " was found in listing, but is not downloadable", ex);
+      LOG.warn("File: {} was found in listing, but is not downloadable", next != null ? next.filename : "(null)", ex);
     }
     if (ex instanceof ClosedByInterruptException || ex.getCause() instanceof ClosedByInterruptException) {
       //If the pipeline was stopped, we may get a ClosedByInterruptException while reading avro data.
@@ -517,12 +625,12 @@ public class RemoteDownloadSource extends BaseSource {
   private void queueFiles() throws FileSystemException {
     FileSelector selector = new FileSelector() {
       @Override
-      public boolean includeFile(FileSelectInfo fileInfo) throws Exception {
+      public boolean includeFile(FileSelectInfo fileInfo) {
         return true;
       }
 
       @Override
-      public boolean traverseDescendents(FileSelectInfo fileInfo) throws Exception {
+      public boolean traverseDescendents(FileSelectInfo fileInfo) {
         return conf.processSubDirectories;
       }
     };
@@ -558,18 +666,49 @@ public class RemoteDownloadSource extends BaseSource {
   }
 
   private boolean shouldQueue(RemoteFile remoteFile) throws FileSystemException {
-    // Case 1: We started up for the first time, so anything we see must be queued
-    return currentOffset == null ||
-        // We poll for new files only when fileQueue is empty, so we don't need to check if this file is in the queue.
-        // The file can be in the fileQueue only if the file was already queued in this iteration -
-        // which is not possible, since we are iterating through the children,
-        // so this is the first time we are seeing the file.
-        // Case 2: The file is newer than the last one we read/are reading
-        ((remoteFile.lastModified > currentOffset.timestamp) ||
-            // Case 3: The file has the same timestamp as the last one we read, but is lexicographically higher, and we have not queued it before.
-            (remoteFile.lastModified == currentOffset.timestamp && remoteFile.filename.compareTo(currentOffset.fileName) > 0) ||
-            // Case 4: It is the same file as we were reading, but we have not read the whole thing, so queue it again - recovering from a shutdown.
-            remoteFile.filename.equals(currentOffset.fileName) && !currentOffset.offset.equals(MINUS_ONE));
+    // Case: We started up for the first time, so anything we see must be queued
+    if (currentOffset == null) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Initial file: {}", remoteFile.filename);
+      }
+      return true;
+    }
+    // We poll for new files only when fileQueue is empty, so we don't need to check if this file is in the queue.
+    // The file can be in the fileQueue only if the file was already queued in this iteration -
+    // which is not possible, since we are iterating through the children,
+    // so this is the first time we are seeing the file.
+
+    // Case: It is the same file as we were reading, but we have not read the whole thing, so queue it again
+    // - recovering from a shutdown.
+    if ((remoteFile.filename.equals(currentOffset.fileName))
+        && !(currentOffset.offset.equals(MINUS_ONE))) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Offset not complete: {}. Re-queueing.", remoteFile.filename);
+      }
+      return true;
+    }
+
+    // Case: The file is newer than the last one we read/are reading, and its not the same last one
+    if ((remoteFile.lastModified > currentOffset.timestamp)
+        && !(remoteFile.filename.equals(currentOffset.fileName))) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Updated file: {}", remoteFile.filename);
+      }
+      return true;
+    }
+
+    // Case: The file has the same timestamp as the last one we read, but is lexicographically higher,
+    // and we have not queued it before.
+    if ((remoteFile.lastModified == currentOffset.timestamp)
+        && (remoteFile.filename.compareTo(currentOffset.fileName) > 0)) {
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Same timestamp as currentOffset, lexicographically higher file: {}", remoteFile.filename);
+      }
+      return true;
+    }
+
+    // For all other things .. we don't add.
+    return false;
   }
 
   @Override
@@ -595,6 +734,17 @@ public class RemoteDownloadSource extends BaseSource {
       currentOffset = null;
       next = null;
     }
+  }
+
+  private void sendLineageEvent(RemoteFile next) {
+    LineageEvent event = getContext().createLineageEvent(LineageEventType.ENTITY_READ);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME, next.filename);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE, EndPointType.FTP.name());
+    event.setSpecificAttribute(LineageSpecificAttribute.DESCRIPTION, conf.filePattern);
+    Map<String, String> props = new HashMap<>();
+    props.put("Resource URL", conf.remoteAddress);
+    event.setProperties(props);
+    getContext().publishLineageEvent(event);
   }
 
   // Offset format: Filename::timestamp::offset. I miss case classes here.

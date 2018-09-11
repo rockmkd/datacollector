@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,7 +68,7 @@ public class Issues implements Serializable {
   }
 
   private String deDupKey(Issue issue) {
-    return issue.getErrorCode() + issue.getConfigGroup() + issue.getConfigName();
+    return "" + issue.getServiceName() + issue.getErrorCode() + issue.getConfigGroup() + issue.getConfigName();
   }
 
   public List<Issue> getIssues() {

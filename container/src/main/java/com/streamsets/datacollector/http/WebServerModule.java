@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,8 @@ package com.streamsets.datacollector.http;
 
 import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.activation.Activation;
+import com.streamsets.datacollector.activation.ActivationLoader;
 import com.streamsets.datacollector.bundles.SupportBundleManager;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.Manager;
@@ -26,6 +28,7 @@ import com.streamsets.datacollector.main.UserGroupManager;
 import com.streamsets.datacollector.publicrestapi.PublicRestAPI;
 import com.streamsets.datacollector.restapi.RestAPI;
 import com.streamsets.datacollector.restapi.configuration.AclStoreInjector;
+import com.streamsets.datacollector.restapi.configuration.ActivationInjector;
 import com.streamsets.datacollector.restapi.configuration.BuildInfoInjector;
 import com.streamsets.datacollector.restapi.configuration.ConfigurationInjector;
 import com.streamsets.datacollector.restapi.configuration.PipelineStoreInjector;
@@ -33,12 +36,14 @@ import com.streamsets.datacollector.restapi.configuration.RestAPIResourceConfig;
 import com.streamsets.datacollector.restapi.configuration.RuntimeInfoInjector;
 import com.streamsets.datacollector.restapi.configuration.StageLibraryInjector;
 import com.streamsets.datacollector.restapi.configuration.StandAndClusterManagerInjector;
+import com.streamsets.datacollector.restapi.configuration.StatsCollectorInjector;
 import com.streamsets.datacollector.restapi.configuration.SupportBundleInjector;
 import com.streamsets.datacollector.restapi.configuration.UserGroupManagerInjector;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.AclStoreTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.task.TaskWrapper;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.websockets.SDCWebSocketServlet;
 import com.streamsets.lib.security.http.CORSConstants;
@@ -56,6 +61,7 @@ import org.glassfish.jersey.server.ServerProperties;
 import org.glassfish.jersey.servlet.ServletContainer;
 import org.glassfish.jersey.servlet.ServletProperties;
 
+import javax.inject.Singleton;
 import javax.servlet.DispatcherType;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -75,6 +81,12 @@ public class WebServerModule {
   @Provides
   public Manager provideManager() {
     return mgr;
+  }
+
+  @Provides
+  @Singleton
+  public Activation provideActivation(final RuntimeInfo runtimeInfo) {
+    return new ActivationLoader(runtimeInfo).getActivation();
   }
 
   private final String SWAGGER_PACKAGE = "io.swagger.jaxrs.listing";
@@ -321,6 +333,16 @@ public class WebServerModule {
   }
 
   @Provides(type = Type.SET)
+  ContextConfigurator provideActivation(final Activation activation) {
+    return new ContextConfigurator() {
+      @Override
+      public void init(ServletContextHandler context) {
+        context.setAttribute(ActivationInjector.ACTIVATION, activation);
+      }
+    };
+  }
+
+  @Provides(type = Type.SET)
   ContextConfigurator provideRuntimeInfo(final RuntimeInfo runtimeInfo) {
     return new ContextConfigurator() {
       @Override
@@ -340,6 +362,16 @@ public class WebServerModule {
     };
   }
 
+  @Provides(type = Type.SET)
+  ContextConfigurator provideStatsInfo(final StatsCollector statsCollector) {
+    return new ContextConfigurator() {
+      @Override
+      public void init(ServletContextHandler context) {
+        context.setAttribute(StatsCollectorInjector.STATS_COLLECTOR, statsCollector);
+      }
+    };
+  }
+
 
   @Provides(type = Type.SET)
   ContextConfigurator provideUserGroupManager(final UserGroupManager userGroupManager) {
@@ -347,6 +379,17 @@ public class WebServerModule {
       @Override
       public void init(ServletContextHandler context) {
         context.setAttribute(UserGroupManagerInjector.USER_GROUP_MANAGER, userGroupManager);
+      }
+    };
+  }
+
+  @Provides(type = Type.SET)
+  ContextConfigurator provideSubjectInContext(final UserGroupManager userGroupManager) {
+    return new ContextConfigurator() {
+      @Override
+      public void init(ServletContextHandler context) {
+        FilterHolder filter = new FilterHolder(new GroupsInScopeFilter());
+        context.addFilter(filter, "/*", EnumSet.of(DispatcherType.REQUEST));
       }
     };
   }

@@ -13,32 +13,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Controller for Configuration.
- */
 
+// Controller for Configuration.
 angular
   .module('dataCollectorApp.home')
-
   .controller('ConfigurationController', function (
     $scope, $rootScope, $q, $modal, _, $timeout, api, previewService, pipelineConstant, pipelineService
   ) {
 
-    var getIssues = function(config, issues, instanceName, configDefinition) {
+    var getIssues = function(config, issues, instanceName, serviceName, configDefinition) {
       if (instanceName && issues.stageIssues && issues.stageIssues[instanceName]) {
         issues = issues.stageIssues[instanceName];
-      } else if (config.errorStage && issues.stageIssues && issues.stageIssues[config.errorStage.instanceName] &&
-        instanceName) {
+      } else if (config.errorStage && issues.stageIssues && instanceName &&
+        issues.stageIssues[config.errorStage.instanceName] &&
+        issues.stageIssues[config.errorStage.instanceName] === instanceName) {
         issues = issues.stageIssues[config.errorStage.instanceName];
-      } else if (config.statsAggregatorStage && issues.stageIssues &&
-        issues.stageIssues[config.statsAggregatorStage.instanceName] && instanceName) {
+      } else if (config.testOriginStage && issues.stageIssues && instanceName &&
+        issues.stageIssues[config.testOriginStage.instanceName] &&
+        issues.stageIssues[config.testOriginStage.instanceName] === instanceName) {
+        issues = issues.stageIssues[config.testOriginStage.instanceName];
+      } else if (config.statsAggregatorStage && issues.stageIssues && instanceName &&
+        issues.stageIssues[config.statsAggregatorStage.instanceName] &&
+        issues.stageIssues[config.statsAggregatorStage.instanceName] === instanceName) {
         issues = issues.stageIssues[config.statsAggregatorStage.instanceName];
+      } else if (config.startEventStages[0] && issues.stageIssues && instanceName &&
+        issues.stageIssues[config.startEventStages[0].instanceName] &&
+        issues.stageIssues[config.startEventStages[0].instanceName] === instanceName) {
+        issues = issues.stageIssues[config.startEventStages[0].instanceName];
+      } else if (config.stopEventStages[0] && issues.stageIssues && instanceName &&
+        issues.stageIssues[config.stopEventStages[0].instanceName] &&
+        issues.stageIssues[config.stopEventStages[0].instanceName] === instanceName) {
+        issues = issues.stageIssues[config.stopEventStages[0].instanceName];
       } else if (issues.pipelineIssues){
         issues = issues.pipelineIssues;
       }
 
       return _.filter((issues || []), function(issue) {
-        return (issue.configName === configDefinition.name);
+        return (issue.configName === configDefinition.name && issue.serviceName === serviceName);
       });
     };
 
@@ -46,6 +57,7 @@ angular
 
     angular.extend($scope, {
       fieldPaths: [],
+      codeMirrorErrors: {},
       dFieldPaths: [],
       fieldPathsType: [],
       fieldSelectorPaths: [],
@@ -102,13 +114,13 @@ angular
        * @returns {*}
        */
       getCodeMirrorHints: function(configDefinition) {
-        var pipelineConfig = $scope.pipelineConfig,
-          pipelineConstants = _.find(pipelineConfig.configuration, function(config) {
-            return config.name === 'constants';
-          }),
-          elCatalog = pipelineService.getELCatalog(),
-          elFunctionDefinitions = [],
-          elConstantDefinitions = [];
+        var pipelineConfig = $scope.pipelineConfig;
+        var pipelineConstants = _.find(pipelineConfig.configuration, function (config) {
+          return config.name === 'constants';
+        });
+        var elCatalog = pipelineService.getELCatalog();
+        var elFunctionDefinitions = [];
+        var elConstantDefinitions = [];
 
         if (configDefinition.elFunctionDefinitionsIdx) {
           angular.forEach(_.uniq(configDefinition.elFunctionDefinitionsIdx), function(idx) {
@@ -156,16 +168,27 @@ angular
        * @param configDefinition
        */
       getConfigurationIssues: function(configObject, configDefinition) {
-        var config = $scope.pipelineConfig,
-          commonErrors = $rootScope.common.errors,
-          issues;
+        var config = $scope.pipelineConfig;
+        var commonErrors = $rootScope.common.errors;
+        var issues;
+
+        // The configObject can be one of two things - either StageDefinition or ServiceDefinition.
+        var instanceName;
+        var serviceName;
+        if ("service" in configObject) {
+          instanceName = $scope.detailPaneConfig.instanceName;
+          serviceName = configObject.service;
+        } else {
+          instanceName = configObject.instanceName;
+          serviceName = null;
+        }
 
         if (config && config.issues) {
-          issues = getIssues(config, config.issues, configObject.instanceName, configDefinition);
+          issues = getIssues(config, config.issues, instanceName, serviceName, configDefinition);
         }
 
         if (issues.length === 0 && commonErrors && commonErrors.length && commonErrors[0].pipelineIssues) {
-          issues = getIssues(config, commonErrors[0], configObject.instanceName, configDefinition);
+          issues = getIssues(config, commonErrors[0], instanceName, serviceName, configDefinition);
         }
 
         return issues;
@@ -219,16 +242,17 @@ angular
        * Raw Source Preview
        */
       rawSourcePreview: function() {
-        api.pipelineAgent.rawSourcePreview($scope.activeConfigInfo.name, 0, $scope.detailPaneConfig.uiInfo.rawSource.configuration)
-          .success(function(data) {
-            $rootScope.common.errors = [];
-            $scope.rawSourcePreviewData = data ? data.previewString : '';
-          })
-          .error(function(data, status, headers, config) {
-            $rootScope.common.errors = [data];
-          });
+        api.pipelineAgent.rawSourcePreview(
+          $scope.activeConfigInfo.name,
+          0,
+          $scope.detailPaneConfig.uiInfo.rawSource.configuration
+        ).then(function(res) {
+          $rootScope.common.errors = [];
+          $scope.rawSourcePreviewData = res.data ? res.data.previewString : '';
+        }).catch(function(res) {
+          $rootScope.common.errors = [res.data];
+        });
       },
-
 
       /**
        * On focus callback for field selector configuration.
@@ -295,7 +319,7 @@ angular
        * @param $index
        */
       removeLane: function(stageInstance, configValue, lanePredicateMapping, $index) {
-        var stages = $scope.pipelineConfig.stages;
+        var stages = $scope.stageInstances;
 
         stageInstance.outputLanes.splice($index, 1);
         configValue.splice($index, 1);
@@ -356,7 +380,6 @@ angular
         configValue.splice($index, 1);
       },
 
-
       /**
        * Add Object to Custom Field Configuration.
        *
@@ -367,9 +390,22 @@ angular
       addToCustomField: function(stageInstance, config, configDefinitions) {
         var complexFieldObj = {};
         angular.forEach(configDefinitions, function (complexFiledConfigDefinition) {
-          var complexFieldConfig = pipelineService.setDefaultValueForConfig(complexFiledConfigDefinition, stageInstance);
-          complexFieldObj[complexFieldConfig.name] = (complexFieldConfig.value !== undefined && complexFieldConfig.value !== null) ? complexFieldConfig.value : undefined;
+          var complexFieldConfig = pipelineService.setDefaultValueForConfig(
+            $scope.detailPaneConfigDefn,
+            complexFiledConfigDefinition,
+            stageInstance
+          );
+          complexFieldObj[complexFieldConfig.name] =
+            (complexFieldConfig.value !== undefined && complexFieldConfig.value !== null) ? complexFieldConfig.value :
+              undefined;
         });
+
+        if (config.name === $scope.detailPaneConfigDefn.outputStreamsDrivenByConfig) {
+          var outputLaneName = stageInstance.instanceName + 'OutputLane' + (new Date()).getTime();
+          stageInstance.outputLanes.push(outputLaneName);
+          complexFieldObj.outputLane = outputLaneName;
+        }
+
         if (config.value) {
           config.value.push(complexFieldObj);
         } else {
@@ -377,15 +413,34 @@ angular
         }
       },
 
-
       /**
        * Remove Object from Custom Field Configuration.
        *
        * @param stageInstance
+       * @param config
        * @param configValue
        * @param $index
        */
-      removeFromCustomField: function(stageInstance, configValue, $index) {
+      removeFromCustomField: function(stageInstance, config, configValue, $index) {
+        if (config.name === $scope.detailPaneConfigDefn.outputStreamsDrivenByConfig) {
+
+          if (configValue.length === 1) {
+            // at-least one output lanes required
+            return;
+          }
+
+          var stages = $scope.stageInstances;
+          stageInstance.outputLanes.splice($index, 1);
+          // Remove input lanes from stage instances
+          _.each(stages, function(stage) {
+            if (stage.instanceName !== stageInstance.instanceName) {
+              stage.inputLanes = _.filter(stage.inputLanes, function(inputLane) {
+                return inputLane !== configValue[$index].outputLane;
+              });
+            }
+          });
+        }
+
         configValue.splice($index, 1);
       },
 
@@ -406,11 +461,11 @@ angular
        * @returns {string|config.value.predicate|predicate|d.value.predicate}
        */
       getLanePredicate: function(edge) {
-        var laneIndex = _.indexOf(edge.source.outputLanes, edge.outputLane),
-          lanePredicatesConfiguration = _.find(edge.source.configuration, function(configuration) {
-            return configuration.name === 'lanePredicates';
-          }),
-          lanePredicateObject = lanePredicatesConfiguration ? lanePredicatesConfiguration.value[laneIndex] : '';
+        var laneIndex = _.indexOf(edge.source.outputLanes, edge.outputLane);
+        var lanePredicatesConfiguration = _.find(edge.source.configuration, function (configuration) {
+          return configuration.name === 'lanePredicates';
+        });
+        var lanePredicateObject = lanePredicatesConfiguration ? lanePredicatesConfiguration.value[laneIndex] : '';
         return lanePredicateObject ? lanePredicateObject.predicate : '';
       },
 
@@ -494,8 +549,12 @@ angular
           });
 
           if (configIndex === undefined) {
-            //No configuration found, added the configuration with default value
-            stageInstance.configuration.push(pipelineService.setDefaultValueForConfig(configDefinition, stageInstance));
+            // No configuration found, added the configuration with default value
+            stageInstance.configuration.push(pipelineService.setDefaultValueForConfig(
+              $scope.detailPaneConfigDefn,
+              configDefinition,
+              stageInstance
+            ));
             configIndex = stageInstance.configuration.length - 1;
           }
 
@@ -503,9 +562,57 @@ angular
         }
       },
 
+      /**
+       * Generate structure for ng-repeat of a ValueChooserModel.
+       *
+       * Return structure will be filtered based on the runtime value of a filterConfig if one
+       * exists and is specified.
+       *
+       * @param instance Instance of a stage or service.
+       * @param definition Definition of the ValueChooser config
+       */
+      getValueChooserOptions: function(instance, definition) {
+        var list = [];
+        var filter = $scope.getConfig(definition.model.filteringConfig, instance);
+
+        angular.forEach(definition.model.values, function(value, index) {
+
+          if(filter && filter.indexOf(value) < 0) {
+            return;
+          }
+
+          var entry = {
+            label: definition.model.labels[index],
+            value: value
+          };
+          list.push(entry);
+        });
+
+        return list;
+      },
 
       /**
-       * Returns filtered & sorted Group Configurations.
+       * Return config of given name from the stage or service instance.
+       *
+       * @param name Name of the config.
+       * @param instance Instance of a stage or service.
+       * @returns {*}
+       */
+      getConfig: function(name, instance) {
+        var value;
+
+        angular.forEach(instance.configuration, function(config) {
+          if(config.name === name) {
+            value = config.value;
+          }
+        });
+
+        return value;
+      },
+
+
+      /**
+       * Returns true if at least one config is visible in given group.
        *
        * @param stageInstance
        * @param configDefinitions
@@ -525,6 +632,30 @@ angular
         return visible;
       },
 
+      /**
+       * Returns true if at least one config is visible in given group. This will calculate
+       * visibility in the main stage configuration and all declared services.
+       *
+       * @param stageInstance
+       * @param stageDefinition
+       * @param services
+       * @param groupName
+       * @returns {*}
+       */
+      isStageGroupVisible: function(stageInstance, stageDefinition, services, groupName) {
+        // First see if this tab is visible in normal stage configurations
+        if(this.isGroupVisible(stageInstance, stageDefinition.configDefinitions, groupName)) {
+          return true;
+        }
+
+        var visible = false;
+        angular.forEach(services, function(service) {
+          if($scope.isGroupVisible(service.config, service.definition.configDefinitions, groupName)) {
+            visible = true;
+          }
+        });
+        return visible;
+      },
 
       /**
        * Returns true if there is any configuration issue for given Stage Instance name and configuration group.
@@ -535,11 +666,10 @@ angular
        * @returns {*}
        */
       showConfigurationWarning: function(stageInstance, groupName, errorStage) {
-        var config = $scope.pipelineConfig,
-          commonErrors = $rootScope.common.errors,
-          issuesMap,
-          issues;
-
+        var config = $scope.pipelineConfig;
+        var commonErrors = $rootScope.common.errors;
+        var issuesMap;
+        var issues;
 
         if (commonErrors && commonErrors.length && commonErrors[0].pipelineIssues) {
           issuesMap = commonErrors[0];
@@ -579,14 +709,13 @@ angular
       },
 
       producingEventsConfigChange: function() {
-        console.log($scope.producingEventsConfig);
         if ($scope.producingEventsConfig.value && $scope.detailPaneConfigDefn.producingEvents &&
           (!$scope.detailPaneConfig.eventLanes || $scope.detailPaneConfig.eventLanes.length === 0)) {
           $scope.detailPaneConfig.eventLanes = [$scope.detailPaneConfig.instanceName + '_EventLane'];
         } else if (!$scope.producingEventsConfig.value) {
           if ($scope.detailPaneConfig.eventLanes && $scope.detailPaneConfig.eventLanes.length) {
             var eventLane = $scope.detailPaneConfig.eventLanes[0];
-            angular.forEach($scope.pipelineConfig.stages, function (targetStageInstance) {
+            angular.forEach($scope.stageInstances, function (targetStageInstance) {
               if (targetStageInstance.inputLanes && targetStageInstance.inputLanes.length) {
                 targetStageInstance.inputLanes = _.filter(targetStageInstance.inputLanes, function (inputLane) {
                   return inputLane !== eventLane;
@@ -610,13 +739,27 @@ angular
     };
 
     /**
+     * Return true if given instance looks like a Stage instance.
+     */
+    var isStageInstance = function(instance) {
+      return !("service" in instance);
+    };
+
+    /**
+     * Return true if given instance is stage instance a source.
+     */
+    var isSourceInstance = function(instance) {
+      return isStageInstance(instance) && instance.uiInfo.stageType === pipelineConstant.SOURCE_STAGE_TYPE;
+    };
+
+    /**
      * Update Stage Preview Data when stage selection changed.
      *
      * @param stageInstance
      */
     var updateFieldDataForStage = function(stageInstance) {
       //In case of processors and targets run the preview to get input fields & if current state of config is previewable.
-      if (stageInstance.uiInfo.stageType !== pipelineConstant.SOURCE_STAGE_TYPE && !$scope.fieldPathsFetchInProgress) {
+      if (isStageInstance(stageInstance) && !isSourceInstance(stageInstance) && !$scope.fieldPathsFetchInProgress) {
         $scope.fieldPathsFetchInProgress = true;
 
         $scope.fieldPaths = [];
@@ -674,6 +817,16 @@ angular
         $scope.showGroups = (groupDefn.groupNameToLabelMapList.length > 0);
 
         $scope.configGroupTabs = angular.copy(groupDefn.groupNameToLabelMapList);
+        // This code creates groups both for stages and general pipeline configuration. Since only
+        // stages have services, we need to add their groups only selectively.
+        if ('services' in $scope.detailPaneConfigDefn) {
+          angular.forEach($scope.detailPaneConfigDefn.services, function(serviceDependency) {
+            var serviceDef = pipelineService.getServiceDefinition(serviceDependency.service);
+            angular.forEach(serviceDef.configGroupDefinition.groupNameToLabelMapList, function(item) {
+              $scope.configGroupTabs.push(item);
+            });
+          });
+        }
 
         // handle stats group for Pipeline
         if ($scope.selectedType === pipelineConstant.PIPELINE &&
@@ -705,10 +858,28 @@ angular
         $scope.errorStageConfigActive = options.errorStage;
       }
 
+      if (options.configGroup && options.configGroup === 'testOriginStageConfig') {
+        $scope.testOriginStageConfigActive = true;
+      } else {
+        $scope.testOriginStageConfigActive = options.testOriginStage;
+      }
+
       if (options.configGroup && options.configGroup === 'statsAggregatorStageConfig') {
         $scope.statsAggregatorStageConfigActive = true;
       } else {
         $scope.statsAggregatorStageConfigActive = options.statsAggregatorStage;
+      }
+
+      if (options.configGroup && options.configGroup === 'startEventStageConfig') {
+        $scope.startEventStageConfigActive = true;
+      } else {
+        $scope.startEventStageConfigActive = options.startEventStage;
+      }
+
+      if (options.configGroup && options.configGroup === 'stopEventStageConfig') {
+        $scope.stopEventStageConfigActive = true;
+      } else {
+        $scope.stopEventStageConfigActive = options.stopEventStage;
       }
     };
 
@@ -719,7 +890,7 @@ angular
         $scope.dFieldPaths = [];
         $scope.fieldPathsType = [];
 
-        if ($scope.detailPaneConfigDefn.producingEvents) {
+        if ($scope.detailPaneConfigDefn && $scope.detailPaneConfigDefn.producingEvents) {
           $scope.producingEventsConfig.value =
             ($scope.detailPaneConfig.eventLanes && $scope.detailPaneConfig.eventLanes.length > 0);
         }

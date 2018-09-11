@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,19 +24,19 @@ import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnParamMapping;
 import com.streamsets.pipeline.lib.jdbc.JDBCOperationChooserValues;
-import com.streamsets.pipeline.lib.jdbc.ChangeLogFormat;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
 import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnMapping;
 import com.streamsets.pipeline.lib.jdbc.JDBCOperationType;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationActionChooserValues;
-import com.streamsets.pipeline.stage.destination.jdbc.ChangeLogFormatChooserValues;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormatChooserValues;
 import com.streamsets.pipeline.stage.destination.jdbc.Groups;
 import java.util.List;
 
@@ -46,7 +46,7 @@ import java.util.List;
     description = "Write records to JDBC and enrich records with generated columns",
     upgrader = JdbcTeeUpgrader.class,
     icon = "rdbms.png",
-    onlineHelpRefUrl = "index.html#Processors/JDBCTee.html#task_qpj_ncy_hw"
+    onlineHelpRefUrl ="index.html?contextID=task_qpj_ncy_hw"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,18 +25,22 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.streamsets.pipeline.api.BatchMaker;
+import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Field;
-import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.config.CsvHeader;
-import com.streamsets.pipeline.config.DataFormat;
-import com.streamsets.pipeline.config.LogMode;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
+import com.streamsets.pipeline.api.service.dataformats.DataFormatParserService;
 import com.streamsets.pipeline.config.PostProcessingOptions;
 import com.streamsets.pipeline.lib.io.fileref.FileRefUtil;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.sdk.service.SdkJsonDataFormatParserService;
+import com.streamsets.pipeline.sdk.service.SdkWholeFileDataFormatParserService;
 import com.streamsets.pipeline.stage.common.AmazonS3TestSuite;
 import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import com.streamsets.pipeline.stage.common.TestUtil;
@@ -45,7 +49,6 @@ import com.streamsets.pipeline.stage.lib.aws.AWSRegions;
 import com.streamsets.pipeline.stage.lib.aws.AWSUtil;
 import com.streamsets.pipeline.stage.lib.aws.ProxyConfig;
 import com.streamsets.pipeline.stage.origin.lib.BasicConfig;
-import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -103,49 +106,49 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     //mybuckert/folder
     //15 files in total
 
-    InputStream in = new ByteArrayInputStream("Hello World".getBytes());
+    InputStream in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     PutObjectRequest putObjectRequest = new PutObjectRequest(BUCKET_NAME, "file1.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "file2.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "file3.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/file4.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/file5.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/file6.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
     //make sure files will have different timestamps.
     Thread.sleep(1000);
 
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/USA/file7.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/USA/file8.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/USA/file9.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
     //make sure files will have different timestamps.
     Thread.sleep(1000);
 
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/Canada/file10.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/Canada/file11.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
-    in = new ByteArrayInputStream("Hello World".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "NorthAmerica/Canada/file12.log", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
@@ -155,15 +158,15 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3client.putObject(putObjectRequest);
 
     //Some txt files for whole file test
-    in = new ByteArrayInputStream("Sample Text 1".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "folder/file1.txt", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
-    in = new ByteArrayInputStream("Sample Text 2".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "folder/file2.txt", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
-    in = new ByteArrayInputStream("Sample Text 3".getBytes());
+    in = new ByteArrayInputStream("{\"key\": \"Hello World\" }".getBytes());
     putObjectRequest = new PutObjectRequest(BUCKET_NAME, "folder/file3.txt", in, new ObjectMetadata());
     s3client.putObject(putObjectRequest);
 
@@ -179,8 +182,70 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
   @Test
   public void testProduceFullFile() throws Exception {
+    try {
+      AmazonS3Source source = createSource();
+      SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+        .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+        .addOutputLane("lane")
+        .build();
+      runner.runInit();
+      try {
+
+        BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
+        String offset = source.produce(null, 60000, batchMaker);
+        Assert.assertNotNull(offset);
+        Assert.assertTrue(offset.contains("file1.log::-1::"));
+
+        StageRunner.Output output = SourceRunner.getOutput(batchMaker);
+        List<Record> records = output.getRecords().get("lane");
+        Assert.assertEquals(1, records.size());
+
+        //produce records from next file
+        batchMaker = SourceRunner.createTestBatchMaker("lane");
+        offset = source.produce(offset, 60000, batchMaker);
+        Assert.assertNotNull(offset);
+        Assert.assertTrue(offset.contains("file2.log::-1::"));
+
+        output = SourceRunner.getOutput(batchMaker);
+        records = output.getRecords().get("lane");
+        Assert.assertEquals(1, records.size());
+
+        //produce records from next file
+        batchMaker = SourceRunner.createTestBatchMaker("lane");
+        offset = source.produce(offset, 60000, batchMaker);
+        Assert.assertNotNull(offset);
+        Assert.assertTrue(offset.contains("file3.log::-1::"));
+
+        output = SourceRunner.getOutput(batchMaker);
+        records = output.getRecords().get("lane");
+        Assert.assertEquals(1, records.size());
+
+        batchMaker = SourceRunner.createTestBatchMaker("lane");
+        offset = source.produce(offset, 60000, batchMaker);
+        Assert.assertNotNull(offset);
+        Assert.assertTrue(offset.contains("file3.log::-1::"));
+
+        output = SourceRunner.getOutput(batchMaker);
+        records = output.getRecords().get("lane");
+        Assert.assertEquals(0, records.size());
+
+      } finally {
+        runner.runDestroy();
+      }
+    } catch (Exception e) {
+      System.out.println("Hoops");
+      e.printStackTrace();
+      throw  e;
+    }
+  }
+
+  @Test
+  public void testNoMoreDataEvent() throws Exception {
     AmazonS3Source source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     runner.runInit();
     try {
 
@@ -193,6 +258,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
       List<Record> records = output.getRecords().get("lane");
       Assert.assertEquals(1, records.size());
 
+      Assert.assertEquals(0, runner.getEventRecords().size());
+
       //produce records from next file
       batchMaker = SourceRunner.createTestBatchMaker("lane");
       offset = source.produce(offset, 60000, batchMaker);
@@ -203,6 +270,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
       records = output.getRecords().get("lane");
       Assert.assertEquals(1, records.size());
 
+      Assert.assertEquals(0, runner.getEventRecords().size());
+
       //produce records from next file
       batchMaker = SourceRunner.createTestBatchMaker("lane");
       offset = source.produce(offset, 60000, batchMaker);
@@ -213,6 +282,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
       records = output.getRecords().get("lane");
       Assert.assertEquals(1, records.size());
 
+      Assert.assertEquals(0, runner.getEventRecords().size());
+
       batchMaker = SourceRunner.createTestBatchMaker("lane");
       offset = source.produce(offset, 60000, batchMaker);
       Assert.assertNotNull(offset);
@@ -222,32 +293,13 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
       records = output.getRecords().get("lane");
       Assert.assertEquals(0, records.size());
 
-    } finally {
-      runner.runDestroy();
-    }
-  }
+      Assert.assertEquals(1, runner.getEventRecords().size());
 
-  @Test
-  public void testProduceDelimitedFileWithRecoverableException() throws Exception {
-    AmazonS3Source source = createSourceWithDelimited();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
-      .addOutputLane("lane")
-      .setOnRecordError(OnRecordError.TO_ERROR)
-      .build();
-    runner.runInit();
-    try {
-      StageRunner.Output output = runner.runProduce(null, 60000);
-
-      // Verify proper record
-      List<Record> records = output.getRecords().get("lane");
-      Assert.assertNotNull(records);
-      Assert.assertEquals(1, records.size());
-
-      // And error record
-      records = runner.getErrorRecords();
-      Assert.assertEquals(1, records.size());
-
-
+      EventRecord eventRecord = runner.getEventRecords().get(0);
+      Assert.assertEquals("no-more-data", eventRecord.getEventType());
+      Assert.assertEquals("3", eventRecord.get("/file-count").getValueAsString());
+      Assert.assertEquals("3", eventRecord.get("/record-count").getValueAsString());
+      Assert.assertEquals("0", eventRecord.get("/error-count").getValueAsString());
     } finally {
       runner.runDestroy();
     }
@@ -256,7 +308,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testLexicographicalOrdering() throws Exception {
     AmazonS3Source source = createSourceWithLexicographicalOrdering();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     runner.runInit();
     try {
       //In lexicographical order, Canada/file*.log -> USA/file*.log -> file*.log are expected.
@@ -350,7 +405,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testProducePostProcessArchiveDiffBucket() throws Exception {
     AmazonS3Source source = createSourceArchiveDiffBucket();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     runner.runInit();
     try {
 
@@ -417,7 +475,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testProducePostProcessArchiveDiffPrefix() throws Exception {
     AmazonS3Source source = createSourceArchiveDiffPrefix();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     runner.runInit();
     try {
 
@@ -484,7 +545,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testInvalidConfig() throws StageException {
     AmazonS3Source source = createSourceWithSameBucketsAndPrefix();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     List<Stage.ConfigIssue> configIssues = runner.runValidateConfigs();
     Assert.assertEquals(2, configIssues.size());
   }
@@ -492,7 +556,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testInvalidErrorHandlingConfig() throws StageException {
     AmazonS3Source source = createSourceWithWrongErrorHandlingPostProcessing();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     List<Stage.ConfigIssue> configIssues = runner.runValidateConfigs();
     Assert.assertEquals(1, configIssues.size());
   }
@@ -500,7 +567,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testValidConfig1() throws StageException {
     AmazonS3Source source = createSourceWithSameBucketDiffPrefix();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     List<Stage.ConfigIssue> configIssues = runner.runValidateConfigs();
     Assert.assertEquals(0, configIssues.size());
   }
@@ -508,7 +578,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testValidConfig2() throws StageException {
     AmazonS3Source source = createSourceWithDiffBucketSamePrefix();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     List<Stage.ConfigIssue> configIssues = runner.runValidateConfigs();
     Assert.assertEquals(0, configIssues.size());
   }
@@ -529,7 +602,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
   @Test
   public void testWholeFile() throws Exception {
     AmazonS3Source source = createSourceWithWholeFile();
-    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source).addOutputLane("lane").build();
+    SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+      .addService(DataFormatParserService.class, new SdkWholeFileDataFormatParserService())
+      .addOutputLane("lane")
+      .build();
     runner.runInit();
     String lastOffset = null;
     try {
@@ -562,8 +638,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
                 objectSummary.getBucketName(),
                 objectSummary.getKey(),
                 false,
-                "",
-                ""
+                () -> "",
+                () -> ""
             )
         );
 
@@ -589,6 +665,75 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     }
   }
 
+  @Test
+  public void testLineage() throws Exception {
+    try {
+      AmazonS3Source source = createSource();
+      SourceRunner runner = new SourceRunner.Builder(AmazonS3DSource.class, source)
+          .addService(DataFormatParserService.class, new SdkJsonDataFormatParserService())
+          .addOutputLane("lane")
+          .build();
+      runner.runInit();
+      try {
+        BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
+        source.produce(null, 60000, batchMaker);
+        List<LineageEvent> events = runner.getLineageEvents();
+        Assert.assertEquals(1, events.size());
+        Assert.assertEquals(LineageEventType.ENTITY_READ, events.get(0).getEventType());
+        Assert.assertEquals(EndPointType.S3.name(), events.get(0).getSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE));
+      } finally {
+        runner.runDestroy();
+      }
+    } catch (Exception e) {
+      System.out.println("Hoops");
+      e.printStackTrace();
+      throw  e;
+    }
+  }
+
+  @Test
+  public void testToStringExcelFile() throws Exception {
+    AbstractAmazonS3Source.S3Offset s3Offset = new AbstractAmazonS3Source.S3Offset(
+        "test.xlsx",
+        "test sheet::1234",
+        "0dd65bf073ad061",
+        "1534360"
+    );
+    Assert.assertEquals("test.xlsx::test sheet:\\:1234::0dd65bf073ad061::1534360", s3Offset.toString());
+  }
+
+  @Test
+  public void testToStringTextFile() throws Exception {
+    AbstractAmazonS3Source.S3Offset s3Offset = new AbstractAmazonS3Source.S3Offset(
+        "test.txt",
+        "1234",
+        "0dd65bf073ad061",
+        "1534360"
+    );
+    Assert.assertEquals("test.txt::1234::0dd65bf073ad061::1534360", s3Offset.toString());
+  }
+
+  @Test
+  public void testFromStringExcelFile() throws Exception {
+    String offset = "FL_insurance.xlsx::Sheet 1 - FL_insurance:\\:1000::0dd65bf073ad0616a91901c9349dd5a4::1534360";
+    AbstractAmazonS3Source.S3Offset s3Offset = AbstractAmazonS3Source.S3Offset.fromString(offset);
+    Assert.assertEquals("FL_insurance.xlsx", s3Offset.getKey());
+    Assert.assertEquals("Sheet 1 - FL_insurance::1000", s3Offset.getOffset());
+    Assert.assertEquals("0dd65bf073ad0616a91901c9349dd5a4", s3Offset.geteTag());
+    Assert.assertEquals("1534360", s3Offset.getKey());
+  }
+
+  @Test
+  public void testFromStringTextFile() throws Exception {
+    String offset = "FL_insurance.txt::1000::0dd65bf073ad0616a91901c9349dd5a4::1534360";
+    AbstractAmazonS3Source.S3Offset s3Offset = AbstractAmazonS3Source.S3Offset.fromString(offset);
+    Assert.assertEquals("FL_insurance.txt", s3Offset.getKey());
+    Assert.assertEquals("1000", s3Offset.getOffset());
+    Assert.assertEquals("0dd65bf073ad0616a91901c9349dd5a4", s3Offset.geteTag());
+    Assert.assertEquals("1534360", s3Offset.getKey());
+  }
+
+
   private AmazonS3Source createSource() {
 
     S3ConfigBean s3ConfigBean = new S3ConfigBean();
@@ -598,11 +743,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.TEXT;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.textMaxLineLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.NONE;
@@ -625,55 +765,10 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "foo";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "bar";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "foo";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "bar";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = "";
-    s3ConfigBean.s3Config.delimiter = "/";
-    s3ConfigBean.proxyConfig = new ProxyConfig();
-    return new AmazonS3Source(s3ConfigBean);
-  }
-
-  private AmazonS3Source createSourceWithDelimited() {
-
-    S3ConfigBean s3ConfigBean = new S3ConfigBean();
-    s3ConfigBean.basicConfig = new BasicConfig();
-    s3ConfigBean.basicConfig.maxWaitTime = 1000;
-    s3ConfigBean.basicConfig.maxBatchSize = 60000;
-
-    s3ConfigBean.sseConfig = new S3SSEConfigBean();
-    s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.DELIMITED;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.csvHeader = CsvHeader.WITH_HEADER;
-
-    s3ConfigBean.errorConfig = new S3ErrorConfig();
-    s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.NONE;
-    s3ConfigBean.errorConfig.errorPrefix = ERROR_PREFIX;
-    s3ConfigBean.errorConfig.errorBucket = ERROR_BUCKET;
-
-    s3ConfigBean.postProcessingConfig = new S3PostProcessingConfig();
-    s3ConfigBean.postProcessingConfig.archivingOption = S3ArchivingOption.MOVE_TO_BUCKET;
-    s3ConfigBean.postProcessingConfig.postProcessing = PostProcessingOptions.NONE;
-    s3ConfigBean.postProcessingConfig.postProcessBucket = POSTPROCESS_BUCKET;
-    s3ConfigBean.postProcessingConfig.postProcessPrefix = POSTPROCESS_PREFIX;
-
-    s3ConfigBean.s3FileConfig = new S3FileConfig();
-    s3ConfigBean.s3FileConfig.overrunLimit = 65;
-    s3ConfigBean.s3FileConfig.prefixPattern = "*.csv";
-    s3ConfigBean.s3FileConfig.objectOrdering = ObjectOrdering.TIMESTAMP;
-
-    s3ConfigBean.s3Config = new S3ConnectionSourceConfig();
-    s3ConfigBean.s3Config.region = AWSRegions.OTHER;
-    s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
-    s3ConfigBean.s3Config.bucket = BUCKET_NAME;
-    s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "foo";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "bar";
-    s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
-    s3ConfigBean.s3Config.commonPrefix = "csv";
     s3ConfigBean.s3Config.delimiter = "/";
     s3ConfigBean.proxyConfig = new ProxyConfig();
     return new AmazonS3Source(s3ConfigBean);
@@ -688,11 +783,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.TEXT;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.textMaxLineLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.NONE;
@@ -715,8 +805,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "foo";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "bar";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "foo";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "bar";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = "NorthAmerica";
     s3ConfigBean.s3Config.delimiter = "/";
@@ -733,11 +823,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.TEXT;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.textMaxLineLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.ARCHIVE;
@@ -761,8 +846,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "foo";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "bar";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "foo";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "bar";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = "";
     s3ConfigBean.s3Config.delimiter = "/";
@@ -779,11 +864,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.TEXT;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.textMaxLineLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.ARCHIVE;
@@ -806,8 +886,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "foo";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "bar";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "foo";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "bar";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = "NorthAmerica/USA/";
     s3ConfigBean.s3Config.delimiter = "/";
@@ -824,12 +904,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.LOG;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.logMode = LogMode.COMMON_LOG_FORMAT;
-    s3ConfigBean.dataFormatConfig.logMaxObjectLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.ARCHIVE;
@@ -853,8 +927,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "AKIAJ6S5Q43F4BT6ZJLQ";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "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";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "AKIAJ6S5Q43F4BT6ZJLQ";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "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";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = PREFIX_NAME;
     s3ConfigBean.s3Config.delimiter = "/";
@@ -871,12 +945,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.LOG;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.logMode = LogMode.COMMON_LOG_FORMAT;
-    s3ConfigBean.dataFormatConfig.logMaxObjectLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.ARCHIVE;
@@ -900,8 +968,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "AKIAJ6S5Q43F4BT6ZJLQ";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "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";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "AKIAJ6S5Q43F4BT6ZJLQ";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "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";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = "test-error-prefix3/";
     s3ConfigBean.s3Config.delimiter = "/";
@@ -918,12 +986,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.LOG;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.logMode = LogMode.COMMON_LOG_FORMAT;
-    s3ConfigBean.dataFormatConfig.logMaxObjectLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.ARCHIVE;
@@ -947,8 +1009,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "AKIAJ6S5Q43F4BT6ZJLQ";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "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";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "AKIAJ6S5Q43F4BT6ZJLQ";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "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";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = PREFIX_NAME;
     s3ConfigBean.s3Config.delimiter = "/";
@@ -966,12 +1028,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
 
     s3ConfigBean.sseConfig = new S3SSEConfigBean();
     s3ConfigBean.sseConfig.useCustomerSSEKey = false;
-
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    s3ConfigBean.dataFormat = DataFormat.LOG;
-    s3ConfigBean.dataFormatConfig.charset = "UTF-8";
-    s3ConfigBean.dataFormatConfig.logMode = LogMode.COMMON_LOG_FORMAT;
-    s3ConfigBean.dataFormatConfig.logMaxObjectLen = 1024;
 
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.NONE;
@@ -992,8 +1048,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "AKIAJ6S5Q43F4BT6ZJLQ";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "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";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "AKIAJ6S5Q43F4BT6ZJLQ";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "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";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = PREFIX_NAME;
     s3ConfigBean.s3Config.delimiter = "/";
@@ -1014,11 +1070,6 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     //include metadata in header.
     s3ConfigBean.enableMetaData = true;
 
-    s3ConfigBean.dataFormatConfig = new DataParserFormatConfig();
-    //whole file
-    s3ConfigBean.dataFormat = DataFormat.WHOLE_FILE;
-    s3ConfigBean.dataFormatConfig.wholeFileMaxObjectLen = 2000;
-
     s3ConfigBean.errorConfig = new S3ErrorConfig();
     s3ConfigBean.errorConfig.errorHandlingOption = PostProcessingOptions.NONE;
 
@@ -1035,8 +1086,8 @@ public class TestAmazonS3Source extends AmazonS3TestSuite {
     s3ConfigBean.s3Config.endpoint = "http://localhost:" + port;
     s3ConfigBean.s3Config.bucket = BUCKET_NAME;
     s3ConfigBean.s3Config.awsConfig = new AWSConfig();
-    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = "AKIAJ6S5Q43F4BT6ZJLQ";
-    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = "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";
+    s3ConfigBean.s3Config.awsConfig.awsAccessKeyId = () -> "AKIAJ6S5Q43F4BT6ZJLQ";
+    s3ConfigBean.s3Config.awsConfig.awsSecretAccessKey = () -> "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";
     s3ConfigBean.s3Config.awsConfig.disableChunkedEncoding = true;
     s3ConfigBean.s3Config.commonPrefix = "folder";
     s3ConfigBean.s3Config.delimiter = "/";

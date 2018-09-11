@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,8 @@ import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.COMPRESSION_CODE
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.DEFAULT_VALUES_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.INCLUDE_SCHEMA_DEFAULT;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.INCLUDE_SCHEMA_KEY;
+import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.REGISTER_SCHEMA_DEFAULT;
+import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.REGISTER_SCHEMA_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_DEFAULT;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_ID_DEFAULT;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_ID_KEY;
@@ -61,6 +63,7 @@ public class AvroDataGeneratorFactory extends DataGeneratorFactory {
     configs.put(INCLUDE_SCHEMA_KEY, INCLUDE_SCHEMA_DEFAULT);
     configs.put(DEFAULT_VALUES_KEY, new HashMap<>());
     configs.put(COMPRESSION_CODEC_KEY, COMPRESSION_CODEC_DEFAULT);
+    configs.put(REGISTER_SCHEMA_KEY, REGISTER_SCHEMA_DEFAULT);
     CONFIGS = Collections.unmodifiableMap(configs);
   }
 
@@ -68,6 +71,7 @@ public class AvroDataGeneratorFactory extends DataGeneratorFactory {
   public static final Set<Class<? extends Enum>> MODES = (Set) ImmutableSet.of(); // NOSONAR
 
   private final AvroSchemaHelper schemaHelper;
+  private final String schemaSubject;
   private final DestinationAvroSchemaSource schemaSource;
   private final boolean includeSchema;
   private final String compressionCodec;
@@ -85,17 +89,17 @@ public class AvroDataGeneratorFactory extends DataGeneratorFactory {
     schemaSource = settings.getConfig(SCHEMA_SOURCE_KEY);
     defaultValuesFromSchema = settings.getConfig(DEFAULT_VALUES_KEY);
     schemaId = settings.getConfig(SCHEMA_ID_KEY);
-    final String subject = settings.getConfig(SUBJECT_KEY);
+    schemaSubject = settings.getConfig(SUBJECT_KEY);
 
     switch (schemaSource) {
       case HEADER:
         schema = null;
         break;
       case REGISTRY:
-        initFromRegistry(subject);
+        initFromRegistry(schemaSubject);
         break;
       case INLINE:
-        initFromInline(settings, subject);
+        initFromInline(settings, schemaSubject);
         break;
       default:
         throw new UnsupportedOperationException("Unsupported Avro Schema source: " + schemaSource.getLabel());
@@ -131,14 +135,21 @@ public class AvroDataGeneratorFactory extends DataGeneratorFactory {
           os,
           compressionCodec,
           schema,
-          defaultValuesFromSchema
+          defaultValuesFromSchema,
+          schemaSubject,
+          schemaHelper,
+          schemaId
       );
     } else {
-      // If using Confluent Kafka Serializer we must write the magic byte
-      if (schemaHelper.hasRegistryClient() && schemaId > 0) {
-        schemaHelper.writeSchemaId(os, schemaId);
-      }
-      dataGenerator = new AvroMessageGenerator(schemaInHeader, os, schema, defaultValuesFromSchema);
+      dataGenerator = new AvroMessageGenerator(
+        schemaInHeader,
+        os,
+        schema,
+        defaultValuesFromSchema,
+        schemaSubject,
+        schemaHelper,
+        schemaId
+      );
     }
     return dataGenerator;
   }

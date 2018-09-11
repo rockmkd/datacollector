@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,16 +15,18 @@
  */
 package com.streamsets.pipeline.lib.jdbc;
 
-import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.lib.el.VaultEL;
 import com.streamsets.pipeline.api.ConfigDef;
+import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.stage.destination.jdbc.Groups;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Properties;
 
 public class HikariPoolConfigBean {
   private static final int TEN_MINUTES = 600;
@@ -79,39 +81,37 @@ public class HikariPoolConfigBean {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       dependsOn = "useCredentials",
       triggeredByValue = "true",
       label = "Username",
       displayPosition = 110,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS"
   )
-  public String username;
+  public CredentialValue username;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       dependsOn = "useCredentials",
       triggeredByValue = "true",
       label = "Password",
       displayPosition = 120,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS"
   )
-  public String password;
+  public CredentialValue password;
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.MAP,
-      defaultValue = "",
+      type = ConfigDef.Type.MODEL,
+      defaultValue = "[]",
       label = "Additional JDBC Configuration Properties",
       description = "Additional properties to pass to the underlying JDBC driver.",
       displayPosition = 999,
-      elDefs = VaultEL.class,
       group = "JDBC"
   )
-  public Map<String, String> driverProperties = new HashMap<>();
+  @ListBeanModel
+  public List<ConnectionPropertyBean> driverProperties = new ArrayList<>();
 
   @ConfigDef(
       required = false,
@@ -224,9 +224,21 @@ public class HikariPoolConfigBean {
   public boolean readOnly = true;
 
   @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.TEXT,
+      mode = ConfigDef.Mode.SQL,
+      label = "Init Query",
+      description = "SQL query that will be executed on all new connections when they are created, before they are" +
+        " added to connection pool.",
+      displayPosition = 80,
+      group = "ADVANCED"
+  )
+  public String initialQuery = "";
+
+  @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,
-      label = "Transaction isolation",
+      label = "Transaction Isolation",
       description = "Transaction isolation that should be used for all database connections.",
       defaultValue = "DEFAULT",
       displayPosition = 70,
@@ -323,5 +335,17 @@ public class HikariPoolConfigBean {
     }
 
     return issues;
+  }
+
+  public Properties getDriverProperties() throws StageException {
+    Properties properties = new Properties();
+    for (ConnectionPropertyBean bean : driverProperties) {
+      properties.setProperty(bean.key, bean.value.get());
+    }
+    return properties;
+  }
+
+  public String getConnectionString() {
+    return connectionString;
   }
 }

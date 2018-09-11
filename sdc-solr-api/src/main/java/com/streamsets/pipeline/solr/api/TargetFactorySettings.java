@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,19 +21,34 @@ public class TargetFactorySettings {
   private String zookeeperConnect;
   private String defaultCollection;
   private boolean kerberosAuth;
+  private boolean skipValidation;
+  private final boolean waitFlush;
+  private final boolean waitSearcher;
+  private final boolean softCommit;
+  private boolean ignoreOptionalFields;
 
   public TargetFactorySettings (
       String instanceType,
       String solrURI,
       String zookeeperConnect,
       String defaultCollection,
-      boolean kerberosAuth
+      boolean kerberosAuth,
+      boolean skipValidation,
+      boolean waitFlush,
+      boolean waitSearcher,
+      boolean softCommit,
+      boolean ignoreOptionalFields
   ) {
     this.instanceType = instanceType;
     this.solrURI = solrURI;
     this.zookeeperConnect = zookeeperConnect;
     this.defaultCollection = defaultCollection;
     this.kerberosAuth = kerberosAuth;
+    this.skipValidation = skipValidation;
+    this.waitFlush = waitFlush;
+    this.waitSearcher = waitSearcher;
+    this.softCommit = softCommit;
+    this.ignoreOptionalFields = ignoreOptionalFields;
   }
 
   public String getInstanceType() {
@@ -54,5 +69,25 @@ public class TargetFactorySettings {
 
   public boolean getKerberosAuth() {
     return kerberosAuth;
+  }
+
+  public boolean getSkipValidation() {
+    return skipValidation;
+  }
+
+  public boolean isWaitFlush() {
+    return waitFlush;
+  }
+
+  public boolean isWaitSearcher() {
+    return waitSearcher;
+  }
+
+  public boolean isSoftCommit() {
+    return softCommit;
+  }
+
+  public boolean getIgnoreOptionalFields() {
+    return ignoreOptionalFields;
   }
 }

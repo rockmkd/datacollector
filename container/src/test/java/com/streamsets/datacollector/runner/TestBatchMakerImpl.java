@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.config.StageDefinition;
-import com.streamsets.datacollector.config.StageType;
 import com.streamsets.datacollector.record.RecordImpl;
 import com.streamsets.datacollector.runner.preview.StageConfigurationBuilder;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
 
+import com.streamsets.pipeline.api.StageType;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -52,10 +52,10 @@ public class TestBatchMakerImpl {
     Mockito.when(stageRuntime.getInfo()).thenReturn(stageInfo);
     Mockito.when(stageRuntime.getConfiguration()).thenReturn(stageConfiguration);
     Mockito.when(stageRuntime.getDefinition()).thenReturn(stageDef);
-    List<String> pipeInput = LaneResolver.getPostFixed(ImmutableList.of("a"), LaneResolver.COMBINER_OUT);
+    List<String> pipeInput = LaneResolver.getPostFixed(ImmutableList.of("a"), LaneResolver.MULTIPLEXER_OUT);
     List<String> pipeOutputs = new ArrayList<String>();
     for (String output : outputs) {
-      pipeOutputs.add(LaneResolver.createLane(output, "x"));
+      pipeOutputs.add(LaneResolver.createLane(output, "x", "x"));
     }
     List<String> pipeOutput = LaneResolver.getPostFixed(pipeOutputs, LaneResolver.STAGE_OUT);
 

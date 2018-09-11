@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -139,7 +140,10 @@ public final class SdcClusterOffsetHelper {
     if (!fs.exists(checkPointFilePath)) {
       throw new IOException(Utils.format("Checkpoint file path {} does not exist", checkPointFilePath));
     }
-    ClusterSourceOffsetJson clusterSourceOffsetJson = OBJECT_MAPPER.readValue(fs.open(checkPointFilePath), ClusterSourceOffsetJson.class);
+    ClusterSourceOffsetJson clusterSourceOffsetJson = OBJECT_MAPPER.readValue(
+        (InputStream) fs.open(checkPointFilePath),
+        ClusterSourceOffsetJson.class
+    );
     String lastSourceOffset = clusterSourceOffsetJson.getOffset();
     if (!StringUtils.isEmpty(lastSourceOffset)) {
       return deserializeKafkaPartitionOffset(lastSourceOffset, numberOfPartitions);

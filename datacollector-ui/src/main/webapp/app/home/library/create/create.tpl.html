@@ -31,6 +31,18 @@
                 ng-model="newConfig.description"></textarea>
     </div>
 
+    <div class="form-group">
+      <div class="radio">
+        <label><input type="radio" name="pipelineType" ng-model="newConfig.pipelineType" value="DATA_COLLECTOR">Data Collector Pipeline</label>
+      </div>
+      <div class="radio">
+        <label><input type="radio" name="pipelineType" ng-model="newConfig.pipelineType" value="DATA_COLLECTOR_EDGE">Data Collector Edge Pipeline</label>
+      </div>
+      <div class="radio">
+        <label><input type="radio" name="pipelineType" ng-model="newConfig.pipelineType" value="MICROSERVICE">Microservice Pipeline</label>
+      </div>
+    </div>
+
   </div>
   <div class="modal-footer">
     <button type="reset" class="btn btn-default" ng-click="cancel()"

@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.origin.hdfs.cluster;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedClusterSource;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.ErrorListener;
@@ -24,19 +23,19 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.base.configurablestage.DClusterSourceOffsetCommitter;
 import com.streamsets.pipeline.api.impl.ClusterSource;
-import com.streamsets.pipeline.configurablestage.DClusterSourceOffsetCommitter;
 
 @StageDef(
-  version = 5,
+  version = 6,
   label = "Hadoop FS",
   description = "Reads data from Hadoop file system",
-  execution = ExecutionMode.CLUSTER_BATCH,
+  execution = {ExecutionMode.CLUSTER_BATCH , ExecutionMode.EMR_BATCH },
   libJarsRegex = {"avro-\\d+.*", "avro-mapred.*"},
   icon = "hdfs.png",
   privateClassLoader = true,
   upgrader = ClusterHdfsSourceUpgrader.class,
-  onlineHelpRefUrl = "index.html#Origins/HadoopFS-origin.html#task_hgl_vgn_vs"
+  onlineHelpRefUrl ="index.html?contextID=task_hgl_vgn_vs"
 )
 @ConfigGroups(value = Groups.class)
 @HideConfigs(value = {"clusterHDFSConfigBean.dataFormatConfig.compression", "clusterHDFSConfigBean.dataFormatConfig.includeCustomDelimiterInTheText"})
@@ -49,7 +48,7 @@ public class ClusterHdfsDSource extends DClusterSourceOffsetCommitter implements
 
   @Override
   protected Source createSource() {
-    clusterHDFSSource = new HadoopConfigurationSynchronizedClusterSource(new ClusterHdfsSource(clusterHDFSConfigBean));
+    clusterHDFSSource = new ClusterHdfsSource(clusterHDFSConfigBean);
     return clusterHDFSSource;
   }
 

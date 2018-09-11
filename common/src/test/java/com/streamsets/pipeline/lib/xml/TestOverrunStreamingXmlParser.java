@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 package com.streamsets.pipeline.lib.xml;
 
 import com.google.common.base.Strings;
-import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.ext.io.ObjectLengthException;
 import com.streamsets.pipeline.api.ext.io.OverrunException;
 import com.streamsets.pipeline.api.ext.io.OverrunReader;
@@ -41,6 +40,7 @@ public class TestOverrunStreamingXmlParser {
   @Before
   public void setUp() {
     System.getProperties().remove(OverrunReader.READ_LIMIT_SYS_PROP);
+    OverrunReader.reInitializeDefaultReadLimit();
   }
 
   @After
@@ -50,6 +50,7 @@ public class TestOverrunStreamingXmlParser {
 
   public void testStreamLevelOverrunArray(boolean attemptNextRead) throws Exception {
     System.setProperty(OverrunReader.READ_LIMIT_SYS_PROP, "10000");
+    OverrunReader.reInitializeDefaultReadLimit();
     String xml = "<root><record/><record>" + Strings.repeat("a", 20000) + "</record></root>";
     StreamingXmlParser parser = new OverrunStreamingXmlParser(new StringReader(xml), "record", 0, 100);
     Assert.assertNotNull(parser.read());

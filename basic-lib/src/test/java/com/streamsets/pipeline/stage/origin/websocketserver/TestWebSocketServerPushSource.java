@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,36 +18,46 @@ package com.streamsets.pipeline.stage.origin.websocketserver;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.lib.http.HttpConstants;
+import com.streamsets.pipeline.lib.microservice.ResponseConfigBean;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 import com.streamsets.testing.NetworkUtils;
+import org.awaitility.Duration;
 import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.internal.util.reflection.Whitebox;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
 
 public class TestWebSocketServerPushSource {
 
   @Test
   public void testSource() throws Exception {
     WebSocketConfigs webSocketConfigs = new WebSocketConfigs();
-    webSocketConfigs.appId = "appId";
+    webSocketConfigs.appId = () -> "appId";
     webSocketConfigs.port = NetworkUtils.getRandomPort();
     webSocketConfigs.maxConcurrentRequests = 1;
     webSocketConfigs.tlsConfigBean.tlsEnabled = false;
-    WebSocketServerPushSource source =
-        new WebSocketServerPushSource(webSocketConfigs, DataFormat.JSON, new DataParserFormatConfig());
+    WebSocketServerPushSource source = new WebSocketServerPushSource(
+        webSocketConfigs,
+        DataFormat.JSON,
+        new DataParserFormatConfig(),
+        new ResponseConfigBean()
+    );
     final PushSourceRunner runner =
-        new PushSourceRunner.Builder(WebSocketServerPushSource.class, source).addOutputLane("a").build();
+        new PushSourceRunner.Builder(WebSocketServerDPushSource.class, source).addOutputLane("a").build();
     runner.runInit();
     try {
       final List<Record> records = new ArrayList<>();
@@ -55,10 +65,18 @@ public class TestWebSocketServerPushSource {
         @Override
         public void processBatch(StageRunner.Output output) {
           records.clear();
+          runner.getSourceResponseSink().getResponseRecords().clear();
           records.addAll(output.getRecords().get("a"));
+          records.forEach(record -> {
+            runner.getSourceResponseSink().addResponse(record);
+          });
           runner.setStop();
         }
       });
+
+      // wait for the HTTP server up and running
+      WebSocketReceiverServer httpServer = (WebSocketReceiverServer) Whitebox.getInternalState(source, "server");
+      await().atMost(Duration.TEN_SECONDS).until(isServerRunning(httpServer));
 
       WebSocketClient client = new WebSocketClient();
       SimpleEchoSocket socket = new SimpleEchoSocket();
@@ -85,6 +103,13 @@ public class TestWebSocketServerPushSource {
 
       Assert.assertEquals(1, records.size());
       Assert.assertEquals("value", records.get(0).get("/field1").getValue());
+
+      // check response from WebSocket Server
+      Assert.assertNotNull(socket.receivedMessage);
+      Assert.assertEquals(
+          "{\"httpStatusCode\":200,\"data\":[{\"field1\":\"value\"}],\"error\":[],\"errorMessage\":null}",
+          socket.receivedMessage
+      );
     } finally {
       runner.runDestroy();
     }
@@ -93,15 +118,19 @@ public class TestWebSocketServerPushSource {
   @Test
   public void testWithAppIdViaQueryParam() throws Exception {
     WebSocketConfigs webSocketConfigs = new WebSocketConfigs();
-    webSocketConfigs.appId = "appId";
+    webSocketConfigs.appId = () -> "appId";
     webSocketConfigs.port = NetworkUtils.getRandomPort();
     webSocketConfigs.maxConcurrentRequests = 1;
     webSocketConfigs.tlsConfigBean.tlsEnabled = false;
     webSocketConfigs.appIdViaQueryParamAllowed = true;
-    WebSocketServerPushSource source =
-        new WebSocketServerPushSource(webSocketConfigs, DataFormat.JSON, new DataParserFormatConfig());
+    WebSocketServerPushSource source = new WebSocketServerPushSource(
+        webSocketConfigs,
+        DataFormat.JSON,
+        new DataParserFormatConfig(),
+        new ResponseConfigBean()
+    );
     final PushSourceRunner runner =
-        new PushSourceRunner.Builder(WebSocketServerPushSource.class, source).addOutputLane("a").build();
+        new PushSourceRunner.Builder(WebSocketServerDPushSource.class, source).addOutputLane("a").build();
     runner.runInit();
     try {
       final List<Record> records = new ArrayList<>();
@@ -113,6 +142,10 @@ public class TestWebSocketServerPushSource {
           runner.setStop();
         }
       });
+
+      // wait for the HTTP server up and running
+      WebSocketReceiverServer httpServer = (WebSocketReceiverServer) Whitebox.getInternalState(source, "server");
+      await().atMost(Duration.TEN_SECONDS).until(isServerRunning(httpServer));
 
       WebSocketClient client = new WebSocketClient();
       SimpleEchoSocket socket = new SimpleEchoSocket();
@@ -143,4 +176,12 @@ public class TestWebSocketServerPushSource {
     }
   }
 
+  public static Callable<Boolean> isServerRunning(WebSocketReceiverServer httpServer ) {
+    return new Callable<Boolean>() {
+      @Override
+      public Boolean call() throws Exception {
+        return httpServer.isRunning();
+      }
+    };
+  }
 }

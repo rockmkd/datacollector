@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,8 +21,6 @@ public enum Groups implements Label {
   SPARK("Spark"),
   APPLICATION("Application"),
   CREDENTIALS("Credentials"),
-  SSL("SSL"),
-  PROXY("Proxy"),
   ;
 
   private String label;

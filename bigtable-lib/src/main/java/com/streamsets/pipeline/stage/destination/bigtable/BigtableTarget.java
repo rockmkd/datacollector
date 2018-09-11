@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,6 @@ import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.lib.parser.shaded.com.google.code.regexp.Pattern;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
@@ -493,7 +492,7 @@ public class BigtableTarget extends BaseTarget {
       Bigtable - at least one field has to be inserted so there is a record of
       this Row Key.
        */
-      Map<String, Byte[]> values = new HashMap<>();
+      Map<String, byte[]> values = new HashMap<>();
 
       int nullFields = 0;
       int cantConvert = 0;
@@ -505,7 +504,7 @@ public class BigtableTarget extends BaseTarget {
         } else {
           // field exists - check if it's convertible.
           try {
-            values.put(f.source, ArrayUtils.toObject(convertValue(f, tempField, rec)));
+            values.put(f.source, convertValue(f, tempField, rec));
           } catch (OnRecordErrorException ex) {
             cantConvert++;
           }
@@ -534,15 +533,18 @@ public class BigtableTarget extends BaseTarget {
       Put put = new Put(rowKey, timeStamp);
 
       for (BigtableFieldMapping f : conf.fieldColumnMapping) {
-        theList.add(put.addColumn(destinationNames.get(f.column).columnFamily,
-            destinationNames.get(f.column).qualifier,
-            timeStamp,
-            ArrayUtils.toPrimitive(values.get(f.source))
-        ));
+        if (values.containsKey(f.source)) {
+          theList.add(put.addColumn(destinationNames.get(f.column).columnFamily,
+              destinationNames.get(f.column).qualifier,
+              timeStamp,
+              values.get(f.source)
+          ));
+        }
       }
 
       counter++;
       if (counter >= conf.numToBuffer) {
+        LOG.debug("Calling put for list of '{}' Records", counter);
         commitRecords(theList);
         theList.clear();
         counter = 0;

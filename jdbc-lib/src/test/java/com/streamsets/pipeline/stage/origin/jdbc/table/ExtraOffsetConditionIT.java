@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableJdbcRunnable;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableRuntimeContext;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import org.junit.After;
@@ -32,10 +34,7 @@ import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.powermock.modules.junit4.PowerMockRunnerDelegate;
-import org.powermock.reflect.Whitebox;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -312,7 +311,7 @@ public class ExtraOffsetConditionIT extends BaseTableJdbcSourceIT {
             TableJdbcRunnable.class,
             "initTableEvalContextForProduce",
             TableJdbcELEvalContext.class,
-            TableContext.class,
+            TableRuntimeContext.class,
             Calendar.class
         )
     ).with((proxy, method, args) -> {
@@ -333,6 +332,7 @@ public class ExtraOffsetConditionIT extends BaseTableJdbcSourceIT {
         .overrideDefaultOffsetColumns(true)
         .offsetColumns(offsetColumns)
         .extraOffsetColumnConditions(extraOffsetConditions)
+        .partitioningMode(PartitioningMode.DISABLED)
         .build();
 
     TableJdbcSource tableJdbcSource = new TableJdbcSourceTestBuilder(JDBC_URL, true, USER_NAME, PASSWORD)

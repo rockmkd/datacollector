@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,21 +15,28 @@
  */
 package com.streamsets.pipeline.stage.origin.opcua;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.util.EscapeUtil;
 import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.lib.util.ThreadUtil;
+import org.apache.directory.api.util.Strings;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
+import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfigBuilder;
 import org.eclipse.milo.opcua.sdk.client.api.identity.AnonymousProvider;
 import org.eclipse.milo.opcua.sdk.client.api.subscriptions.UaMonitoredItem;
 import org.eclipse.milo.opcua.sdk.client.api.subscriptions.UaSubscription;
 import org.eclipse.milo.opcua.stack.client.UaTcpStackClient;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
+import org.eclipse.milo.opcua.stack.core.StatusCodes;
+import org.eclipse.milo.opcua.stack.core.channel.ChannelConfig;
 import org.eclipse.milo.opcua.stack.core.security.SecurityPolicy;
 import org.eclipse.milo.opcua.stack.core.types.builtin.ByteString;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -56,8 +63,15 @@ import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.Key;
+import java.security.KeyPair;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +80,7 @@ import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
@@ -75,6 +90,14 @@ import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 public class OpcUaClientSource implements PushSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(OpcUaClientSource.class);
+  private static final String SSL_CONFIG_PREFIX = "conf.tlsConfig.";
+  private static final String SOURCE_TIME_FIELD_NAME = "sourceTime";
+  private static final String SOURCE_PICO_SECONDS_FIELD_NAME = "sourcePicoSeconds";
+  private static final String SERVER_TIME_FIELD_NAME = "serverTime";
+  private static final String SERVER_PICO_SECONDS_FIELD_NAME = "serverPicoSeconds";
+  private static final String STATUS_CODE_FIELD_NAME = "statusCode";
+  private static final String STATUS_CODE_STR_FIELD_NAME = "statusCodeStr";
+  private static final String VALUE_FIELD_NAME = "value";
   private final OpcUaClientSourceConfigBean conf;
   private Context context;
   private AtomicLong counter = new AtomicLong();
@@ -83,6 +106,10 @@ public class OpcUaClientSource implements PushSource {
   private final AtomicLong clientHandles = new AtomicLong(1L);
   private OpcUaClient opcUaClient;
   private List<NodeId> nodeIds;
+  private NodeId rootNodeId;
+  private volatile boolean destroyed = false;
+  private final static ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private Stopwatch stopwatch = null;
 
   OpcUaClientSource(OpcUaClientSourceConfigBean conf) {
     this.conf = conf;
@@ -100,6 +127,28 @@ public class OpcUaClientSource implements PushSource {
     errorQueue = new ArrayBlockingQueue<>(100);
     errorList = new ArrayList<>(100);
 
+    SecurityPolicy securityPolicy = conf.securityPolicy.getSecurityPolicy();
+    if (!securityPolicy.equals(SecurityPolicy.None) && !conf.tlsConfig.isEnabled()) {
+      issues.add(
+          context.createConfigIssue(
+              Groups.SECURITY.name(),
+              SSL_CONFIG_PREFIX + "tlsEnabled",
+              Errors.OPC_UA_06,
+              conf.securityPolicy.getLabel()
+          )
+      );
+      return issues;
+    }
+
+    if (conf.tlsConfig.isEnabled()) {
+      conf.tlsConfig.init(
+          context,
+          Groups.SECURITY.name(),
+          SSL_CONFIG_PREFIX,
+          issues
+      );
+    }
+
     try {
       opcUaClient = createClient();
       opcUaClient.connect().get();
@@ -114,33 +163,8 @@ public class OpcUaClientSource implements PushSource {
       );
     }
 
-    try {
-      nodeIds = new ArrayList<>();
-      conf.nodeIdConfigs.forEach(nodeIdConfig -> {
-        switch (nodeIdConfig.identifierType) {
-          case NUMERIC:
-            nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, Integer.parseInt(nodeIdConfig.identifier)));
-            break;
-          case STRING:
-            nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, nodeIdConfig.identifier));
-            break;
-          case UUID:
-            nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, UUID.fromString(nodeIdConfig.identifier)));
-            break;
-          case OPAQUE:
-            nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, new ByteString(nodeIdConfig.identifier.getBytes())));
-            break;
-        }
-      });
-    } catch (Exception ex) {
-      issues.add(
-          context.createConfigIssue(
-              Groups.NODE_IDS.name(),
-              "conf.nodeIdConfigs",
-              Errors.OPC_UA_04,
-              ex.getLocalizedMessage()
-          )
-      );
+    if (conf.readMode != OpcUaReadMode.BROWSE_NODES) {
+      initializeNodeIds(issues);
     }
 
     if (conf.nodeIdConfigs.isEmpty() && conf.readMode != OpcUaReadMode.BROWSE_NODES) {
@@ -157,7 +181,7 @@ public class OpcUaClientSource implements PushSource {
   }
 
   private OpcUaClient createClient() throws Exception {
-    SecurityPolicy securityPolicy = SecurityPolicy.None;
+    SecurityPolicy securityPolicy = conf.securityPolicy.getSecurityPolicy();
 
     EndpointDescription[] endpoints = UaTcpStackClient.getEndpoints(conf.resourceUrl).get();
 
@@ -165,12 +189,36 @@ public class OpcUaClientSource implements PushSource {
         .filter(e -> e.getSecurityPolicyUri().equals(securityPolicy.getSecurityPolicyUri()))
         .findFirst().orElseThrow(() -> new StageException(Errors.OPC_UA_01));
 
-    OpcUaClientConfig config = OpcUaClientConfig.builder()
+    ChannelConfig channelConfig = new ChannelConfig(
+        conf.channelConf.maxChunkSize,
+        conf.channelConf.maxChunkCount,
+        conf.channelConf.maxMessageSize,
+        conf.channelConf.maxArrayLength,
+        conf.channelConf.maxStringLength
+    );
+    OpcUaClientConfigBuilder clientConfigBuilder = OpcUaClientConfig.builder()
         .setApplicationName(LocalizedText.english(conf.applicationName))
         .setApplicationUri(conf.applicationUri)
-        .setEndpoint(endpoint)
+        .setChannelConfig(channelConfig);
+
+    if (!securityPolicy.equals(SecurityPolicy.None)) {
+      KeyStore keyStore = conf.tlsConfig.getKeyStore();
+      if (keyStore != null) {
+        Key clientPrivateKey = keyStore.getKey(conf.clientKeyAlias, conf.tlsConfig.keyStorePassword.get().toCharArray());
+        if (clientPrivateKey instanceof PrivateKey) {
+          X509Certificate clientCertificate = (X509Certificate) keyStore.getCertificate(conf.clientKeyAlias);
+          PublicKey clientPublicKey = clientCertificate.getPublicKey();
+          KeyPair clientKeyPair = new KeyPair(clientPublicKey, (PrivateKey) clientPrivateKey);
+          clientConfigBuilder.setCertificate(clientCertificate)
+              .setKeyPair(clientKeyPair);
+        }
+      }
+    }
+
+    OpcUaClientConfig config = clientConfigBuilder.setEndpoint(endpoint)
         .setIdentityProvider(new AnonymousProvider())
         .setRequestTimeout(uint(conf.requestTimeoutMillis))
+        .setSessionTimeout(uint(conf.sessionTimeoutMillis))
         .build();
 
     return new OpcUaClient(config);
@@ -188,6 +236,7 @@ public class OpcUaClientSource implements PushSource {
           break;
         case BROWSE_NODES:
           browseNodes();
+          dispatchReceiverErrors(0);
           return;
       }
       while (!context.isStopped()) {
@@ -199,17 +248,150 @@ public class OpcUaClientSource implements PushSource {
     }
   }
 
+  private void initializeNodeIds(List<ConfigIssue> issues) {
+    try {
+      nodeIds = new ArrayList<>();
+
+      if (this.conf.nodeIdFetchMode.equals(NodeIdFetchMode.BROWSE)) {
+        rootNodeId = Identifiers.RootFolder;
+        switch (conf.rootIdentifierType) {
+          case NUMERIC:
+            rootNodeId = new NodeId(conf.rootNamespaceIndex, Integer.parseInt(conf.rootIdentifier));
+            break;
+          case STRING:
+            rootNodeId = new NodeId(conf.rootNamespaceIndex, conf.rootIdentifier);
+            break;
+          case UUID:
+            rootNodeId = new NodeId(conf.rootNamespaceIndex, UUID.fromString(conf.rootIdentifier));
+            break;
+          case OPAQUE:
+            rootNodeId = new NodeId(conf.rootNamespaceIndex, new ByteString(conf.rootIdentifier.getBytes()));
+            break;
+        }
+        conf.nodeIdConfigs = new ArrayList<>();
+        browseNode(rootNodeId, nodeIds, issues, new HashMap<>());
+        if (nodeIds.isEmpty()) {
+          issues.add(
+              context.createConfigIssue(
+                  Groups.NODE_IDS.name(),
+                  "conf.rootIdentifier",
+                  Errors.OPC_UA_07
+              )
+          );
+        }
+
+      } else {
+        if (this.conf.nodeIdFetchMode.equals(NodeIdFetchMode.FILE)) {
+          try {
+            conf.nodeIdConfigs = Arrays.asList(
+                OBJECT_MAPPER.readValue(this.conf.nodeIdConfigsFilePath,NodeIdConfig[].class)
+            );
+          } catch (Exception ex) {
+            issues.add(context.createConfigIssue(
+                Groups.NODE_IDS.name(),
+                "conf.nodeIdConfigsFilePath",
+                Errors.OPC_UA_04,
+                ex.getLocalizedMessage()
+            ));
+            return;
+          }
+        }
+
+        for (NodeIdConfig nodeIdConfig: conf.nodeIdConfigs) {
+          if (this.conf.nodeIdFetchMode.equals(NodeIdFetchMode.FILE)) {
+            if (Strings.isEmpty(nodeIdConfig.field) || Strings.isEmpty(nodeIdConfig.identifier)) {
+              issues.add(context.createConfigIssue(
+                  Groups.NODE_IDS.name(),
+                  "conf.nodeIdConfigsFilePath",
+                  Errors.OPC_UA_11,
+                  nodeIdConfig
+              ));
+              break;
+            }
+          }
+          switch (nodeIdConfig.identifierType) {
+            case NUMERIC:
+              nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, Integer.parseInt(nodeIdConfig.identifier)));
+              break;
+            case STRING:
+              nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, nodeIdConfig.identifier));
+              break;
+            case UUID:
+              nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, UUID.fromString(nodeIdConfig.identifier)));
+              break;
+            case OPAQUE:
+              nodeIds.add(new NodeId(nodeIdConfig.namespaceIndex, new ByteString(nodeIdConfig.identifier.getBytes())));
+              break;
+          }
+        }
+      }
+    } catch (Exception ex) {
+      issues.add(
+          context.createConfigIssue(
+              Groups.NODE_IDS.name(),
+              "conf.nodeIdConfigs",
+              Errors.OPC_UA_04,
+              ex.getLocalizedMessage()
+          )
+      );
+    }
+  }
+
+  private void refreshNodeIds() {
+    if (this.conf.nodeIdFetchMode.equals(NodeIdFetchMode.BROWSE)) {
+      if (stopwatch == null) {
+        stopwatch = Stopwatch.createStarted();
+      } else if (stopwatch.elapsed(TimeUnit.SECONDS) > conf.refreshNodeIdsInterval) {
+        try {
+          List<NodeId> newNodeIds = new ArrayList<>();
+          conf.nodeIdConfigs = new ArrayList<>();
+          browseNode(rootNodeId, newNodeIds, new ArrayList<>(), new HashMap<>());
+          if (!newNodeIds.isEmpty()) {
+            nodeIds = newNodeIds;
+          }
+        } catch (Exception ex) {
+          errorQueue.offer(new StageException(Errors.OPC_UA_08, ex.getMessage(), ex));
+          reConnect();
+        } finally {
+          stopwatch.reset()
+              .start();
+        }
+      }
+    }
+  }
+
+  private void reConnect() {
+    try {
+      opcUaClient.disconnect().get();
+      opcUaClient = createClient();
+      opcUaClient.connect().get();
+    } catch (Exception ex) {
+      LOG.error(Errors.OPC_UA_02.getMessage(), ex.getMessage(), ex);
+    }
+  }
+
   private void pollForData() {
+    if (destroyed) {
+      return;
+    }
+    refreshNodeIds();
     opcUaClient.readValues(0.0, TimestampsToReturn.Both, nodeIds)
         .thenAccept(values -> {
           try {
-            process(values, System.currentTimeMillis() + "." + counter.getAndIncrement());
+            process(values, System.currentTimeMillis() + "." + counter.getAndIncrement(), null);
           } catch (Exception ex) {
-            errorQueue.offer(ex);
+            LOG.error(Errors.OPC_UA_09.getMessage(), ex.getMessage(), ex);
+            errorQueue.offer(new StageException(Errors.OPC_UA_09, ex.getMessage(), ex));
           }
           if (ThreadUtil.sleep(conf.pollingInterval)) {
             pollForData();
           }
+        })
+        .exceptionally(ex -> {
+          LOG.warn(Errors.OPC_UA_12.getMessage(), ex.getMessage());
+          reConnect();
+          pollForData();
+          return null;
         });
   }
 
@@ -267,21 +449,32 @@ public class OpcUaClientSource implements PushSource {
   }
 
   private void onSubscriptionValue(UaMonitoredItem item, DataValue value) {
-    LOG.debug(
-        "subscription value received: item={}, value={}",
-        item.getReadValueId().getNodeId(), value.getValue());
-    process(ImmutableList.of(value), item.getReadValueId().getNodeId() + "." + counter.getAndIncrement());
+    LOG.debug("subscription value received: item={}, value={}", item.getReadValueId().getNodeId(), value.getValue());
+    try {
+      String fieldName = EscapeUtil.singleQuoteEscape(item.getReadValueId().getNodeId().getIdentifier().toString());
+      process(ImmutableList.of(value), item.getReadValueId().getNodeId() + "." + counter.getAndIncrement(), fieldName);
+    } catch (Exception ex) {
+      LOG.error(Errors.OPC_UA_09.getMessage(), ex.getMessage(), ex);
+      errorQueue.offer(new StageException(Errors.OPC_UA_09, ex.getMessage(), ex));
+    }
   }
 
-  private void process(List<DataValue> dataValues, String recordSourceId) {
+  private void process(List<DataValue> dataValues, String recordSourceId, String subscribeFieldName) {
     BatchContext batchContext = context.startBatch();
     Record record = context.createRecord(recordSourceId);
     record.set("/", Field.create(new LinkedHashMap<>()));
 
     int[] idx = { 0 };
     dataValues.forEach((dataValue) -> {
-      NodeIdConfig nodeIdConfig = conf.nodeIdConfigs.get(idx[0]++);
-      String fieldName = nodeIdConfig.field;
+      String fieldName;
+
+      if (conf.readMode.equals(OpcUaReadMode.SUBSCRIBE)) {
+        fieldName = subscribeFieldName;
+      } else {
+        NodeIdConfig nodeIdConfig = conf.nodeIdConfigs.get(idx[0]++);
+        fieldName = nodeIdConfig.field;
+      }
+
       if (!fieldName.startsWith("/")) {
         fieldName = "/" + fieldName;
       }
@@ -536,7 +729,44 @@ public class OpcUaClientSource implements PushSource {
           }
       }
 
-      record.set(fieldName, Field.create(fieldType, value));
+      LinkedHashMap<String, Field> valueMap = new LinkedHashMap<>();
+
+      if (dataValue.getSourceTime() != null) {
+        valueMap.put(SOURCE_TIME_FIELD_NAME, Field.createDatetime(dataValue.getSourceTime().getJavaDate()));
+      } else {
+        valueMap.put(SOURCE_TIME_FIELD_NAME, Field.create(Field.Type.LONG, null));
+      }
+
+      if (dataValue.getSourcePicoseconds() != null) {
+        valueMap.put(SOURCE_PICO_SECONDS_FIELD_NAME, Field.create(dataValue.getSourcePicoseconds().longValue()));
+      } else {
+        valueMap.put(SOURCE_PICO_SECONDS_FIELD_NAME, Field.create(Field.Type.LONG, 0));
+      }
+
+      if (dataValue.getServerTime() != null) {
+        valueMap.put(SERVER_TIME_FIELD_NAME, Field.createDatetime(dataValue.getServerTime().getJavaDate()));
+      } else {
+        valueMap.put(SERVER_TIME_FIELD_NAME, Field.create(Field.Type.LONG, null));
+      }
+
+      if (dataValue.getServerPicoseconds() != null) {
+        valueMap.put(SERVER_PICO_SECONDS_FIELD_NAME, Field.create(dataValue.getServerPicoseconds().longValue()));
+      } else {
+        valueMap.put(SERVER_PICO_SECONDS_FIELD_NAME, Field.create(Field.Type.LONG, 0));
+      }
+
+      if (dataValue.getStatusCode() != null) {
+        valueMap.put(STATUS_CODE_FIELD_NAME, Field.create(dataValue.getStatusCode().getValue()));
+        StatusCodes.lookup(dataValue.getStatusCode().getValue()).ifPresent(
+            nameAndDesc -> valueMap.put(STATUS_CODE_STR_FIELD_NAME, Field.create(nameAndDesc[0])));
+      } else {
+        valueMap.put(STATUS_CODE_FIELD_NAME, Field.create(Field.Type.LONG, null));
+        valueMap.put(STATUS_CODE_STR_FIELD_NAME, Field.create(Field.Type.STRING, null));
+      }
+
+      valueMap.put(VALUE_FIELD_NAME, Field.create(fieldType, value));
+      record.set(fieldName, Field.createListMap(valueMap));
+
     });
 
     batchContext.getBatchMaker().addRecord(record);
@@ -557,9 +787,92 @@ public class OpcUaClientSource implements PushSource {
     }
   }
 
+  private void browseNode(
+      NodeId browseRoot,
+      List<NodeId> nodeIdList,
+      List<ConfigIssue> issues,
+      Map<String, Boolean> visitedMap
+  ) {
+    if (visitedMap.containsKey(browseRoot.getIdentifier().toString())) {
+      return;
+    }
+
+    visitedMap.put(browseRoot.getIdentifier().toString(), true);
+
+    BrowseDescription browse = new BrowseDescription(
+        browseRoot,
+        BrowseDirection.Forward,
+        Identifiers.References,
+        true,
+        uint(NodeClass.Object.getValue() | NodeClass.Variable.getValue()),
+        uint(BrowseResultMask.All.getValue())
+    );
+    try {
+      BrowseResult browseResult = opcUaClient.browse(browse).get();
+      List<ReferenceDescription> references = toList(browseResult.getReferences());
+
+      for (ReferenceDescription rd : references) {
+        if (visitedMap.containsKey(rd.getNodeId().getIdentifier().toString())) {
+          continue;
+        }
+
+        if (rd.getNodeClass().equals(NodeClass.Variable)) {
+          NodeId nodeId = null;
+          NodeIdConfig nodeIdConfig = new NodeIdConfig();
+          switch (rd.getNodeId().getType()) {
+            case Numeric:
+              nodeId = new NodeId(
+                  rd.getNodeId().getNamespaceIndex().intValue(),
+                  Integer.parseInt(rd.getNodeId().getIdentifier().toString())
+              );
+              nodeIdConfig.field = rd.getBrowseName().getName() + "_" + rd.getNodeId().getIdentifier().toString();
+              break;
+            case String:
+              nodeId = new NodeId(
+                  rd.getNodeId().getNamespaceIndex().intValue(),
+                  rd.getNodeId().getIdentifier().toString()
+              );
+              nodeIdConfig.field = rd.getNodeId().getIdentifier().toString();
+              break;
+            case Guid:
+              nodeId = new NodeId(
+                  rd.getNodeId().getNamespaceIndex().intValue(),
+                  UUID.fromString(rd.getNodeId().getIdentifier().toString())
+              );
+              nodeIdConfig.field = rd.getBrowseName().getName() + "_" + rd.getNodeId().getIdentifier().toString();
+              break;
+            case Opaque:
+              nodeId = new NodeId(
+                  rd.getNodeId().getNamespaceIndex().intValue(),
+                  new ByteString(rd.getNodeId().getIdentifier().toString().getBytes())
+              );
+              nodeIdConfig.field = rd.getBrowseName().getName() + "_" + rd.getNodeId().getIdentifier().toString();
+              break;
+          }
+          nodeIdList.add(nodeId);
+          conf.nodeIdConfigs.add(nodeIdConfig);
+        }
+
+        rd.getNodeId().local().ifPresent(nodeId -> browseNode(nodeId, nodeIdList, issues, visitedMap));
+      }
+    } catch (InterruptedException | ExecutionException ex) {
+      LOG.error("Browsing nodeId={} failed: {}", browseRoot, ex.getMessage(), ex);
+      errorQueue.offer(new StageException(Errors.OPC_UA_08, ex.getMessage(), ex));
+      issues.add(
+          context.createConfigIssue(
+              Groups.NODE_IDS.name(),
+              "conf.rootIdentifier",
+              Errors.OPC_UA_08,
+              ex.getMessage()
+          )
+      );
+    }
+  }
+
   private void browseNodes() {
     LinkedHashMap<String, Field> rootFieldMap = new LinkedHashMap<>();
-    browseNode(Identifiers.RootFolder, rootFieldMap);
+    Map<String, Boolean> visitedMap = new HashMap<>();
+    browseNode(Identifiers.RootFolder, rootFieldMap, visitedMap);
     BatchContext batchContext = context.startBatch();
     String requestId = System.currentTimeMillis() + "." + counter.getAndIncrement();
     Record record = context.createRecord(requestId);
@@ -568,7 +881,17 @@ public class OpcUaClientSource implements PushSource {
     context.processBatch(batchContext);
   }
 
-  private void browseNode(NodeId browseRoot, LinkedHashMap<String, Field> rootFieldMap) {
+  private void browseNode(
+      NodeId browseRoot,
+      LinkedHashMap<String, Field> rootFieldMap,
+      Map<String, Boolean> visitedMap
+  ) {
+    if (visitedMap.containsKey(browseRoot.getIdentifier().toString())) {
+      return;
+    }
+
+    visitedMap.put(browseRoot.getIdentifier().toString(), true);
+
     BrowseDescription browse = new BrowseDescription(
         browseRoot,
         BrowseDirection.Forward,
@@ -583,6 +906,9 @@ public class OpcUaClientSource implements PushSource {
       List<ReferenceDescription> references = toList(browseResult.getReferences());
 
       for (ReferenceDescription rd : references) {
+        if (visitedMap.containsKey(rd.getNodeId().getIdentifier().toString())) {
+          continue;
+        }
         LinkedHashMap<String, Field> fieldMap = new LinkedHashMap<>();
         fieldMap.put("name", Field.create(rd.getBrowseName().getName()));
         fieldMap.put("nameSpaceIndex", Field.create(rd.getNodeId().getNamespaceIndex().intValue()));
@@ -591,16 +917,20 @@ public class OpcUaClientSource implements PushSource {
 
         // recursively browse to children
         rd.getNodeId().local().ifPresent(nodeId -> {
-          LinkedHashMap<String, Field> childrenMap = new LinkedHashMap<>();
-          browseNode(nodeId, childrenMap);
-          fieldMap.put("children",  Field.create(childrenMap));
+          if (!nodeId.equals(browseRoot)) {
+            LinkedHashMap<String, Field> childrenMap = new LinkedHashMap<>();
+            browseNode(nodeId, childrenMap, visitedMap);
+            if (!childrenMap.isEmpty()) {
+              fieldMap.put("children",  Field.create(childrenMap));
+            }
+          }
         });
 
         rootFieldMap.put(rd.getBrowseName().getName(), Field.create(fieldMap));
       }
     } catch (InterruptedException | ExecutionException ex) {
-      LOG.error("Browsing nodeId={} failed: {}", browseRoot, ex.getMessage(), ex);
-      errorQueue.offer(ex);
+      LOG.error(Errors.OPC_UA_10.getMessage(), browseRoot, ex.getMessage(), ex);
+      errorQueue.offer(new StageException(Errors.OPC_UA_10, browseRoot, ex.getMessage(), ex));
     }
   }
 
@@ -608,6 +938,7 @@ public class OpcUaClientSource implements PushSource {
   public void destroy() {
     if (opcUaClient != null) {
       try {
+        destroyed = true;
         opcUaClient.disconnect().get();
       } catch (InterruptedException | ExecutionException ex) {
         LOG.error("Failed during OPC UA Client disconnect call: {}", ex.getMessage());

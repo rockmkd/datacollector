@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +15,13 @@
  */
 package com.streamsets.pipeline.lib.parser.avro;
 
+import com.streamsets.pipeline.api.ProtoConfigurableEntity;
 import com.streamsets.pipeline.api.Record;
-import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.config.OriginAvroSchemaSource;
 import com.streamsets.pipeline.lib.parser.AbstractDataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.util.AvroTypeUtil;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.SeekableByteArrayInput;
@@ -43,11 +44,11 @@ public class AvroMessageParser extends AbstractDataParser {
   private BinaryDecoder decoder;
   private GenericData.Record avroRecord;
   private boolean eof;
-  private final Stage.Context context;
+  private final ProtoConfigurableEntity.Context context;
   private final String messageId;
 
   public AvroMessageParser(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       final Schema schema,
       final byte[] message,
       final String messageId,
@@ -78,6 +79,7 @@ public class AvroMessageParser extends AbstractDataParser {
     if(genericRecord != null) {
       record = context.createRecord(messageId);
       record.set(AvroTypeUtil.avroToSdcField(record, genericRecord.getSchema(), genericRecord));
+      record.getHeader().setAttribute(HeaderAttributeConstants.AVRO_SCHEMA, genericRecord.getSchema().toString());
     }
     return record;
   }

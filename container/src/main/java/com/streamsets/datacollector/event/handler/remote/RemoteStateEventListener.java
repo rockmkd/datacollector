@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -77,12 +76,7 @@ public class RemoteStateEventListener implements StateEventListener {
   public Collection<Pair<PipelineState, Map<String, String>>> getPipelineStateEvents() {
     List<Pair<PipelineState, Map<String, String>>> pipelineStates = new ArrayList<>();
     pipelineStateQueue.drainTo(pipelineStates);
-    // Keep last state for a given pipeline
-    Map<String, Pair<PipelineState, Map<String, String>>> map = new HashMap<>();
-    for (Pair<PipelineState, Map<String, String>> pipelineStateAndOffset: pipelineStates) {
-      map.put(pipelineStateAndOffset.getLeft().getPipelineId(), pipelineStateAndOffset);
-    }
-    return map.values();
+    return pipelineStates;
   }
 
   public void clear() {

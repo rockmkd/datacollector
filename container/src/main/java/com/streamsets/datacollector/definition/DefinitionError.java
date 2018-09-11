@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,18 +37,8 @@ public enum DefinitionError implements ErrorCode {
   DEF_012("{}, configuration field is a '{}' enum, the list has an invalid enum value: {}"),
   DEF_013("{}, configuration field is '{}', must have a numeric value"),
 
-  //ELDefinitionExtractor
-  DEF_050("{} Class='{}' Method='{}', method must be public to be an EL function"),
-  DEF_051("{} Class='{}' Method='{}', EL function name cannot be empty"),
-  DEF_052("{} Class='{}' Function='{}', method must be static"),
-  DEF_053("{} Class='{}' Method='{}', invalid name '{}'"),
-  DEF_054("{} Class='{}' Method='{}', invalid prefix '{}'"),
-  DEF_055("{} Class='{}' Method='{}', parameter at position '{}' has '@ElParam' annotation missing"),
-
-  DEF_060("{} Class='{}' Field='{}', field must public to be an EL constant"),
-  DEF_061("{} Class='{}' Field='{}', EL constant name cannot be empty"),
-  DEF_062("{} Class='{}' Function='{}', invalid name '{}'"),
-  DEF_063("{} Class='{}' Field='{}', invalid name '{}'"),
+  DEF_014("{}, configuration field is '{}', it must be 'CredentialValue'"),
+  DEF_015("{}, configuration field is '{}', it must be String or Number"),
 
   //ConfigGroupExtractor
   DEF_100("{} ConfigGroup='{}' is not an enum"),
@@ -71,6 +61,7 @@ public enum DefinitionError implements ErrorCode {
   DEF_163("{} group ordinal '{}' out of range, valid range '0..{}'"),
   DEF_164("{} invalid group ordinal value: {}"),
   DEF_165("{} group '{}' not in parent groups '{}'"),
+  DEF_166("{} field has explicit evaluation but defines the EL function '{}' which is implicitOnly"),
 
   //ModelDefinitionExtractor
   DEF_200("{}, Model annotation missing'"),
@@ -81,7 +72,7 @@ public enum DefinitionError implements ErrorCode {
   DEF_230("{}, ComplexField configuration must be a list"),
 
   //StageDefinitionExtractor
-  DEF_300("{} does not have a StageDef annotation"),
+  DEF_300("{} does not have a proper annotation"),
   DEF_301("{} version cannot be empty"),
   DEF_302("{} does not implement Source, Processor nor Target"),
   DEF_303("{} a SOURCE cannot be an ErrorStage"),
@@ -99,6 +90,9 @@ public enum DefinitionError implements ErrorCode {
 
   DEF_400("Stage library '{}', file '{}' not found"),
   DEF_401("Stage library '{}', could not read file '{}': {}"),
+
+  // General extractor errors
+  DEF_500("{} does not implement interface {}"),
 
   ;
 

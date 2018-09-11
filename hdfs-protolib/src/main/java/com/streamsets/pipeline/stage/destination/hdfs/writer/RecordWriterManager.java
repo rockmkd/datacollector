@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,13 +23,17 @@ import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.config.WholeFileExistsAction;
 import com.streamsets.pipeline.lib.el.FakeRecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
 import com.streamsets.pipeline.lib.parser.shaded.com.google.code.regexp.Matcher;
 import com.streamsets.pipeline.lib.parser.shaded.com.google.code.regexp.Pattern;
-import com.streamsets.pipeline.stage.destination.hdfs.Errors;
+import com.streamsets.pipeline.lib.hdfs.common.Errors;
 import com.streamsets.pipeline.stage.destination.hdfs.HdfsFileType;
 import com.streamsets.pipeline.stage.destination.hdfs.HdfsTarget;
 import com.streamsets.pipeline.stage.destination.hdfs.IdleClosedException;
@@ -203,6 +207,12 @@ public class RecordWriterManager {
       .with("filename", finalPath.getName())
       .with("length", status.getLen())
       .createAndSend();
+
+    LineageEvent event = context.createLineageEvent(LineageEventType.ENTITY_CREATED);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE, EndPointType.HDFS.name());
+    event.setSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME, finalPath.toString());
+    event.setSpecificAttribute(LineageSpecificAttribute.DESCRIPTION, finalPath.toString());
+    context.publishLineageEvent(event);
   }
 
   /**

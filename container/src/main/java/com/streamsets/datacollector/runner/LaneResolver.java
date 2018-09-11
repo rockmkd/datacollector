@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,16 +19,15 @@ import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.impl.Utils;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class LaneResolver {
   static final int POSTFIX_LEN = 3;
-  static final String STAGE_OUT       = "::s";
-  static final String OBSERVER_OUT    = "::o";
-  static final String MULTIPLEXER_OUT = "::m";
-  static final String COMBINER_OUT    = "::c";
-  private static final String ROUTING_SEPARATOR = "--";
+  static final String SEPARATOR       = "::";
+  static final String STAGE_OUT       = SEPARATOR + "s";
+  static final String OBSERVER_OUT    = SEPARATOR + "o";
+  static final String MULTIPLEXER_OUT = SEPARATOR + "m";
+  static final String ROUTING_SEPARATOR = "--";
 
   private static void validatePostFix(String postFix) {
     Utils.checkState(postFix.length() == POSTFIX_LEN, Utils.format("'{}' invalid length, it should be '{}'", postFix,
@@ -39,7 +38,6 @@ public class LaneResolver {
     validatePostFix(STAGE_OUT);
     validatePostFix(OBSERVER_OUT);
     validatePostFix(MULTIPLEXER_OUT);
-    validatePostFix(COMBINER_OUT);
   }
 
   static List<String> getPostFixed(List<String> lanes, String postfix) {
@@ -50,8 +48,8 @@ public class LaneResolver {
     return ImmutableList.copyOf(postFixed);
   }
 
-  static String createLane(String from, String to) {
-    return from + ROUTING_SEPARATOR + to;
+  static String createLane(String from, String to, String stageName) {
+    return from + ROUTING_SEPARATOR + to + SEPARATOR + stageName;
   }
 
   private final List<StageRuntime> stages;
@@ -61,7 +59,21 @@ public class LaneResolver {
   }
 
   public List<String> getStageInputLanes(int idx) {
-    return getCombinerOutputLanes(idx);
+    List<String> list = new ArrayList<>();
+    for (String input : stages.get(idx).getConfiguration().getInputLanes()) {
+      for (int i = 0; i < idx; i++) {
+        for (String output : stages.get(i).getConfiguration().getOutputAndEventLanes()) {
+          if (output.equals(input)) {
+            list.add(createLane(
+              output,
+              stages.get(idx).getInfo().getInstanceName(),
+              stages.get(i).getInfo().getInstanceName()
+            ));
+          }
+        }
+      }
+    }
+    return getPostFixed(list, MULTIPLEXER_OUT);
   }
 
   public List<String> getStageOutputLanes(int idx) {
@@ -90,35 +102,17 @@ public class LaneResolver {
       for (int i = idx + 1; i < stages.size(); i++) {
         for (String input : stages.get(i).getConfiguration().getInputLanes()) {
           if (input.equals(output)) {
-            list.add(createLane(output, stages.get(i).getInfo().getInstanceName()));
+            list.add(createLane(
+              output,
+              stages.get(i).getInfo().getInstanceName(),
+              stages.get(idx).getInfo().getInstanceName()
+            ));
           }
         }
       }
     }
     return getPostFixed(list, MULTIPLEXER_OUT);
   }
-
-  public List<String> getCombinerInputLanes(int idx) {
-    List<String> list = new ArrayList<>();
-    for (String input : stages.get(idx).getConfiguration().getInputLanes()) {
-      for (int i = 0; i < idx; i++) {
-        for (String output : stages.get(i).getConfiguration().getOutputAndEventLanes()) {
-          if (output.equals(input)) {
-            list.add(createLane(output, stages.get(idx).getInfo().getInstanceName()));
-          }
-        }
-      }
-    }
-    return getPostFixed(list, MULTIPLEXER_OUT);
-  }
-
-  @SuppressWarnings("unchecked")
-  public List<String> getCombinerOutputLanes(int idx) {
-    boolean noInput = stages.get(idx).getConfiguration().getInputLanes().isEmpty();
-    return (noInput) ? Collections.EMPTY_LIST : getPostFixed(ImmutableList.of(stages.get(idx).getInfo().getInstanceName()),
-                                                             COMBINER_OUT);
-  }
-
 
   public static List<String> getMatchingOutputLanes(String source, List<String> output) {
     String prefix = source + ROUTING_SEPARATOR;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,9 @@ import java.util.stream.Collectors;
   name = "Logs",
   description = "Most recent logs.",
   version = 1,
-  enabledByDefault = true
+  enabledByDefault = true,
+  // We want logs generator to run last, so that logs contains any possible exceptions about generating this bundle
+  order = Integer.MAX_VALUE
 )
 public class LogContentGenerator implements BundleContentGenerator {
   @Override

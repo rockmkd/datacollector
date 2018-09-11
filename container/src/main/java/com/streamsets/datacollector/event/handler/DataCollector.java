@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +18,14 @@ package com.streamsets.datacollector.event.handler;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
 
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
+import com.streamsets.datacollector.event.dto.AckEvent;
 import com.streamsets.datacollector.event.handler.remote.PipelineAndValidationStatus;
+import com.streamsets.datacollector.execution.Runner;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.lib.security.acl.dto.Acl;
@@ -29,7 +33,7 @@ import com.streamsets.pipeline.api.StageException;
 
 public interface DataCollector {
 
-  void start(String user, String name, String rev) throws PipelineException, StageException;
+  void start(Runner.StartPipelineContext context, String name, String rev) throws PipelineException, StageException;
 
   void stop(String user, String name, String rev) throws PipelineException;
 
@@ -54,7 +58,8 @@ public interface DataCollector {
 
   void validateConfigs(String user, String name, String rev) throws PipelineException;
 
-  void stopAndDelete(String user, String name, String rev) throws PipelineException, StageException;
+  Future<AckEvent> stopAndDelete(String user, String name, String rev,
+                                 long forceStopMillis) throws PipelineException, StageException;
 
   Collection<PipelineAndValidationStatus> getPipelines() throws PipelineException, IOException;
 
@@ -62,4 +67,23 @@ public interface DataCollector {
 
   void syncAcl(Acl acl) throws PipelineException;
 
+  /**
+   * Add a new object to DataCollector's blob store.
+   */
+  void blobStore(String namespace, String id, long version, String content) throws StageException;
+
+  /**
+   * Remove all versions of given object from DataCollector's blob store.
+   */
+  void blobDelete(String namespace, String id) throws StageException;
+
+  /**
+   * Remove object from DataCollector's blob store.
+   */
+  void blobDelete(String namespace, String id, long version) throws StageException;
+
+  /**
+   * Store new configuration from control hub inside this data collector in a persistent manner.
+   */
+  void storeConfiguration(Map<String, String> newConfiguration) throws IOException;
 }

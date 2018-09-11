@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,16 +15,23 @@
  */
 package com.streamsets.datacollector.execution.alerts;
 
+import com.google.common.base.Strings;
 import com.streamsets.datacollector.config.AuthenticationType;
 import com.streamsets.datacollector.config.PipelineWebhookConfig;
 import com.streamsets.datacollector.config.WebhookCommonConfig;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.execution.PipelineState;
 import com.streamsets.datacollector.execution.StateEventListener;
+import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.metrics.MetricsConfigurator;
+import com.streamsets.datacollector.restapi.bean.MeterJson;
+import com.streamsets.datacollector.restapi.bean.MetricRegistryJson;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.dc.execution.manager.standalone.ThreadUsage;
 import com.streamsets.pipeline.api.ExecutionMode;
+import com.streamsets.pipeline.api.StageException;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 import org.slf4j.Logger;
@@ -52,19 +59,22 @@ public class WebHookNotifier implements StateEventListener {
   private final PipelineConfigBean pipelineConfigBean;
   private final RuntimeInfo runtimeInfo;
   private Set<String> pipelineStates;
+  private Map<String, Object> runtimeParameters;
 
   public WebHookNotifier(
       String pipelineId,
       String pipelineTitle,
       String rev,
       PipelineConfigBean pipelineConfigBean,
-      RuntimeInfo runtimeInfo
+      RuntimeInfo runtimeInfo,
+      Map<String, Object> runtimeParameters
   ) {
     this.pipelineId = pipelineId;
     this.pipelineTitle = pipelineTitle;
     this.rev = rev;
     this.pipelineConfigBean = pipelineConfigBean;
     this.runtimeInfo = runtimeInfo;
+    this.runtimeParameters = runtimeParameters;
 
     pipelineStates = new HashSet<>();
     for(com.streamsets.datacollector.config.PipelineState s : pipelineConfigBean.notifyOnStates) {
@@ -97,11 +107,64 @@ public class WebHookNotifier implements StateEventListener {
             try {
               DateFormat dateTimeFormat = new SimpleDateFormat(EmailConstants.DATE_MASK, Locale.ENGLISH);
               String payload = webhookConfig.payload
-                  .replace(WebhookConstants.PIPELINE_TITLE_KEY, pipelineTitle)
-                  .replace(WebhookConstants.PIPELINE_URL_KEY, runtimeInfo.getBaseHttpUrl() +
-                      EmailConstants.PIPELINE_URL + toState.getPipelineId().replaceAll(" ", "%20"))
-                  .replace(WebhookConstants.PIPELINE_STATE_KEY, toState.getStatus().toString())
-                  .replace(WebhookConstants.TIME_KEY, dateTimeFormat.format(new Date(toState.getTimeStamp())));
+                  .replace(WebhookConstants.PIPELINE_TITLE_KEY, Strings.nullToEmpty(pipelineTitle))
+                  .replace(WebhookConstants.PIPELINE_URL_KEY, Strings.nullToEmpty(runtimeInfo.getBaseHttpUrl() +
+                      EmailConstants.PIPELINE_URL + toState.getPipelineId().replaceAll(" ", "%20")))
+                  .replace(WebhookConstants.PIPELINE_STATE_KEY, Strings.nullToEmpty(toState.getStatus().toString()))
+                  .replace(WebhookConstants.TIME_KEY, dateTimeFormat.format(new Date(toState.getTimeStamp())))
+                  .replace(WebhookConstants.PIPELINE_STATE_MESSAGE_KEY, Strings.nullToEmpty(toState.getMessage()))
+                  .replace(WebhookConstants.PIPELINE_RUNTIME_PARAMETERS_KEY, Strings.nullToEmpty(
+                      StringEscapeUtils.escapeJson(ObjectMapperFactory.get().writeValueAsString(runtimeParameters))))
+                  .replace(WebhookConstants.PIPELINE_METRICS_KEY, Strings.nullToEmpty(
+                      StringEscapeUtils.escapeJson(toState.getMetrics())));
+
+
+              if (payload.contains(WebhookConstants.PIPELINE_INPUT_RECORDS_COUNT_KEY) ||
+                  payload.contains(WebhookConstants.PIPELINE_OUTPUT_RECORDS_COUNT_KEY) ||
+                  payload.contains(WebhookConstants.PIPELINE_ERROR_RECORDS_COUNT_KEY) ||
+                  payload.contains(WebhookConstants.PIPELINE_ERROR_MESSAGES_COUNT_KEY)) {
+                long inputRecordsCount = 0;
+                long outputRecordsCount = 0;
+                long errorRecordsCount = 0;
+                long errorMessagesCount = 0;
+
+                if (toState.getMetrics() != null) {
+                  MetricRegistryJson metricRegistryJson =  ObjectMapperFactory.get()
+                      .readValue(toState.getMetrics(), MetricRegistryJson.class);
+
+                  if (metricRegistryJson != null && metricRegistryJson.getMeters() != null) {
+                    MeterJson batchInputRecords = metricRegistryJson.getMeters()
+                        .get("pipeline.batchInputRecords" + MetricsConfigurator.METER_SUFFIX);
+                    if (batchInputRecords != null) {
+                      inputRecordsCount = batchInputRecords.getCount();
+                    }
+
+                    MeterJson batchOutputRecords = metricRegistryJson.getMeters()
+                        .get("pipeline.batchOutputRecords" + MetricsConfigurator.METER_SUFFIX);
+                    if (batchOutputRecords != null) {
+                      outputRecordsCount = batchOutputRecords.getCount();
+                    }
+
+                    MeterJson batchErrorRecords = metricRegistryJson.getMeters()
+                        .get("pipeline.batchErrorRecords" + MetricsConfigurator.METER_SUFFIX);
+                    if (batchErrorRecords != null) {
+                      errorRecordsCount = batchErrorRecords.getCount();
+                    }
+
+                    MeterJson batchErrorMessagesRecords = metricRegistryJson.getMeters()
+                        .get("pipeline.batchErrorMessages" + MetricsConfigurator.METER_SUFFIX);
+                    if (batchErrorMessagesRecords != null) {
+                      errorMessagesCount = batchErrorMessagesRecords.getCount();
+                    }
+                  }
+                }
+
+                payload = payload
+                    .replace(WebhookConstants.PIPELINE_INPUT_RECORDS_COUNT_KEY, inputRecordsCount + "")
+                    .replace(WebhookConstants.PIPELINE_OUTPUT_RECORDS_COUNT_KEY, outputRecordsCount + "")
+                    .replace(WebhookConstants.PIPELINE_ERROR_RECORDS_COUNT_KEY, errorRecordsCount + "")
+                    .replace(WebhookConstants.PIPELINE_ERROR_MESSAGES_COUNT_KEY, errorMessagesCount + "");
+              }
 
               WebTarget webTarget = ClientBuilder.newClient().target(webhookConfig.webhookUrl);
               configurePasswordAuth(webhookConfig, webTarget);
@@ -131,22 +194,22 @@ public class WebHookNotifier implements StateEventListener {
     }
   }
 
-  private void configurePasswordAuth(WebhookCommonConfig webhookConfig, WebTarget webTarget) {
+  private void configurePasswordAuth(WebhookCommonConfig webhookConfig, WebTarget webTarget) throws StageException {
     if (webhookConfig.authType == AuthenticationType.BASIC) {
       webTarget.register(
-          HttpAuthenticationFeature.basic(webhookConfig.username, webhookConfig.password)
+          HttpAuthenticationFeature.basic(webhookConfig.username.get(), webhookConfig.password.get())
       );
     }
 
     if (webhookConfig.authType == AuthenticationType.DIGEST) {
       webTarget.register(
-          HttpAuthenticationFeature.digest(webhookConfig.username, webhookConfig.password)
+          HttpAuthenticationFeature.digest(webhookConfig.username.get(), webhookConfig.password.get())
       );
     }
 
     if (webhookConfig.authType == AuthenticationType.UNIVERSAL) {
       webTarget.register(
-          HttpAuthenticationFeature.universal(webhookConfig.username, webhookConfig.password)
+          HttpAuthenticationFeature.universal(webhookConfig.username.get(), webhookConfig.password.get())
       );
     }
   }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,7 @@ public class UDPToKafkaSource extends BaseSource implements OffsetCommitter {
   protected List<ConfigIssue> init() {
     List<ConfigIssue> issues = super.init();
     issues.addAll(udpConfigs.init(getContext()));
-    kafkaConfigBean.init(getContext(), DataFormat.BINARY, issues);
+    kafkaConfigBean.init(getContext(), DataFormat.BINARY, false, issues);
 
     if (issues.isEmpty()) {
       errorQueue = new ArrayBlockingQueue<>(100);

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,8 +25,11 @@ public class SDCInfoEventJson implements EventJson {
   private List<StageInfoJson> stageInfoList;
   private SDCBuildInfoJson sdcBuildInfo;
   private List<String> labels;
+  private boolean edge = false;
   // default for sdc 2.4 and below is 1
   private int offsetProtocolVersion = 1;
+  private String deploymentId;
+  private long totalMemory;
 
   public String getSdcId() {
     return sdcId;
@@ -84,11 +87,35 @@ public class SDCInfoEventJson implements EventJson {
     this.labels = labels;
   }
 
+  public boolean isEdge() {
+    return edge;
+  }
+
+  public void setEdge(boolean edge) {
+    this.edge = edge;
+  }
+
   public int getOffsetProtocolVersion() {
     return offsetProtocolVersion;
   }
 
   public void setOffsetProtocolVersion(int offsetProtocolVersion) {
     this.offsetProtocolVersion = offsetProtocolVersion;
+  }
+
+  public String getDeploymentId() {
+    return deploymentId;
+  }
+
+  public void setDeploymentId(String deploymentId) {
+    this.deploymentId = deploymentId;
+  }
+
+  public long getTotalMemory() {
+    return totalMemory;
+  }
+
+  public void setTotalMemory(long totalMemory) {
+    this.totalMemory = totalMemory;
   }
 }

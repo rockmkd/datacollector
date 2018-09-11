@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,15 +19,21 @@ import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.config.PipelineConfiguration;
-import com.streamsets.datacollector.config.StageType;
+import com.streamsets.datacollector.creation.PipelineConfigBean;
+import com.streamsets.datacollector.el.JobEL;
 import com.streamsets.datacollector.el.PipelineEL;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.restapi.bean.MetricRegistryJson;
 import com.streamsets.datacollector.runner.BatchContextImpl;
+import com.streamsets.datacollector.runner.BatchImpl;
 import com.streamsets.datacollector.runner.BatchListener;
+import com.streamsets.datacollector.runner.ErrorSink;
+import com.streamsets.datacollector.runner.EventSink;
 import com.streamsets.datacollector.runner.FullPipeBatch;
 import com.streamsets.datacollector.runner.MultiplexerPipe;
 import com.streamsets.datacollector.runner.Observer;
@@ -36,7 +42,9 @@ import com.streamsets.datacollector.runner.PipeContext;
 import com.streamsets.datacollector.runner.PipeRunner;
 import com.streamsets.datacollector.runner.PipelineRunner;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
+import com.streamsets.datacollector.runner.ProcessedSink;
 import com.streamsets.datacollector.runner.PushSourceContextDelegate;
+import com.streamsets.datacollector.runner.SourceResponseSink;
 import com.streamsets.datacollector.runner.RunnerPool;
 import com.streamsets.datacollector.runner.RuntimeStats;
 import com.streamsets.datacollector.runner.SourceOffsetTracker;
@@ -44,13 +52,18 @@ import com.streamsets.datacollector.runner.SourcePipe;
 import com.streamsets.datacollector.runner.StageContext;
 import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.StagePipe;
+import com.streamsets.datacollector.runner.StageRuntime;
 import com.streamsets.datacollector.runner.production.BadRecordsHandler;
 import com.streamsets.datacollector.runner.production.ReportErrorDelegate;
 import com.streamsets.datacollector.runner.production.StatsAggregationHandler;
+import com.streamsets.datacollector.util.ValidationUtil;
+import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.PushSource;
+import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +85,8 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
   private final int batchSize;
   private final int batches;
   private final boolean skipTargets;
+  private final boolean skipLifecycleEvents;
+  private final boolean testOrigin;
   private final MetricRegistry metrics;
   private final List<List<StageOutput>> batchesOutput;
   private final String name;
@@ -90,8 +105,17 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
   private AtomicInteger batchesProcessed;
   private PipelineConfiguration pipelineConfiguration;
 
-  public PreviewPipelineRunner(String name, String rev, RuntimeInfo runtimeInfo, SourceOffsetTracker offsetTracker,
-                               int batchSize, int batches, boolean skipTargets) {
+  public PreviewPipelineRunner(
+      String name,
+      String rev,
+      RuntimeInfo runtimeInfo,
+      SourceOffsetTracker offsetTracker,
+      int batchSize,
+      int batches,
+      boolean skipTargets,
+      boolean skipLifecycleEvents,
+      boolean testOrigin
+  ) {
     this.name = name;
     this.rev = rev;
     this.runtimeInfo = runtimeInfo;
@@ -99,9 +123,11 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     this.batchSize = batchSize;
     this.batches = batches;
     this.skipTargets = skipTargets;
+    this.skipLifecycleEvents = skipLifecycleEvents;
+    this.testOrigin = testOrigin;
     this.metrics = new MetricRegistry();
     processingTimer = MetricsConfigurator.createTimer(metrics, "pipeline.batchProcessing", name, rev);
-    batchesOutput = Collections.synchronizedList(new ArrayList<List<StageOutput>>());
+    batchesOutput = Collections.synchronizedList(new ArrayList<>());
   }
 
   @Override
@@ -129,6 +155,31 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
   }
 
   @Override
+  public void runLifecycleEvent(
+    Record eventRecord,
+    StageRuntime stageRuntime
+  ) throws StageException {
+    if(skipLifecycleEvents) {
+      return;
+    }
+
+   // One record batch with empty offsets
+    Batch batch = new BatchImpl(
+      stageRuntime.getConfiguration().getInstanceName(),
+      "",
+      "",
+      ImmutableList.of(eventRecord)
+    );
+
+    // We're only supporting Executor and Target types
+    Preconditions.checkArgument(
+      stageRuntime.getDefinition().getType().isOneOf(StageType.EXECUTOR, StageType.TARGET),
+      "Invalid lifecycle event stage type: " + stageRuntime.getDefinition().getType()
+    );
+    stageRuntime.execute(null, 1000, batch, null, new ErrorSink(), new EventSink(), new ProcessedSink(), new SourceResponseSink());
+  }
+
+  @Override
   @SuppressWarnings("unchecked")
   public void run(
     SourcePipe originPipe,
@@ -136,7 +187,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     BadRecordsHandler badRecordsHandler,
     StatsAggregationHandler statsAggregationHandler
   ) throws StageException, PipelineRuntimeException {
-    run(originPipe, pipes, badRecordsHandler, Collections.EMPTY_LIST, statsAggregationHandler);
+    run(originPipe, pipes, badRecordsHandler, Collections.emptyList(), statsAggregationHandler);
   }
 
   @Override
@@ -153,6 +204,9 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     this.statsAggregationHandler = statsAggregationHandler;
     this.runnerPool = new RunnerPool<>(pipes, new RuntimeStats(), new Histogram(new ExponentiallyDecayingReservoir()));
 
+    // Counter of batches that were already processed
+    batchesProcessed = new AtomicInteger(0);
+
     stagesToSkip = new HashMap<>();
     for (StageOutput stageOutput : stageOutputsToOverride) {
       stagesToSkip.put(stageOutput.getInstanceName(), stageOutput);
@@ -168,9 +222,6 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
   private void runPushSource() throws StageException, PipelineRuntimeException {
     // This object will receive delegated calls from the push origin callbacks
     originPipe.getStage().setPushSourceContextDelegate(this);
-
-    // Counter of batches that were already processed
-    batchesProcessed = new AtomicInteger(0);
 
     if(stagesToSkip.containsKey(originPipe.getStage().getInfo().getInstanceName())) {
       // We're skipping the origin's execution, so let's run the pipeline in "usual" manner
@@ -196,7 +247,12 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     originPipe.prepareBatchContext(batchContext);
 
     // Since the origin owns the threads in PushSource, need to re-populate the PipelineEL on every batch
-    PipelineEL.setConstantsInContext(pipelineConfiguration, originPipe.getStage().getContext().getUserContext());
+    PipelineEL.setConstantsInContext(
+        pipelineConfiguration,
+        originPipe.getStage().getContext().getUserContext(),
+        System.currentTimeMillis()
+    );
+    JobEL.setConstantsInContext(null);
 
     return batchContext;
   }
@@ -218,9 +274,8 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
       );
 
       // Increment amount of intercepted batches by one and end the processing if we have desirable amount
-      int count = batchesProcessed.incrementAndGet();
-      if(count >= batches) {
-        ((StageContext)originPipe.getStage().getContext()).setStop(true);
+      if (batchesProcessed.get() >= batches) {
+        ((StageContext) originPipe.getStage().getContext()).setStop(true);
       }
 
       // Not doing any commits in the preview
@@ -240,6 +295,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
       return  false;
     } finally {
       PipelineEL.unsetConstantsInContext();
+      JobEL.unsetConstantsInContext();
     }
   }
 
@@ -249,7 +305,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
   }
 
   private void runPollSource() throws StageException, PipelineRuntimeException {
-    for (int i = 0; i < batches; i++) {
+    while(batchesProcessed.get() < batches) {
       FullPipeBatch pipeBatch = new FullPipeBatch(
         Source.POLL_SOURCE_OFFSET_KEY,
         offsetTracker.getOffsets().get(Source.POLL_SOURCE_OFFSET_KEY),
@@ -285,7 +341,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     PipeRunner pipeRunner = null;
     try {
       pipeRunner = runnerPool.getRunner();
-      pipeRunner.forEach(pipe -> {
+      pipeRunner.executeBatch(offsetEntity, newOffset, start, pipe -> {
         StageOutput stageOutput = stagesToSkip.get(pipe.getStage().getInfo().getInstanceName());
         if (stageOutput == null || (pipe instanceof ObserverPipe) || (pipe instanceof MultiplexerPipe)) {
           if (!skipTargets || !pipe.getStage().getDefinition().getType().isOneOf(StageType.TARGET, StageType.EXECUTOR)) {
@@ -308,7 +364,12 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     offsetTracker.commitOffset(offsetEntity, newOffset);
     //TODO badRecordsHandler HANDLE ERRORS
     processingTimer.update(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
-    batchesOutput.add(pipeBatch.getSnapshotsOfAllStagesOutput());
+
+    List<StageOutput> stageOutputs = pipeBatch.getSnapshotsOfAllStagesOutput();
+    if(ValidationUtil.isSnapshotOutputUsable(stageOutputs)) {
+      batchesOutput.add(pipeBatch.getSnapshotsOfAllStagesOutput());
+      batchesProcessed.incrementAndGet();
+    }
   }
 
   @Override
@@ -318,7 +379,17 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     BadRecordsHandler badRecordsHandler,
     StatsAggregationHandler statsAggregationHandler
   ) throws StageException, PipelineRuntimeException {
+    // Stop the origin even if it did not stopped on it's own
+    ((StageContext)originPipe.getStage().getContext()).setStop(true);
+
+    // Firstly destroy the runner, to make sure that any potential run away thread from origin will be denied
+    // further processing.
+    if(runnerPool != null) {
+      runnerPool.destroy();
+    }
+
     // We're not doing any special event propagation during preview destroy phase
+    long start = System.currentTimeMillis();
 
     // Destroy origin on it's own
     originPipe.destroy(new FullPipeBatch(null,null, batchSize, true));
@@ -327,7 +398,7 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
     for(PipeRunner pipeRunner: pipeRunners) {
       final FullPipeBatch pipeBatch = new FullPipeBatch(null,null, batchSize, true);
       pipeBatch.skipStage(originPipe);
-      pipeRunner.forEach(p -> p.destroy(pipeBatch));
+      pipeRunner.executeBatch(null, null, start, p -> p.destroy(pipeBatch));
     }
   }
 
@@ -347,13 +418,13 @@ public class PreviewPipelineRunner implements PipelineRunner, PushSourceContextD
 
   }
 
-  public void setPipeContext(PipeContext pipeContext) {
-
-  }
-
-  @Override
-  public void setPipelineConfiguration(PipelineConfiguration pipelineConfiguration) {
+  public void setRuntimeConfiguration(
+    PipeContext pipeContext,
+    PipelineConfiguration pipelineConfiguration,
+    PipelineConfigBean pipelineConfigBean
+  ) {
     this.pipelineConfiguration = pipelineConfiguration;
+    // Preview does not need the remaining runtime structures
   }
 
   @Override

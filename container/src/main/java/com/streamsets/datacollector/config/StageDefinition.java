@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +19,11 @@ import com.google.common.collect.ImmutableSet;
 import com.streamsets.datacollector.creation.StageConfigBean;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.HideStage;
 import com.streamsets.pipeline.api.Label;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.StageUpgrader;
 import com.streamsets.pipeline.api.impl.LocalizableMessage;
 import com.streamsets.pipeline.api.impl.Utils;
@@ -36,7 +39,7 @@ import java.util.Set;
  * Captures the configuration options for a {@link com.streamsets.pipeline.api.Stage}.
  *
  */
-public class StageDefinition {
+public class StageDefinition implements PrivateClassLoaderDefinition {
   private final StageLibraryDefinition libraryDefinition;
   private final boolean privateClassLoader;
   private final ClassLoader classLoader;
@@ -48,6 +51,7 @@ public class StageDefinition {
   private final StageType type;
   private final boolean errorStage;
   private final boolean statsAggregatorStage;
+  private final boolean pipelineLifecycleStage;
   private final boolean preconditions;
   private final boolean onRecordError;
   private final RawSourceDefinition rawSourceDefinition;
@@ -67,9 +71,14 @@ public class StageDefinition {
   private final String onlineHelpRefUrl;
   private final boolean offsetCommitTrigger;
   private final boolean producesEvents;
+  private final List<ServiceDependencyDefinition> services;
+  private final List<HideStage.Type> hideStage;
+  private final StageDef stageDef;
+  private final boolean sendsResponse;
 
   // localized version
   private StageDefinition(
+      StageDef stageDef,
       StageLibraryDefinition libraryDefinition,
       boolean privateClassLoader,
       ClassLoader classLoader,
@@ -96,9 +105,14 @@ public class StageDefinition {
       boolean resetOffset,
       String onlineHelpRefUrl,
       boolean statsAggregatorStage,
+      boolean pipelineLifecycleStage,
       boolean offsetCommitTrigger,
-      boolean producesEvents
+      boolean producesEvents,
+      List<ServiceDependencyDefinition> services,
+      List<HideStage.Type> hideStage,
+      boolean sendsResponse
   ) {
+    this.stageDef = stageDef;
     this.libraryDefinition = libraryDefinition;
     this.privateClassLoader = privateClassLoader;
     this.classLoader = classLoader;
@@ -115,6 +129,7 @@ public class StageDefinition {
     this.rawSourceDefinition = rawSourceDefinition;
     this.onlineHelpRefUrl = onlineHelpRefUrl;
     this.statsAggregatorStage = statsAggregatorStage;
+    this.pipelineLifecycleStage = pipelineLifecycleStage;
     configDefinitionsMap = new HashMap<>();
     for (ConfigDefinition conf : configDefinitions) {
       configDefinitionsMap.put(conf.getName(), conf);
@@ -141,10 +156,14 @@ public class StageDefinition {
     this.resetOffset = resetOffset;
     this.offsetCommitTrigger = offsetCommitTrigger;
     this.producesEvents = producesEvents;
+    this.services = Collections.unmodifiableList(services);
+    this.hideStage = Collections.unmodifiableList(hideStage);
+    this.sendsResponse = sendsResponse;
   }
 
   @SuppressWarnings("unchecked")
   public StageDefinition(StageDefinition def, ClassLoader classLoader) {
+    stageDef = def.stageDef;
     libraryDefinition = def.libraryDefinition;
     privateClassLoader = def.privateClassLoader;
     this.classLoader = classLoader;
@@ -179,9 +198,14 @@ public class StageDefinition {
     statsAggregatorStage = def.statsAggregatorStage;
     offsetCommitTrigger = def.offsetCommitTrigger;
     producesEvents = def.producesEvents;
+    pipelineLifecycleStage = def.pipelineLifecycleStage;
+    services = def.services;
+    hideStage = def.hideStage;
+    sendsResponse = def.sendsResponse;
   }
 
   public StageDefinition(
+      StageDef stageDef,
       StageLibraryDefinition libraryDefinition,
       boolean privateClassLoader,
       Class<? extends Stage> klass,
@@ -207,9 +231,14 @@ public class StageDefinition {
       boolean resetOffset,
       String onlineHelpRefUrl,
       boolean statsAggregatorStage,
+      boolean pipelineLifecycleStage,
       boolean offsetCommitTrigger,
-      boolean producesEvents
+      boolean producesEvents,
+      List<ServiceDependencyDefinition> services,
+      List<HideStage.Type> hideStage,
+      boolean sendsResponse
   ) {
+    this.stageDef = stageDef;
     this.libraryDefinition = libraryDefinition;
     this.privateClassLoader = privateClassLoader;
     this.onlineHelpRefUrl = onlineHelpRefUrl;
@@ -249,8 +278,12 @@ public class StageDefinition {
     this.libJarsRegex = libJarsRegex;
     this.resetOffset = resetOffset;
     this.statsAggregatorStage = statsAggregatorStage;
+    this.pipelineLifecycleStage = pipelineLifecycleStage;
     this.offsetCommitTrigger = offsetCommitTrigger;
     this.producesEvents = producesEvents;
+    this.services = Collections.unmodifiableList(services);
+    this.hideStage = Collections.unmodifiableList(hideStage);
+    this.sendsResponse = sendsResponse;
   }
 
   public List<ExecutionMode> getLibraryExecutionModes() {
@@ -269,10 +302,12 @@ public class StageDefinition {
     return libraryDefinition.getLabel();
   }
 
+  @Override
   public ClassLoader getStageClassLoader() {
     return classLoader;
   }
 
+  @Override
   public boolean isPrivateClassLoader() {
     return privateClassLoader;
   }
@@ -285,6 +320,7 @@ public class StageDefinition {
     return klass;
   }
 
+  @Override
   public String getName() {
     return name;
   }
@@ -325,6 +361,10 @@ public class StageDefinition {
     return statsAggregatorStage;
   }
 
+  public boolean isPipelineLifecycleStage() {
+    return pipelineLifecycleStage;
+  }
+
   public void addConfiguration(ConfigDefinition confDef) {
     if (configDefinitionsMap.containsKey(confDef.getName())) {
       throw new IllegalArgumentException(Utils.format("Stage '{}:{}:{}', configuration definition '{}' already exists",
@@ -354,6 +394,7 @@ public class StageDefinition {
     return hideConfigSet;
   }
 
+  // This method returns not only main configs, but also all complex ones!
   public Map<String, ConfigDefinition> getConfigDefinitionsMap() {
     return configDefinitionsMap;
   }
@@ -496,6 +537,7 @@ public class StageDefinition {
     }
 
     return new StageDefinition(
+        stageDef,
         libraryDefinition,
         privateClassLoader,
         getStageClassLoader(),
@@ -522,8 +564,12 @@ public class StageDefinition {
         resetOffset,
         onlineHelpRefUrl,
         statsAggregatorStage,
+        pipelineLifecycleStage,
         offsetCommitTrigger,
-        producesEvents
+        producesEvents,
+        services,
+        hideStage,
+        sendsResponse
     );
   }
 
@@ -559,6 +605,26 @@ public class StageDefinition {
 
   public boolean isProducingEvents() {
     return producesEvents;
+  }
+
+  public List<ServiceDependencyDefinition> getServices() {
+    return services;
+  }
+
+  public List<HideStage.Type> getHideStage() {
+    return hideStage;
+  }
+
+  public String getOutputStreamsDrivenByConfig() {
+    return stageDef != null ? stageDef.outputStreamsDrivenByConfig(): null;
+  }
+
+  public StageDef getStageDef() {
+    return stageDef;
+  }
+
+  public boolean getSendsResponse() {
+    return sendsResponse;
   }
 }
 

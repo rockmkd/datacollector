@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.lineage;
 
+import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.util.Configuration;
 import dagger.Module;
 import dagger.Provides;
@@ -31,9 +32,13 @@ public class LineageModule {
   @Provides
   @Singleton
   public LineagePublisherTask provideLineagePublisher(
-    Configuration configuration
+    Configuration configuration,
+    StageLibraryTask stageLibraryTask
   ) {
-    return new LineagePublisherTaskImpl(configuration);
+    return new LineagePublisherTaskImpl(
+      configuration,
+      stageLibraryTask
+    );
   }
 
 }

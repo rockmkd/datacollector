@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,8 +21,11 @@ import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormatChooserValues;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationActionChooserValues;
+import com.streamsets.pipeline.stage.lib.kudu.KuduFieldMappingConfig;
 
 import java.util.List;
 
@@ -77,6 +80,18 @@ public class KuduConfigBean {
   @ValueChooserModel(KuduOperationChooserValues.class)
   public KuduOperationType defaultOperation;
 
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.MODEL,
+      label = "Change Log Format",
+      defaultValue = "NONE",
+      description = "If input is a change data capture log, specify the format.",
+      displayPosition = 40,
+      group = "KUDU"
+  )
+  @ValueChooserModel(ChangeLogFormatChooserValues.class)
+  public ChangeLogFormat changeLogFormat = ChangeLogFormat.NONE;
+
   // advanced tab
   @ConfigDef(
       required = true,
@@ -103,15 +118,39 @@ public class KuduConfigBean {
   public int mutationBufferSpace;
 
   @ConfigDef(
-      required = true,
+      required = false,
       type = ConfigDef.Type.NUMBER,
-      defaultValue = "10000",
-      label = "Operation Timeout Milliseconds",
-      description = "Sets the default timeout used for user operations (using sessions and scanners)",
+      defaultValue = "",
+      label = "Maximum Number of Worker Threads",
+      description = "Set the maximum number of worker threads. If not provided or set to 0, " +
+          "the default (2 * the number of available processors) is used.",
       displayPosition = 20,
       group = "ADVANCED"
   )
-  public int operationTimeout;
+  public int numWorkers;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "10000",
+      label = "Operation Timeout (milliseconds)",
+      description = "Default timeout used for user operations (using sessions and scanners). A value of 0 disables the timeout.",
+      displayPosition = 25,
+      group = "ADVANCED"
+  )
+  public int operationTimeout = 10000;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      defaultValue = "30000",
+      label = "Admin Operation Timeout (milliseconds)",
+      description = "Default timeout used for admin operations (openTable, getTableSchema, connectionRetry). " +
+          "A value of 0 disables the timeout.",
+      displayPosition = 30,
+      group = "ADVANCED"
+  )
+  public int adminOperationTimeout = 30000;
 
   @ConfigDef(
       required = true,
@@ -119,7 +158,7 @@ public class KuduConfigBean {
       defaultValue= "DISCARD",
       label = "Unsupported Operation Handling",
       description = "Action to take when operation type is not supported",
-      displayPosition = 30,
+      displayPosition = 35,
       group = "ADVANCED"
   )
   @ValueChooserModel(UnsupportedOperationActionChooserValues.class)

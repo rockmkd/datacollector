@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +17,11 @@ package com.streamsets.datacollector.execution;
 
 import com.streamsets.datacollector.callback.CallbackInfo;
 import com.streamsets.datacollector.callback.CallbackObjectType;
+import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.execution.alerts.AlertInfo;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
 import com.streamsets.datacollector.execution.runner.common.SampledRecord;
 import com.streamsets.datacollector.restapi.bean.UserJson;
-import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.store.AclStoreTask;
 import com.streamsets.datacollector.store.PipelineStoreException;
@@ -56,6 +56,16 @@ public class AclRunner implements Runner {
   }
 
   @Override
+  public String getPipelineTitle() throws PipelineException {
+    return runner.getPipelineTitle();
+  }
+
+  @Override
+  public PipelineConfiguration getPipelineConfiguration() throws PipelineException {
+    return runner.getPipelineConfiguration();
+  }
+
+  @Override
   public void resetOffset(String user) throws PipelineException {
     aclStore.validateExecutePermission(this.getName(), currentUser);
     runner.resetOffset(user);
@@ -79,7 +89,7 @@ public class AclRunner implements Runner {
   }
 
   @Override
-  public void prepareForDataCollectorStart(String user) throws PipelineStoreException, PipelineRunnerException {
+  public void prepareForDataCollectorStart(String user) throws PipelineException {
     runner.prepareForDataCollectorStart(user);
   }
 
@@ -89,7 +99,7 @@ public class AclRunner implements Runner {
   }
 
   @Override
-  public void onDataCollectorStop(String user) throws PipelineStoreException, PipelineRunnerException, PipelineRuntimeException {
+  public void onDataCollectorStop(String user) throws PipelineException {
     runner.onDataCollectorStop(user);
   }
 
@@ -106,38 +116,31 @@ public class AclRunner implements Runner {
   }
 
   @Override
-  public void prepareForStart(String user) throws PipelineStoreException, PipelineRunnerException {
-    runner.prepareForStart(user);
+  public void prepareForStart(StartPipelineContext context) throws PipelineException {
+    runner.prepareForStart(context);
   }
 
   @Override
-  public void prepareForStop(String user) throws PipelineStoreException, PipelineRunnerException {
+  public void prepareForStop(String user) throws PipelineException {
     runner.prepareForStop(user);
   }
 
   @Override
-  public void start(String user) throws PipelineException, StageException {
+  public void start(StartPipelineContext context) throws PipelineException, StageException {
     aclStore.validateExecutePermission(this.getName(), currentUser);
-    runner.start(user);
-  }
-
-  @Override
-  public void start(String user, Map<String, Object> runtimeParameters) throws PipelineException, StageException {
-    aclStore.validateExecutePermission(this.getName(), currentUser);
-    runner.start(user, runtimeParameters);
+    runner.start(context);
   }
 
   @Override
   public void startAndCaptureSnapshot(
-      String user,
-      Map<String, Object> runtimeParameters,
+      StartPipelineContext context,
       String snapshotName,
       String snapshotLabel,
       int batches,
       int batchSize
   ) throws PipelineException, StageException {
     aclStore.validateExecutePermission(this.getName(), currentUser);
-    runner.startAndCaptureSnapshot(user, runtimeParameters, snapshotName, snapshotLabel, batches, batchSize);
+    runner.startAndCaptureSnapshot(context, snapshotName, snapshotLabel, batches, batchSize);
   }
 
   @Override
@@ -186,7 +189,7 @@ public class AclRunner implements Runner {
   }
 
   @Override
-  public Object getMetrics() throws PipelineStoreException {
+  public Object getMetrics() throws PipelineException {
     return runner.getMetrics();
   }
 
@@ -228,6 +231,11 @@ public class AclRunner implements Runner {
   }
 
   @Override
+  public Map<String, Object> createStateAttributes() throws PipelineStoreException {
+    return runner.createStateAttributes();
+  }
+
+  @Override
   public void close() {
     runner.close();
   }
@@ -250,5 +258,10 @@ public class AclRunner implements Runner {
   @Override
   public int getRunnerCount() {
     return runner.getRunnerCount();
+  }
+
+  @Override
+  public Runner getDelegatingRunner() {
+    return runner;
   }
 }

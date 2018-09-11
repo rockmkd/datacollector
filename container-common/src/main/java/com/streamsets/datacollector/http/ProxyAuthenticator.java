@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -151,8 +151,10 @@ public class ProxyAuthenticator extends LoginAuthenticator {
 
                 UserIdentity userIdentity = login(username, password, request);
                 if (userIdentity != null) {
-                  Authentication cached = new SessionAuthentication(getAuthMethod(), userIdentity, null);
-                  session.setAttribute(SessionAuthentication.__J_AUTHENTICATED, cached);
+                  if (session.getAttribute(SessionAuthentication.__J_AUTHENTICATED) == null) {
+                    Authentication cached = new SessionAuthentication(getAuthMethod(), userIdentity, null);
+                    session.setAttribute(SessionAuthentication.__J_AUTHENTICATED, cached);
+                  }
                 } else {
                   try {
                     response.setHeader(HttpHeader.WWW_AUTHENTICATE.asString(),

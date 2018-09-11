@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,8 @@ public class OracleCDCOperationCode {
   public static final int UPDATE_CODE = 3;
   public static final int DDL_CODE = 5;
   public static final int SELECT_FOR_UPDATE_CODE = 25;
+  public static final int COMMIT_CODE = 7;
+  public static final int ROLLBACK_CODE = 36;
 
   /**
    * This is called when JDBC target didn't find sdc.operation.code in record header

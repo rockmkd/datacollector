@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,8 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
+import com.streamsets.pipeline.api.base.configurablestage.DClusterSourceOffsetCommitter;
 import com.streamsets.pipeline.api.impl.ClusterSource;
-import com.streamsets.pipeline.configurablestage.DClusterSourceOffsetCommitter;
 import com.streamsets.pipeline.stage.origin.kafka.ClusterKafkaSourceFactory;
 import com.streamsets.pipeline.stage.origin.kafka.DelegatingKafkaSource;
 import com.streamsets.pipeline.stage.origin.kafka.KafkaConfigBean;
@@ -36,11 +36,10 @@ import com.streamsets.pipeline.stage.origin.kafka.StandaloneKafkaSourceFactory;
     label = "MapR Streams Consumer",
     description = "Reads data from MapR Streams",
     execution = {ExecutionMode.STANDALONE, ExecutionMode.CLUSTER_YARN_STREAMING},
-    libJarsRegex = {"maprfs-\\d+.*"},
-    icon = "mapr.png",
+    icon = "mapr_es.png",
     recordsByRef = true,
     upgrader = MapRStreamsSourceUpgrader.class,
-    onlineHelpRefUrl = "index.html#Origins/MapRStreamsCons.html#task_bfz_gch_2v"
+    onlineHelpRefUrl ="index.html?contextID=task_bfz_gch_2v"
 )
 @ConfigGroups(value = MapRStreamsSourceGroups.class)
 @HideConfigs(value = {Utils.MAPR_STREAMS_DATA_FORMAT_CONFIG_BEAN_PREFIX + "compression"})

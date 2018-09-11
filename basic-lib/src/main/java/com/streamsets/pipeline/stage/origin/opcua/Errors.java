@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,14 @@ public enum Errors implements ErrorCode {
   OPC_UA_02("Failed to connect : {}"),
   OPC_UA_03("Field cannot be empty"),
   OPC_UA_04("Failed to initialize Node IDs : {}"),
-  OPC_UA_05("Failed to create Monitoring item for nodeId={} (status={})")
+  OPC_UA_05("Failed to create Monitoring item for nodeId={} (status={})"),
+  OPC_UA_06("Enable TLS for security policy: {}"),
+  OPC_UA_07("No variable Node IDs found from provided root Node ID"),
+  OPC_UA_08("Failed to refresh Node IDs: {})"),
+  OPC_UA_09("Failed to process data : {}"),
+  OPC_UA_10("Failed during browsing nodeId={} failed: {}"),
+  OPC_UA_11("Failed to initialize Node IDs, values cannot be empty or null: {}"),
+  OPC_UA_12("Failed to read data : {}"),
   ;
 
   private final String msg;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,12 +34,24 @@ import java.util.List;
 @StageDef(
     version = RuleDefinitionsConfigBean.VERSION,
     label = "Pipeline Rules",
+    upgrader = RuleDefinitionsConfigUpgrader.class,
     onlineHelpRefUrl = "not applicable"
 )
 @ConfigGroups(PipelineRulesGroups.class)
 public class RuleDefinitionsConfigBean implements Stage {
 
-  public static final int VERSION = 1;
+  public static final int VERSION = 2;
+
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.LIST,
+      defaultValue = "[]",
+      label = "Email IDs",
+      description = "Email Addresses",
+      displayPosition = 76,
+      group = "NOTIFICATIONS"
+  )
+  public List<String> emailIDs;
 
   @ConfigDef(required = true,
       type = ConfigDef.Type.MODEL,
@@ -47,7 +59,7 @@ public class RuleDefinitionsConfigBean implements Stage {
       label = "Webhooks",
       description = "Webhooks",
       displayPosition = 200,
-      group = "WEBHOOK"
+      group = "NOTIFICATIONS"
   )
   @ListBeanModel
   public List<RuleDefinitionsWebhookConfig> webhookConfigs;

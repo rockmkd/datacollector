@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.streamsets.pipeline.kafka.impl;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.lib.kafka.KafkaConstants;
 import com.streamsets.pipeline.lib.kafka.KafkaErrors;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.KafkaException;
@@ -31,8 +32,6 @@ import java.util.Properties;
 public class MapRStreamsConsumer09 extends BaseKafkaConsumer09 {
 
   private static final boolean AUTO_COMMIT_ENABLED_DEFAULT = false;
-  private static final String AUTO_OFFSET_RESET_KEY = "auto.offset.reset";
-  private static final String AUTO_OFFSET_RESET_PREVIEW = "earliest";
   private static final String KEY_DESERIALIZER_DEFAULT = "org.apache.kafka.common.serialization.StringDeserializer";
   private static final String VALUE_DESERIALIZER_DEFAULT = "org.apache.kafka.common.serialization.ByteArrayDeserializer";
 
@@ -46,9 +45,10 @@ public class MapRStreamsConsumer09 extends BaseKafkaConsumer09 {
     String topic,
     String consumerGroup,
     Map<String, Object> kafkaConsumerConfigs,
-    Source.Context context
+    Source.Context context,
+    int batchSize
   ) {
-    super(topic, context);
+    super(topic, context, batchSize);
     this.consumerGroup = consumerGroup;
     this.context = context;
     this.kafkaConsumerConfigs = kafkaConsumerConfigs;
@@ -79,7 +79,7 @@ public class MapRStreamsConsumer09 extends BaseKafkaConsumer09 {
     props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, VALUE_DESERIALIZER_DEFAULT);
 
     if (this.context.isPreview()) {
-      props.put(AUTO_OFFSET_RESET_KEY, AUTO_OFFSET_RESET_PREVIEW);
+      props.setProperty(KafkaConstants.AUTO_OFFSET_RESET_CONFIG, KafkaConstants.AUTO_OFFSET_RESET_PREVIEW_VALUE);
     }
 
     addUserConfiguredProperties(props);

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,10 +23,16 @@ import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.LogMode;
 import com.streamsets.pipeline.config.OnParseError;
 import com.streamsets.pipeline.config.PostProcessingOptions;
+import com.streamsets.pipeline.lib.dirspooler.LocalFileSystem;
+import com.streamsets.pipeline.lib.dirspooler.Offset;
 import com.streamsets.pipeline.lib.dirspooler.PathMatcherMode;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
+import com.streamsets.pipeline.lib.dirspooler.SpoolDirRunnable;
 import com.streamsets.pipeline.lib.parser.log.RegExConfig;
+import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.lib.dirspooler.WrappedFile;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,7 +41,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class TestLogSpoolDirSourceRegex {
@@ -46,6 +54,10 @@ public class TestLogSpoolDirSourceRegex {
   private static final String INVALID_REGEX =
     "^(\\S+) (\\S+) (\\S+) \\[([\\w:/]+\\s[+\\-]\\d{4})\\] \"(\\S+ \\S+ \\S+\" (\\d{3}) (\\d+)";
   private static final List<RegExConfig> REGEX_CONFIG = new ArrayList<>();
+
+  private static final int threadNumber = 0;
+  private static final int batchSize = 10;
+  private static final Map<String, Offset> lastSourceOffset = new HashMap<>();
 
   static {
     RegExConfig r1 = new RegExConfig();
@@ -87,13 +99,13 @@ public class TestLogSpoolDirSourceRegex {
   private final static String LINE1 = "127.0.0.1 ss h [10/Oct/2000:13:55:36 -0700] \"GET /apache_pb.gif HTTP/1.0\" 200 2326";
   private final static String LINE2 = "127.0.0.2 ss m [10/Oct/2000:13:55:36 -0800] \"GET /apache_pb.gif HTTP/2.0\" 200 2326";
 
-  private File createLogFile() throws Exception {
+  private WrappedFile createLogFile() throws Exception {
     File f = new File(createTestDir(), "test.log");
     Writer writer = new FileWriter(f);
     IOUtils.write(LINE1 + "\n", writer);
     IOUtils.write(LINE2, writer);
     writer.close();
-    return f;
+    return new LocalFileSystem("*", PathMatcherMode.GLOB).getFile(f.getAbsolutePath());
   }
 
   private SpoolDirSource createSource() {
@@ -130,11 +142,12 @@ public class TestLogSpoolDirSourceRegex {
   @Test
   public void testProduceFullFile() throws Exception {
     SpoolDirSource source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      Assert.assertEquals("-1", source.produce(createLogFile(), "0", 10, batchMaker));
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      Assert.assertEquals("-1", runnable.generateBatch(createLogFile(), "0", 10, batchMaker));
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
       List<Record> records = output.getRecords().get("lane");
       Assert.assertNotNull(records);
@@ -203,11 +216,12 @@ public class TestLogSpoolDirSourceRegex {
   @Test
   public void testProduceLessThanFile() throws Exception {
     SpoolDirSource source = createSource();
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, source).addOutputLane("lane").build();
     runner.runInit();
     try {
       BatchMaker batchMaker = SourceRunner.createTestBatchMaker("lane");
-      String offset = source.produce(createLogFile(), "0", 1, batchMaker);
+      SpoolDirRunnable runnable = source.getSpoolDirRunnable(threadNumber, batchSize, lastSourceOffset);
+      String offset = runnable.generateBatch(createLogFile(), "0", 1, batchMaker);
       //FIXME
       Assert.assertEquals("83", offset);
       StageRunner.Output output = SourceRunner.getOutput(batchMaker);
@@ -241,7 +255,7 @@ public class TestLogSpoolDirSourceRegex {
       Assert.assertEquals("2326", record.get("/bytesSent").getValueAsString());
 
       batchMaker = SourceRunner.createTestBatchMaker("lane");
-      offset = source.produce(createLogFile(), offset, 1, batchMaker);
+      offset = runnable.generateBatch(createLogFile(), offset, 1, batchMaker);
       Assert.assertEquals("165", offset);
       output = SourceRunner.getOutput(batchMaker);
       records = output.getRecords().get("lane");
@@ -275,7 +289,7 @@ public class TestLogSpoolDirSourceRegex {
 
 
       batchMaker = SourceRunner.createTestBatchMaker("lane");
-      offset = source.produce(createLogFile(), offset, 1, batchMaker);
+      offset = runnable.generateBatch(createLogFile(), offset, 1, batchMaker);
       Assert.assertEquals("-1", offset);
       output = SourceRunner.getOutput(batchMaker);
       records = output.getRecords().get("lane");
@@ -317,7 +331,7 @@ public class TestLogSpoolDirSourceRegex {
     conf.dataFormatConfig.maxStackTraceLines = 0;
 
     SpoolDirSource spoolDirSource = new SpoolDirSource(conf);
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, spoolDirSource).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, spoolDirSource).addOutputLane("lane").build();
     runner.runInit();
   }
 
@@ -359,7 +373,7 @@ public class TestLogSpoolDirSourceRegex {
     conf.dataFormatConfig.maxStackTraceLines = 0;
 
     SpoolDirSource spoolDirSource = new SpoolDirSource(conf);
-    SourceRunner runner = new SourceRunner.Builder(SpoolDirDSource.class, spoolDirSource).addOutputLane("lane").build();
+    PushSourceRunner runner = new PushSourceRunner.Builder(SpoolDirDSource.class, spoolDirSource).addOutputLane("lane").build();
     runner.runInit();
   }
 

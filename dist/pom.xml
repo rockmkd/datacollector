@@ -23,12 +23,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-root</artifactId>
-    <version>2.7.0.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <relativePath>../root</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-dist</artifactId>
-  <version>2.7.0.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Distribution</description>
   <name>StreamSets Data Collector Dist</name>
   <packaging>jar</packaging>
@@ -37,8 +37,10 @@
     <!-- trick to avoid pulling files from 'ui' & 'docs' if their profiles are not active -->
     <ui.dist-dir>${basedir}/src/main/emptydir</ui.dist-dir>
     <docs.dist-dir>${basedir}/src/main/emptydir</docs.dist-dir>
+    <edge.dist-dir>${basedir}/dist/target/edge-binaries</edge.dist-dir>
     <sdc.log4j.level>DEBUG</sdc.log4j.level>
     <snappy.version>1.0.5</snappy.version>
+    <datacollector-edge.version>3.5.0-SNAPSHOT</datacollector-edge.version>
   </properties>
 
   <dependencies>
@@ -84,13 +86,18 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>com.streamsets</groupId>
-      <artifactId>streamsets-datacollector-cluster-bootstrap</artifactId>
-      <scope>provided</scope>
+       <groupId>com.streamsets</groupId>
+       <artifactId>streamsets-datacollector-cluster-bootstrap</artifactId>
+       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-mapr-cluster-bootstrap</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-mapr-cluster-bootstrap_2_2</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -110,6 +117,59 @@
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-dependency</id>
+            <phase>compile</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>com.streamsets</groupId>
+                  <artifactId>streamsets-datacollector-edge</artifactId>
+                  <classifier>linux-arm</classifier>
+                  <version>${datacollector-edge.version}</version>
+                  <type>tgz</type>
+                  <overWrite>true</overWrite>
+                  <outputDirectory>target/edge-binaries</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>com.streamsets</groupId>
+                  <artifactId>streamsets-datacollector-edge</artifactId>
+                  <classifier>linux-amd64</classifier>
+                  <version>${datacollector-edge.version}</version>
+                  <type>tgz</type>
+                  <overWrite>true</overWrite>
+                  <outputDirectory>target/edge-binaries</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>com.streamsets</groupId>
+                  <artifactId>streamsets-datacollector-edge</artifactId>
+                  <classifier>darwin-amd64</classifier>
+                  <version>${datacollector-edge.version}</version>
+                  <type>tgz</type>
+                  <overWrite>true</overWrite>
+                  <outputDirectory>target/edge-binaries</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>com.streamsets</groupId>
+                  <artifactId>streamsets-datacollector-edge</artifactId>
+                  <classifier>windows-amd64</classifier>
+                  <version>${datacollector-edge.version}</version>
+                  <type>zip</type>
+                  <overWrite>true</overWrite>
+                  <outputDirectory>target/edge-binaries</outputDirectory>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
         <executions>
           <execution>
@@ -124,6 +184,21 @@
               <finalName>streamsets-datacollector-${project.version}</finalName>
               <descriptors>
                 <descriptor>src/main/assemblies/data-collector.xml</descriptor>
+              </descriptors>
+            </configuration>
+          </execution>
+          <execution>
+            <id>legacy-libs</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <appendAssemblyId>false</appendAssemblyId>
+              <attach>false</attach>
+              <finalName>streamsets-datacollector-${project.version}-legacy</finalName>
+              <descriptors>
+                <descriptor>src/main/assemblies/legacy-libs.xml</descriptor>
               </descriptors>
             </configuration>
           </execution>
@@ -185,6 +260,7 @@
         <sdc.log4j.level>INFO</sdc.log4j.level>
       </properties>
     </profile>
+
     <profile>
       <id>docs</id>
       <activation>

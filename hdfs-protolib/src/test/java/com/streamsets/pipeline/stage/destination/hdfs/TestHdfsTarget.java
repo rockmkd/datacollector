@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.stage.destination.hdfs;
 
 import com.google.common.collect.ImmutableList;
+import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
@@ -23,10 +24,14 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.config.CsvHeader;
 import com.streamsets.pipeline.config.CsvMode;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.config.JsonMode;
+import com.streamsets.pipeline.lib.hdfs.common.Errors;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.TargetRunner;
 import com.streamsets.pipeline.stage.destination.hdfs.util.HdfsTargetUtil;
@@ -120,7 +125,7 @@ public class TestHdfsTarget {
     runner.runDestroy();
 
     Assert.assertEquals(4, runner.getEventRecords().size());
-    Iterator<Record> eventRecordIterator = runner.getEventRecords().iterator();
+    Iterator<EventRecord> eventRecordIterator = runner.getEventRecords().iterator();
 
     while (eventRecordIterator.hasNext()) {
       Record eventRecord = eventRecordIterator.next();
@@ -332,11 +337,11 @@ public class TestHdfsTarget {
   }
 
   @Test
-  public void testIdleTimeout() throws Exception {
+  public void testIdleTimeoutEventRecordsLineageEvents() throws Exception {
     HdfsTarget hdfsTarget = HdfsTargetUtil.newBuilder()
-      .dirPathTemplate(getTestDir() + "/hdfs/${YYYY()}${MM()}${DD()}")
-      .idleTimeout("1")
-      .build();
+        .dirPathTemplate(getTestDir() + "/hdfs/${YYYY()}${MM()}${DD()}")
+        .idleTimeout("1")
+        .build();
 
     TargetRunner runner = new TargetRunner.Builder(HdfsDTarget.class, hdfsTarget)
         .setOnRecordError(OnRecordError.STOP_PIPELINE)
@@ -386,6 +391,23 @@ public class TestHdfsTarget {
     for (File f: list) {
       System.out.print(f.getName());
     }
+
+    List<LineageEvent> lineageEvents = runner.getLineageEvents();
+    Assert.assertEquals(3, lineageEvents.size());
+    for(LineageEvent event : lineageEvents) {
+      Assert.assertEquals(LineageEventType.ENTITY_CREATED.name(), event.getEventType().name());
+      boolean matched = false;
+      for(File f : list) {
+        if (f.getAbsolutePath().equals(event.getSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME))) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        Assert.fail("LineageEvent: ENTITY_NAME is not in the list of files.");
+      }
+    }
+
     Assert.assertEquals(3, list.length);
     Assert.assertEquals(3, runner.getEventRecords().size());
   }
@@ -422,7 +444,7 @@ public class TestHdfsTarget {
 
     File[] list = new File(getTestDir() + "/hdfs/").listFiles();
     Assert.assertEquals(1, list.length);
-    Assert.assertEquals("{\"a\":\"x\"}\n", FileUtils.readFileToString(list[0], Charset.defaultCharset()));
+    Assert.assertEquals("{\"a\":\"x\"}", FileUtils.readFileToString(list[0], Charset.defaultCharset()));
     Assert.assertEquals(1, runner.getEventRecords().size());
   }
 
@@ -554,7 +576,7 @@ public class TestHdfsTarget {
 
     for(File file : list) {
       Assert.assertFalse("The file wasn't renamed after close: " + file.getName(), file.getName().contains("_tmp_"));
-      Assert.assertEquals("{\"a\":\"x\"}\n", FileUtils.readFileToString(file, Charset.defaultCharset()));
+      Assert.assertEquals("{\"a\":\"x\"}", FileUtils.readFileToString(file, Charset.defaultCharset()));
     }
   }
 

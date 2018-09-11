@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,9 +50,17 @@ public class NodeIdConfig {
       required = true,
       type = ConfigDef.Type.NUMBER,
       defaultValue = "0",
-      label = "NamespaceIndex",
+      label = "Namespace Index",
       description = "The index an OPC UA server uses for a namespace URI",
       min = 0
   )
   public int namespaceIndex = 0;
+
+
+  public String toString() {
+    return "field:" + field +
+        ", identifier:" + identifier +
+        ", identifierType: " + identifierType +
+        ",namespaceIndex: " + namespaceIndex;
+  }
 }

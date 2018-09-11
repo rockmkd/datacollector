@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,11 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.common.base.Preconditions;
 import com.streamsets.datacollector.util.EscapeUtil;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.FieldOperator;
+import com.streamsets.pipeline.api.FieldVisitor;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.RecordField;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.Utils;
 
 import java.util.ArrayList;
@@ -309,6 +313,7 @@ public class RecordImpl implements Record, Cloneable {
               }
             }
             break;
+          case FIELD_EXPRESSION:
           default:
             break;
         }
@@ -349,6 +354,7 @@ public class RecordImpl implements Record, Cloneable {
           case LIST:
             deleted = fields.get(fieldPos - 1).getValueAsList().remove(element.getIndex());
             break;
+          case FIELD_EXPRESSION:
           default:
             throw new IllegalStateException("Unexpected field type " + element.getType());
         }
@@ -375,8 +381,13 @@ public class RecordImpl implements Record, Cloneable {
     return gatherPaths(true);
   }
 
-  private Set<String> gatherPaths(boolean includeSingleQuotes) {
-    Set<String> paths = new LinkedHashSet<>();
+  @Override
+  public List<String> getEscapedFieldPathsOrdered() {
+    return new ArrayList<>(gatherPathsOrdered(true));
+  }
+
+  private LinkedHashSet<String> gatherPathsOrdered(boolean includeSingleQuotes) {
+    LinkedHashSet<String> paths = new LinkedHashSet<>();
     if (value != null) {
       paths.add("");
       switch (value.getType()) {
@@ -396,7 +407,11 @@ public class RecordImpl implements Record, Cloneable {
     return paths;
   }
 
-  private void gatherPaths(String base, Map<String, Field> map, Set<String> paths, boolean includeSingleQuotes) {
+  private Set<String> gatherPaths(boolean includeSingleQuotes) {
+    return gatherPathsOrdered(includeSingleQuotes);
+  }
+
+  private void gatherPaths(String base, Map<String, Field> map, LinkedHashSet<String> paths, boolean includeSingleQuotes) {
     base += "/";
     if (map != null) {
       for (Map.Entry<String, Field> entry : map.entrySet()) {
@@ -434,7 +449,7 @@ public class RecordImpl implements Record, Cloneable {
     }
   }
 
-  private void gatherPaths(String base, List<Field> list, Set<String> paths, boolean includeSingleQuotes) {
+  private void gatherPaths(String base, List<Field> list, LinkedHashSet<String> paths, boolean includeSingleQuotes) {
     if (list != null) {
       for (int i = 0; i < list.size(); i++) {
         paths.add(base + "[" + i + "]");
@@ -561,10 +576,76 @@ public class RecordImpl implements Record, Cloneable {
             fieldToReplace = parentField.getValueAsList().set(elementIndex, newField);
           }
           break;
+        case FIELD_EXPRESSION:
         case ROOT:
           break;
       }
     }
     return fieldToReplace;
+  }
+
+  @Override
+  public void forEachField(FieldVisitor visitor) throws StageException {
+    RecordFieldImpl recordField = new RecordFieldImpl(this);
+    if (value != null) {
+      visitFieldsInternal(recordField, visitor, "", "", value);
+    }
+  }
+
+  private void visitFieldsInternal(RecordFieldImpl recordField, FieldVisitor visitor, String name, String path, Field currentField) throws StageException {
+    // For nested types, visit their children first
+    switch (currentField.getType()) {
+      case MAP:
+      case LIST_MAP:
+        for(Map.Entry<String, Field> entry : currentField.getValueAsMap().entrySet()) {
+          visitFieldsInternal(recordField, visitor, entry.getKey(), path + "/" + escapeName(entry.getKey(), true), entry.getValue());
+        }
+        break;
+      case LIST:
+        int index = 0;
+        for(Field childField : currentField.getValueAsList()) {
+          visitFieldsInternal(recordField, visitor, name, path + "[" + index + "]", childField);
+          index++;
+        }
+        break;
+      default:
+    }
+
+    // And always visit this field itself (whether it's terminal type of nested type doesn't matter)
+    recordField.path = path;
+    recordField.name = name;
+    recordField.field = currentField;
+    visitor.visit(recordField);
+  }
+
+  private static class RecordFieldImpl implements RecordField {
+    String name;
+    String path;
+    Field field;
+    Record record;
+
+    RecordFieldImpl(Record record) {
+      this.record = record;
+    }
+
+    @Override
+    public String getFieldPath() {
+      return path;
+    }
+
+    @Override
+    public String getFieldName() {
+      return name;
+    }
+
+    @Override
+    public Field getField() {
+      return field;
+    }
+
+    @Override
+    public Record getRecord() {
+      return record;
+    }
   }
 }

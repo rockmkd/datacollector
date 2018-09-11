@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.lib.http;
 
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 
 import java.net.ServerSocket;
@@ -37,7 +38,7 @@ public abstract class HttpConfigs {
 
   public abstract int getMaxConcurrentRequests();
 
-  public abstract String getAppId();
+  public abstract CredentialValue getAppId();
 
   public abstract int getMaxHttpRequestSizeKB();
 

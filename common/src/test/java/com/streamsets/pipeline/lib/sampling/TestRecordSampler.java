@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,8 +17,10 @@ package com.streamsets.pipeline.lib.sampling;
 
 import com.codahale.metrics.Timer;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.FieldVisitor;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.ext.Sampler;
 import com.streamsets.pipeline.lib.util.SdcRecordConstants;
 import org.junit.Assert;
@@ -143,15 +145,27 @@ public class TestRecordSampler {
           }
 
           @Override
+          public String getErrorJobId() {
+            return null;
+          }
+
+          @Override
           public Map<String, Object> getAllAttributes() {
             return null;
           }
 
           @Override
-          public Map<String, Object> setAllAttributes(Map<String, Object> newAttrs) {
+          public Map<String, Object> overrideUserAndSystemAttributes(Map<String, Object> newAttrs) {
             return null;
           }
+          @Override
+          public Map<String, Object> getUserAttributes() {return null;}
+
+          @Override
+          public Map<String, Object> setUserAttributes(Map<String, Object> newAttributes) {return null;}
+
         };
+
         @Override
         public Header getHeader() {
           return header;
@@ -193,8 +207,17 @@ public class TestRecordSampler {
         }
 
         @Override
+        public List<String> getEscapedFieldPathsOrdered() {
+          return null;
+        }
+
+        @Override
         public Field set(String fieldPath, Field newField) {
           return null;
+        }
+
+        @Override
+        public void forEachField(FieldVisitor visitor) throws StageException {
         }
 
       });

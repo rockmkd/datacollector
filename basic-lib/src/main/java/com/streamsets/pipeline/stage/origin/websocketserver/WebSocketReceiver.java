@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,8 @@
 package com.streamsets.pipeline.stage.origin.websocketserver;
 
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
+import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.servlet.ServletUpgradeRequest;
 import org.eclipse.jetty.websocket.servlet.ServletUpgradeResponse;
 
@@ -28,7 +30,7 @@ public interface WebSocketReceiver {
 
   void destroy();
 
-  String getAppId();
+  CredentialValue getAppId();
 
   boolean isAppIdViaQueryParamAllowed();
 
@@ -38,7 +40,7 @@ public interface WebSocketReceiver {
 
   boolean validate(ServletUpgradeRequest req, ServletUpgradeResponse res) throws IOException;
 
-  boolean process(byte[] payload, int offset, int len) throws IOException;
+  boolean process(Session session, byte[] payload, int offset, int len) throws IOException;
 
-  boolean process(String message) throws IOException;
+  boolean process(Session session, String message) throws IOException;
 }

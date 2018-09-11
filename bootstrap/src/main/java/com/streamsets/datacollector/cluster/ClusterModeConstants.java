@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ public class ClusterModeConstants {
   public static final String CONTAINER_LIB = "container-lib";
   public static final String STREAMSETS_LIBS = "streamsets-libs";
   public static final String USER_LIBS = "user-libs";
+  public static final String SDC_USER_LIBS = "sdc-user-libs";
 
   public static final String NUM_EXECUTORS_KEY = "num-executors";
   public static final String CLUSTER_PIPELINE_NAME = "cluster.pipeline.name";
@@ -27,6 +28,7 @@ public class ClusterModeConstants {
   public static final String CLUSTER_PIPELINE_REV = "cluster.pipeline.rev";
   public static final String CLUSTER_PIPELINE_USER = "cluster.pipeline.user";
   public static final String CLUSTER_PIPELINE_REMOTE = "cluster.pipeline.remote";
+  public static final String HADOOP_PROXY_USER = "HADOOP_PROXY_USER";
 
   public static final String SPARK_KAFKA_JAR_REGEX = "spark-streaming-kafka.*";
   public static final String AVRO_MAPRED_JAR_REGEX = "avro-mapred.*";

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,16 +19,23 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.creation.InterceptorBean;
 import com.streamsets.datacollector.creation.PipelineBean;
 import com.streamsets.datacollector.creation.PipelineBeanCreator;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.creation.PipelineStageBeans;
+import com.streamsets.datacollector.creation.ServiceBean;
 import com.streamsets.datacollector.creation.StageBean;
 import com.streamsets.datacollector.email.EmailSender;
+import com.streamsets.datacollector.event.dto.PipelineStartEvent;
+import com.streamsets.datacollector.execution.runner.common.PipelineStopReason;
+import com.streamsets.datacollector.lineage.LineageEventImpl;
 import com.streamsets.datacollector.lineage.LineagePublisherDelegator;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.memory.MemoryUsageCollectorResourceBundle;
+import com.streamsets.datacollector.record.EventRecordImpl;
 import com.streamsets.datacollector.runner.production.BadRecordsHandler;
 import com.streamsets.datacollector.runner.production.StatsAggregationHandler;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
@@ -38,18 +45,26 @@ import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.datacollector.validation.IssueCreator;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
+import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.ExecutionMode;
+import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.ProtoSource;
 import com.streamsets.pipeline.api.PushSource;
+import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.interceptor.InterceptorCreator;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +77,9 @@ public class Pipeline {
   private static final String DELIVERY_GUARANTEE_CONFIG_KEY = "deliveryGuarantee";
   private static final String MAX_RUNNERS_CONFIG_KEY = "pipeline.max.runners.count";
   private static final int MAX_RUNNERS_DEFAULT = 50;
+  private static final String FRAMEWORK_NAME = "Framework";
 
+  private final StageLibraryTask stageLib;
   private final PipelineBean pipelineBean;
   private final String name;
   private final String rev;
@@ -83,9 +100,16 @@ public class Pipeline {
   private final UserContext userContext;
   private final List<Map<String, Object>> runnerSharedMaps;
   private final Map<String, Object> runtimeParameters;
+  private final long startTime;
+  private final BlobStoreTask blobStore;
   private final LineagePublisherTask lineagePublisherTask;
+  private final InterceptorCreatorContextBuilder interceptorContextBuilder;
+  private final StageRuntime startEventStage;
+  private final StageRuntime stopEventStage;
+  private boolean stopEventStageInitialized;
 
   private Pipeline(
+      StageLibraryTask stageLib,
       String name,
       String rev,
       Configuration configuration,
@@ -104,8 +128,14 @@ public class Pipeline {
       UserContext userContext,
       List<Map<String, Object>> runnerSharedMaps,
       Map<String, Object> runtimeParameters,
-      LineagePublisherTask lineagePublisherTask
+      long startTime,
+      BlobStoreTask blobStore,
+      LineagePublisherTask lineagePublisherTask,
+      InterceptorCreatorContextBuilder interceptorCreatorContextBuilder,
+      StageRuntime startEventStage,
+      StageRuntime stopEventStage
   ) {
+    this.stageLib = stageLib;
     this.pipelineBean = pipelineBean;
     this.name = name;
     this.rev = rev;
@@ -126,10 +156,15 @@ public class Pipeline {
     this.runnerSharedMaps = runnerSharedMaps;
     this.userContext = userContext;
     this.runtimeParameters = runtimeParameters;
+    this.startTime = startTime;
+    this.blobStore = blobStore;
     this.lineagePublisherTask = lineagePublisherTask;
+    this.interceptorContextBuilder = interceptorCreatorContextBuilder;
+    this.startEventStage = startEventStage;
+    this.stopEventStage = stopEventStage;
   }
 
-  PipelineConfigBean getPipelineConfig() {
+  public PipelineConfigBean getPipelineConfig() {
     return pipelineBean.getConfig();
   }
 
@@ -143,6 +178,15 @@ public class Pipeline {
     return pipes;
   }
 
+  @VisibleForTesting
+  StageRuntime getStartEventStage() {
+    return startEventStage;
+  }
+
+  @VisibleForTesting
+  StageRuntime getStopEventStage() {
+    return stopEventStage;
+  }
   public int getNumOfRunners() {
     return pipes.size();
   }
@@ -172,12 +216,16 @@ public class Pipeline {
 
   public List<Issue> validateConfigs() throws StageException {
     try {
-      return init();
+      return init(false);
     } catch (Throwable throwable) {
       LOG.error("Uncaught error in init: " + throwable, throwable);
       throw Throwables.propagate(throwable);
     } finally {
-      destroy();
+      try {
+        destroy(false, PipelineStopReason.UNUSED);
+      } catch (StageException|PipelineRuntimeException e) {
+        LOG.error("Exception while destroying() pipeline", e);
+      }
     }
   }
 
@@ -186,14 +234,23 @@ public class Pipeline {
   }
 
   @SuppressWarnings("unchecked")
-  public List<Issue> init() {
+  public List<Issue> init(boolean productionExecution) {
     PipeContext pipeContext = new PipeContext();
-    this.runner.setPipelineConfiguration(pipelineConf);
-    this.runner.setPipeContext(pipeContext);
+    this.runner.setRuntimeConfiguration(
+      pipeContext,
+      pipelineConf,
+      pipelineBean.getConfig()
+    );
 
     List<Issue> issues = new ArrayList<>();
 
-    // Error and stats aggregation first
+    // Publish LineageEvent first...
+    if(productionExecution) {
+      LineageEvent event = createLineageEvent(LineageEventType.START, runner.getRuntimeInfo().getBaseHttpUrl());
+      lineagePublisherTask.publishEvent(event);
+    }
+
+    // Then Error and stats aggregation
     try {
       issues.addAll(badRecordsHandler.init(pipeContext));
     } catch (Exception ex) {
@@ -208,6 +265,46 @@ public class Pipeline {
         LOG.warn(ContainerError.CONTAINER_0703.getMessage(), ex.toString(), ex);
         issues.add(IssueCreator.getStage(statsAggregationHandler.getInstanceName()).create(ContainerError.CONTAINER_0703,
           ex.toString()));
+      }
+    }
+
+    // Pipeline lifecycle start event
+    if(startEventStage != null) {
+      IssueCreator issueCreator = IssueCreator.getStage(startEventStage.getInfo().getInstanceName());
+      boolean validationSuccessful = false;
+
+      // Initialize
+      try {
+        List<Issue> startIssues = startEventStage.init();
+        validationSuccessful = startIssues.isEmpty();
+        issues.addAll(startIssues);
+      } catch (Exception ex) {
+        LOG.warn(ContainerError.CONTAINER_0790.getMessage(), ex.toString(), ex);
+        issues.add(issueCreator.create(ContainerError.CONTAINER_0790, ex.toString()));
+      }
+
+      // Run if in production mode
+      try {
+        if(productionExecution && validationSuccessful) {
+          LOG.info("Processing lifecycle start event with stage");
+          runner.runLifecycleEvent(createStartEvent(), startEventStage);
+        }
+      } catch (Exception ex) {
+        LOG.warn(ContainerError.CONTAINER_0791.getMessage(), ex.toString(), ex);
+        issues.add(issueCreator.create(ContainerError.CONTAINER_0791, ex.toString()));
+      }
+    }
+
+    if(stopEventStage != null) {
+      IssueCreator issueCreator = IssueCreator.getStage(stopEventStage.getInfo().getInstanceName());
+
+      // Initialize
+      try {
+        issues.addAll(stopEventStage.init());
+        stopEventStageInitialized = issues.isEmpty();
+      } catch (Exception ex) {
+        LOG.warn(ContainerError.CONTAINER_0790.getMessage(), ex.toString(), ex);
+        issues.add(issueCreator.create(ContainerError.CONTAINER_0790, ex.toString()));
       }
     }
 
@@ -241,7 +338,9 @@ public class Pipeline {
 
             // Create list of Stage beans
             PipelineStageBeans beans = PipelineBeanCreator.get().duplicatePipelineStageBeans(
+              stageLib,
               pipelineBean.getPipelineStageBeans(),
+              interceptorContextBuilder,
               originPipe.getStage().getConstants(),
               localIssues
             );
@@ -259,6 +358,7 @@ public class Pipeline {
 
             // Initialize and convert them to source-less pipeline runner
             pipes.add(createSourceLessRunner(
+              stageLib,
               name,
               rev,
               configuration,
@@ -274,6 +374,8 @@ public class Pipeline {
               memoryUsageCollectorResourceBundle,
               scheduledExecutor,
               runnerSharedMaps,
+              startTime,
+              blobStore,
               lineagePublisherTask
             ));
           }
@@ -286,7 +388,7 @@ public class Pipeline {
 
     // Initialize all source-less pipeline runners
     for(PipeRunner pipeRunner: pipes) {
-      pipeRunner.forEachNoException(pipe -> {
+      pipeRunner.forEach(pipe -> {
         ((StageContext)pipe.getStage().getContext()).setPipelineFinisherDelegate((PipelineFinisherDelegate)runner);
         issues.addAll(initPipe(pipe, pipeContext));
       });
@@ -315,18 +417,50 @@ public class Pipeline {
     runner.errorNotification(originPipe, pipes, throwable);
   }
 
-  public void destroy() {
+  public void destroy(boolean productionExecution, PipelineStopReason stopReason) throws StageException, PipelineRuntimeException {
+    LOG.info("Destroying pipeline with reason={}", stopReason.name());
+
+    // Ensure that all stages are properly stopped. This method is usually called by the framework when a pipeline
+    // stops properly (in order to force the pipeline to stop). However if the pipeline is failing (random runtime
+    // exception), then we need to make sure of that ourselves here.
+    stop();
+
+    Throwable exception = null;
+
     try {
       runner.destroy(originPipe, pipes, badRecordsHandler, statsAggregationHandler);
     } catch (StageException|PipelineRuntimeException ex) {
       String msg = Utils.format("Exception thrown in destroy phase: {}", ex.getMessage());
-      LOG.warn(msg, ex);
+      LOG.error(msg, ex);
+      if(exception == null) {
+        exception = ex;
+      }
+      stopReason = PipelineStopReason.FAILURE;
     }
+
+    // Lifecycle event handling
+    if(startEventStage != null) {
+      try {
+        startEventStage.destroy(null, null, null);
+      } catch (Exception ex) {
+        String msg = Utils.format("Exception thrown during pipeline start event handler destroy: {}", ex);
+        LOG.error(msg, ex);
+        if(exception == null) {
+          exception = ex;
+        }
+        stopReason = PipelineStopReason.FAILURE;
+      }
+    }
+
     try {
       badRecordsHandler.destroy();
     } catch (Exception ex) {
       String msg = Utils.format("Exception thrown during bad record handler destroy: {}", ex);
-      LOG.warn(msg, ex);
+      LOG.error(msg, ex);
+      if(exception == null) {
+        exception = ex;
+      }
+      stopReason = PipelineStopReason.FAILURE;
     }
     try {
       if (statsAggregationHandler != null) {
@@ -334,10 +468,57 @@ public class Pipeline {
       }
     } catch (Exception ex) {
       String msg = Utils.format("Exception thrown during Stats Aggregator handler destroy: {}", ex);
-      LOG.warn(msg, ex);
+      LOG.error(msg, ex);
+      if(exception == null) {
+        exception = ex;
+      }
+      stopReason = PipelineStopReason.FAILURE;
     }
+
+    if(stopEventStage != null) {
+      try {
+        if(productionExecution && stopEventStageInitialized) {
+          LOG.info("Processing lifecycle stop event");
+          runner.runLifecycleEvent(createStopEvent(stopReason), stopEventStage);
+        }
+      } catch (Exception ex) {
+        String msg = Utils.format("Can't execute pipeline stop stage: {}", ex);
+        LOG.error(msg, ex);
+        exception = new PipelineRuntimeException(ContainerError.CONTAINER_0791, ex.toString());
+      }
+
+      // Destroy
+      try {
+        stopEventStage.destroy(null, null, null);
+      } catch (Exception ex) {
+        String msg = Utils.format("Exception thrown during pipeline stop event handler destroy: {}", ex);
+        LOG.error(msg, ex);
+        if(exception == null) {
+          exception = ex;
+        }
+      }
+    }
+
     if (scheduledExecutorService != null) {
       scheduledExecutorService.shutdown();
+    }
+
+    if(productionExecution) {
+      LineageEvent event = createLineageEvent(LineageEventType.STOP, runner.getRuntimeInfo().getBaseHttpUrl());
+      Map<String, String> props = new HashMap<>();
+      props.put("Pipeline_Stop_Reason", stopReason.name());
+      event.setProperties(props);
+      lineagePublisherTask.publishEvent(event);
+    }
+
+    if (LOG.isInfoEnabled()) {
+      LOG.info("Pipeline finished destroying with final reason={}", stopReason.name());
+    }
+    // Propagate exception if it was thrown
+    if(exception != null) {
+      Throwables.propagateIfInstanceOf(exception, StageException.class);
+      Throwables.propagateIfInstanceOf(exception, PipelineRuntimeException.class);
+      throw new RuntimeException(exception);
     }
   }
 
@@ -368,7 +549,7 @@ public class Pipeline {
   public void stop() {
     ((StageContext)originPipe.getStage().getContext()).setStop(true);
     for(PipeRunner pipeRunner : pipes) {
-      pipeRunner.forEachNoException(p -> ((StageContext)p.getStage().getContext()).setStop(true));
+      pipeRunner.forEach(p -> ((StageContext)p.getStage().getContext()).setStop(true));
     }
   }
 
@@ -381,7 +562,10 @@ public class Pipeline {
     private final String rev;
     private final UserContext userContext;
     private final PipelineConfiguration pipelineConf;
+    private final long startTime;
+    private final BlobStoreTask blobStore;
     private final LineagePublisherTask lineagePublisherTask;
+    private final InterceptorCreatorContextBuilder interceptorCreatorContextBuilder;
     private Observer observer;
     private final ResourceControlledScheduledExecutor scheduledExecutor =
         new ResourceControlledScheduledExecutor(0.01f); // consume 1% of a cpu calculating stage memory consumption
@@ -397,7 +581,10 @@ public class Pipeline {
         String rev,
         UserContext userContext,
         PipelineConfiguration pipelineConf,
-        LineagePublisherTask lineagePublisherTask
+        long startTime,
+        BlobStoreTask blobStore,
+        LineagePublisherTask lineagePublisherTask,
+        List<PipelineStartEvent.InterceptorConfiguration> interceptorConfs
     ) {
       this.stageLib = stageLib;
       this.name = name;
@@ -407,7 +594,14 @@ public class Pipeline {
       this.configuration = configuration;
       this.pipelineConf = pipelineConf;
       this.errors = Collections.emptyList();
+      this.startTime = startTime;
+      this.blobStore = blobStore;
       this.lineagePublisherTask = lineagePublisherTask;
+      this.interceptorCreatorContextBuilder = new InterceptorCreatorContextBuilder(
+        blobStore,
+        configuration,
+        interceptorConfs
+      );
     }
 
     public Builder setObserver(Observer observer) {
@@ -427,6 +621,7 @@ public class Pipeline {
           true,
           stageLib,
           pipelineConf,
+          interceptorCreatorContextBuilder,
           errors,
           runtimeParameters
       );
@@ -437,6 +632,7 @@ public class Pipeline {
       if (pipelineBean != null) {
         // Origin runtime and pipe
         StageRuntime originRuntime = createAndInitializeStageRuntime(
+          stageLib,
           pipelineConf,
           pipelineBean,
           pipelineBean.getOrigin(),
@@ -449,7 +645,10 @@ public class Pipeline {
           configuration,
           0,
           new ConcurrentHashMap<>(),
-          lineagePublisherTask
+          startTime,
+          blobStore,
+          lineagePublisherTask,
+          false
         );
 
         SourcePipe originPipe = createOriginPipe(originRuntime, runner);
@@ -461,6 +660,7 @@ public class Pipeline {
 
         // Generate runtime and pipe for the first source-less pipeline runner
         pipes.add(createSourceLessRunner(
+          stageLib,
           pipelineName,
           rev,
           configuration,
@@ -476,11 +676,14 @@ public class Pipeline {
           memoryUsageCollectorResourceBundle,
           scheduledExecutor,
           runnerSharedMaps,
+          startTime,
+          blobStore,
           lineagePublisherTask
         ));
 
         // Error stage handling
         errorStage = createAndInitializeStageRuntime(
+          stageLib,
           pipelineConf,
           pipelineBean,
           pipelineBean.getErrorStage(),
@@ -493,7 +696,10 @@ public class Pipeline {
           configuration,
           0,
           new ConcurrentHashMap<>(),
-          lineagePublisherTask
+          startTime,
+          blobStore,
+          lineagePublisherTask,
+          true
         );
         BadRecordsHandler badRecordsHandler = new BadRecordsHandler(
           pipelineBean.getConfig().errorRecordPolicy,
@@ -506,6 +712,7 @@ public class Pipeline {
         StatsAggregationHandler statsAggregationHandler = null;
         if (pipelineBean.getStatsAggregatorStage() != null) {
           statsAggregator = createAndInitializeStageRuntime(
+            stageLib,
             pipelineConf,
             pipelineBean,
             pipelineBean.getStatsAggregatorStage(),
@@ -518,14 +725,72 @@ public class Pipeline {
             configuration,
             0,
             new ConcurrentHashMap<>(),
-            lineagePublisherTask
+            startTime,
+            blobStore,
+            lineagePublisherTask,
+            false
           );
 
           statsAggregationHandler = new StatsAggregationHandler(statsAggregator);
         }
 
+        // Event stages - we currently support either no or one event stage (which is enforced by various validations)
+        Preconditions.checkArgument(
+          pipelineBean.getStartEventStages().size() < 2,
+          "Unsupported number of start event stages: " + pipelineBean.getStartEventStages().size()
+        );
+        Preconditions.checkArgument(
+          pipelineBean.getStopEventStages().size() < 2,
+          "Unsupported number of stop event stages: " + pipelineBean.getStopEventStages().size()
+        );
+        StageRuntime startEventStageRuntime = null;
+        StageRuntime stopEventStageRuntime = null;
+        if(pipelineBean.getStartEventStages().size() == 1) {
+          startEventStageRuntime = createAndInitializeStageRuntime(
+            stageLib,
+            pipelineConf,
+            pipelineBean,
+            pipelineBean.getStartEventStages().get(0),
+            runner,
+            stageInfos,
+            false,
+            pipelineName,
+            rev,
+            userContext,
+            configuration,
+            0,
+            new ConcurrentHashMap<>(),
+            startTime,
+            blobStore,
+            lineagePublisherTask,
+            false
+          );
+        }
+        if(pipelineBean.getStopEventStages().size() == 1) {
+          stopEventStageRuntime = createAndInitializeStageRuntime(
+            stageLib,
+            pipelineConf,
+            pipelineBean,
+            pipelineBean.getStopEventStages().get(0),
+            runner,
+            stageInfos,
+            false,
+            pipelineName,
+            rev,
+            userContext,
+            configuration,
+            0,
+            new ConcurrentHashMap<>(),
+            startTime,
+            blobStore,
+            lineagePublisherTask,
+            false
+          );
+        }
+
         try {
           pipeline = new Pipeline(
+            stageLib,
             name,
             rev,
             configuration,
@@ -544,7 +809,12 @@ public class Pipeline {
             userContext,
             runnerSharedMaps,
             runtimeParameters,
-            lineagePublisherTask
+            startTime,
+            blobStore,
+            lineagePublisherTask,
+            interceptorCreatorContextBuilder,
+            startEventStageRuntime,
+            stopEventStageRuntime
           );
         } catch (Exception e) {
           String msg = "Can't instantiate pipeline: " + e;
@@ -578,6 +848,7 @@ public class Pipeline {
   }
 
   private static PipeRunner createSourceLessRunner(
+    StageLibraryTask stageLib,
     String pipelineName,
     String rev,
     Configuration configuration,
@@ -593,6 +864,8 @@ public class Pipeline {
     MemoryUsageCollectorResourceBundle memoryUsageCollectorResourceBundle,
     ResourceControlledScheduledExecutor scheduledExecutor,
     List<Map<String, Object>> sharedRunnerMaps,
+    long startTime,
+    BlobStoreTask blobStore,
     LineagePublisherTask lineagePublisherTask
   ) throws PipelineRuntimeException {
     Preconditions.checkArgument(beans.size() == sharedRunnerMaps.size(),
@@ -606,6 +879,7 @@ public class Pipeline {
       Map<String, Object> sharedRunnerMap = sharedRunnerMaps.get(i);
 
       stages.add(createAndInitializeStageRuntime(
+        stageLib,
         pipelineConf,
         pipelineBean,
         stageBean,
@@ -618,20 +892,29 @@ public class Pipeline {
         configuration,
         runnerId,
         sharedRunnerMap,
-        lineagePublisherTask
+        startTime,
+        blobStore,
+        lineagePublisherTask,
+        false
       ));
     }
 
-    return new PipeRunner(runnerId, createPipes(
+    return new PipeRunner(
       pipelineName,
       rev,
-      configuration,
-      stages,
-      runner,
-      observer,
-      memoryUsageCollectorResourceBundle,
-      scheduledExecutor
-    ));
+      runnerId,
+      runner.getMetrics(),
+      createPipes(
+        pipelineName,
+        rev,
+        configuration,
+        stages,
+        runner,
+        observer,
+        memoryUsageCollectorResourceBundle,
+        scheduledExecutor
+      )
+    );
   }
 
   private static ExecutionMode getExecutionMode(PipelineConfiguration pipelineConf) {
@@ -675,9 +958,6 @@ public class Pipeline {
           pipesBuilder.add(pipe);
           break;
         case PROCESSOR:
-          pipe = new CombinerPipe(stage, laneResolver.getCombinerInputLanes(idx),
-                                  laneResolver.getCombinerOutputLanes(idx));
-          pipesBuilder.add(pipe);
           pipe = new StagePipe(pipelineName, rev, configuration, stage, laneResolver.getStageInputLanes(idx),
                                laneResolver.getStageOutputLanes(idx), laneResolver.getStageEventLanes(idx), scheduledExecutor,
             memoryUsageCollectorResourceBundle, runner.getMetricRegistryJson());
@@ -691,9 +971,6 @@ public class Pipeline {
           break;
         case EXECUTOR:
         case TARGET:
-          pipe = new CombinerPipe(stage, laneResolver.getCombinerInputLanes(idx),
-                                  laneResolver.getCombinerOutputLanes(idx));
-          pipesBuilder.add(pipe);
           pipe = new StagePipe(pipelineName, rev, configuration, stage, laneResolver.getStageInputLanes(idx),
             laneResolver.getStageOutputLanes(idx), laneResolver.getStageEventLanes(idx), scheduledExecutor, memoryUsageCollectorResourceBundle, runner.getMetricRegistryJson());
           pipesBuilder.add(pipe);
@@ -716,7 +993,8 @@ public class Pipeline {
     return pipesBuilder.build();
   }
 
-  private static StageRuntime createAndInitializeStageRuntime(
+  public static StageRuntime createAndInitializeStageRuntime(
+    StageLibraryTask stageLib,
     PipelineConfiguration pipelineConfiguration,
     PipelineBean pipelineBean,
     StageBean stageBean,
@@ -729,10 +1007,109 @@ public class Pipeline {
     Configuration configuration,
     int runnerId,
     Map<String, Object> runnerSharedMap,
-    LineagePublisherTask lineagePublisherTask
+    long startTime,
+    BlobStoreTask blobStore,
+    LineagePublisherTask lineagePublisherTask,
+    boolean isErrorStage
   ) {
+    EmailSender emailSender = new EmailSender(configuration);
+
+    // Create runtime structures for all services of this stage
+    Map<Class, ServiceRuntime> services = new HashMap<>();
+    for(ServiceBean serviceBean: stageBean.getServices()) {
+      ServiceRuntime runtime = new ServiceRuntime(pipelineBean, serviceBean);
+
+      runtime.setContext(new ServiceContext(
+        configuration,
+        pipelineBean.getConfig().constants,
+        emailSender,
+        pipelineRunner.getMetrics(),
+        pipelineName,
+        pipelineRev,
+        runnerId,
+        stageBean.getConfiguration().getInstanceName(),
+        runtime,
+        serviceBean.getDefinition().getClassName(),
+        pipelineRunner.getRuntimeInfo().getResourcesDir()
+      ));
+
+      services.put(serviceBean.getDefinition().getProvides(), runtime);
+    }
+
+    // Properly wrap the interceptors
+    List<InterceptorRuntime> preInterceptors = new ArrayList<>();
+    for(InterceptorBean interceptorBean : stageBean.getPreInterceptors()) {
+      InterceptorRuntime interceptorRuntime = new InterceptorRuntime(
+        InterceptorCreator.InterceptorType.PRE_STAGE,
+        interceptorBean
+      );
+
+      interceptorRuntime.setContext(new InterceptorContext(
+        InterceptorCreator.InterceptorType.PRE_STAGE,
+        blobStore,
+        configuration,
+        stageBean.getConfiguration().getInstanceName(),
+        interceptorBean.getMetricName(),
+        stageLib,
+        pipelineName,
+        pipelineConfiguration.getTitle(),
+        pipelineRev,
+        pipelineRunner.getRuntimeInfo().getId(),
+        pipelineRunner.isPreview(),
+        userContext,
+        pipelineRunner.getMetrics(),
+        pipelineConfiguration.getMemoryLimitConfiguration().getMemoryLimit(),
+        getExecutionMode(pipelineConfiguration),
+        getDeliveryGuarantee(pipelineConfiguration),
+        pipelineRunner.getRuntimeInfo(),
+        emailSender,
+        startTime,
+        new LineagePublisherDelegator.TaskDelegator(lineagePublisherTask)
+      ));
+
+      preInterceptors.add(interceptorRuntime);
+    }
+    List<InterceptorRuntime> postInterceptors = new ArrayList<>();
+    for(InterceptorBean interceptorBean : stageBean.getPostInterceptors()) {
+      InterceptorRuntime interceptorRuntime = new InterceptorRuntime(
+        InterceptorCreator.InterceptorType.POST_STAGE,
+        interceptorBean
+      );
+
+      interceptorRuntime.setContext(new InterceptorContext(
+        InterceptorCreator.InterceptorType.POST_STAGE,
+        blobStore,
+        configuration,
+        stageBean.getConfiguration().getInstanceName(),
+        interceptorBean.getMetricName(),
+        stageLib,
+        pipelineName,
+        pipelineConfiguration.getTitle(),
+        pipelineRev,
+        pipelineRunner.getRuntimeInfo().getId(),
+        pipelineRunner.isPreview(),
+        userContext,
+        pipelineRunner.getMetrics(),
+        pipelineConfiguration.getMemoryLimitConfiguration().getMemoryLimit(),
+        getExecutionMode(pipelineConfiguration),
+        getDeliveryGuarantee(pipelineConfiguration),
+        pipelineRunner.getRuntimeInfo(),
+        emailSender,
+        startTime,
+        new LineagePublisherDelegator.TaskDelegator(lineagePublisherTask)
+      ));
+
+      postInterceptors.add(interceptorRuntime);
+    }
+
     // Create StageRuntime itself
-    StageRuntime stageRuntime = new StageRuntime(pipelineBean, stageBean);
+    StageRuntime stageRuntime = new StageRuntime(
+      pipelineBean,
+      stageBean,
+      services.values(),
+      preInterceptors,
+      postInterceptors
+    );
 
     // Add it to Info array
     if (addToStageInfos) {
@@ -743,6 +1120,7 @@ public class Pipeline {
     stageRuntime.setContext(
       new StageContext(
         pipelineName,
+        pipelineConfiguration.getTitle(),
         pipelineRev,
         Collections.unmodifiableList(stageInfos),
         userContext,
@@ -750,15 +1128,22 @@ public class Pipeline {
         runnerId,
         pipelineRunner.isPreview(),
         pipelineRunner.getMetrics(),
-        stageRuntime,
+        stageRuntime.getDefinition().getConfigDefinitions(),
+        stageRuntime.getOnRecordError(),
+        stageRuntime.getConfiguration().getOutputLanes(),
+        stageRuntime.getConstants(),
+        stageRuntime.getInfo(),
         pipelineConfiguration.getMemoryLimitConfiguration().getMemoryLimit(),
         getExecutionMode(pipelineConfiguration),
         getDeliveryGuarantee(pipelineConfiguration),
         pipelineRunner.getRuntimeInfo(),
-        new EmailSender(configuration),
+        emailSender,
         configuration,
         runnerSharedMap,
-        new LineagePublisherDelegator.TaskDelegator(lineagePublisherTask)
+        startTime,
+        new LineagePublisherDelegator.TaskDelegator(lineagePublisherTask),
+        services,
+        isErrorStage
       )
     );
 
@@ -769,7 +1154,7 @@ public class Pipeline {
   public String toString() {
     Set<String> instances = new LinkedHashSet<>();
     // Describing first runner is sufficient
-    pipes.get(0).forEachNoException(pipe -> instances.add(pipe.getStage().getInfo().getInstanceName()));
+    pipes.get(0).forEach(pipe -> instances.add(pipe.getStage().getInfo().getInstanceName()));
     String observerName = (observer != null) ? observer.getClass().getSimpleName() : null;
     return Utils.format(
       "Pipeline[source='{}' stages='{}' runner='{}' observer='{}']",
@@ -777,6 +1162,81 @@ public class Pipeline {
       instances,
       runner.getClass().getSimpleName(),
       observerName
+    );
+  }
+
+  /**
+   * Create pipeline start event.
+   */
+  private Record createStartEvent() {
+    Preconditions.checkState(startEventStage != null, "Start Event Stage is not set!");
+    EventRecord eventRecord = new EventRecordImpl(
+      "pipeline-start",
+      1,
+      startEventStage.getInfo().getInstanceName(),
+      "",
+      null,
+      null
+    );
+
+    Map<String, Field> rootField = new LinkedHashMap<>();
+    rootField.put("user", Field.create(Field.Type.STRING, userContext.getUser()));
+    rootField.put("pipelineId", Field.create(Field.Type.STRING, name));
+    rootField.put("pipelineTitle", Field.create(Field.Type.STRING, pipelineConf.getTitle()));
+
+    // Pipeline parameters
+    Map<String, Field> parameters = new LinkedHashMap<>();
+    if(runtimeParameters != null) {
+      for (Map.Entry<String, Object> entry : runtimeParameters.entrySet()) {
+        parameters.put(
+          entry.getKey(),
+          Field.create(Field.Type.STRING, entry.getValue().toString())
+        );
+      }
+    }
+    rootField.put("parameters", Field.create(parameters));
+
+    eventRecord.set(Field.create(rootField));
+    return eventRecord;
+  }
+
+  /**
+   * Create pipeline stop event.
+   */
+  private Record createStopEvent(PipelineStopReason stopReason) {
+    Preconditions.checkState(stopEventStage != null, "Stop Event Stage is not set!");
+    EventRecord eventRecord = new EventRecordImpl(
+      "pipeline-stop",
+      1,
+      stopEventStage.getInfo().getInstanceName(),
+      "",
+      null,
+      null
+    );
+
+    Map<String, Field> rootField = new LinkedHashMap<>();
+    rootField.put("reason", Field.create(Field.Type.STRING, stopReason.name()));
+    rootField.put("pipelineId", Field.create(Field.Type.STRING, name));
+    rootField.put("pipelineTitle", Field.create(Field.Type.STRING, pipelineConf.getTitle()));
+
+    eventRecord.set(Field.create(rootField));
+    return eventRecord;
+  }
+
+  private LineageEvent createLineageEvent(LineageEventType type, String partURL) {
+    if (!type.isFrameworkOnly()) {
+      throw new IllegalArgumentException(Utils.format(ContainerError.CONTAINER_01402.getMessage(), type.getLabel()));
+    }
+
+    return new LineageEventImpl(
+        type,
+        pipelineConf.getTitle(),
+        userContext.getUser(),
+        startTime,
+        pipelineConf.getPipelineId(),
+        runner.getRuntimeInfo().getId(),
+        partURL + LineageEventImpl.PARTIAL_URL + pipelineConf.getPipelineId(),
+        FRAMEWORK_NAME
     );
   }
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,9 @@ import com.streamsets.pipeline.api.Label;
 @GenerateResourceBundle
 public enum Groups implements Label {
   OPC_UA("OPC UA"),
-  NODE_IDS("Node IDs")
+  NODE_IDS("NodeIds"),
+  CHANNEL_CONFIG("Channel Config"),
+  SECURITY("Security")
   ;
 
   private final String label;

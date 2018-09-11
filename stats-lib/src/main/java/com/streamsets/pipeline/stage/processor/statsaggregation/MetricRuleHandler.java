@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,18 +18,17 @@ package com.streamsets.pipeline.stage.processor.statsaggregation;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.streamsets.datacollector.alerts.AlertsUtil;
 import com.streamsets.datacollector.config.MetricsRuleDefinition;
+import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinition;
+import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.execution.alerts.AlertManagerHelper;
 import com.streamsets.datacollector.execution.alerts.MetricRuleEvaluatorHelper;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.restapi.bean.MetricRegistryJson;
-import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
-import com.streamsets.datacollector.restapi.bean.StageConfigurationJson;
 import com.streamsets.datacollector.util.AggregatorUtil;
 import com.streamsets.datacollector.util.ObserverException;
 import com.streamsets.pipeline.api.Field;
@@ -96,7 +95,7 @@ public class MetricRuleHandler {
     String pipelineUrl,
     MetricRegistry metrics,
     MetricRegistryJson metricRegistryJson,
-    PipelineConfigurationJson pipelineConfigurationJson,
+    PipelineConfiguration pipelineConfiguration,
     Map<String, RuleDefinition> ruleDefinitionMap
   ) {
     this.pipelineName = pipelineName;
@@ -104,7 +103,7 @@ public class MetricRuleHandler {
     this.metrics = metrics;
     this.ruleDefinitionMap = ruleDefinitionMap;
     this.evaluator = new RulesEvaluator(pipelineName, revision, pipelineUrl, context);
-    initializeMetricRegistry(metrics, metricRegistryJson, pipelineConfigurationJson);
+    initializeMetricRegistry(metrics, metricRegistryJson, pipelineConfiguration);
   }
 
   void handleMetricRuleRecord(Record record) {
@@ -246,27 +245,23 @@ public class MetricRuleHandler {
 
   void evaluateMetricRules(MetricsRuleDefinition metricsRuleDefinition) {
     if (metricsRuleDefinition.isEnabled()) {
-      Metric metric = MetricRuleEvaluatorHelper.getMetric(
-        metrics,
-        metricsRuleDefinition.getMetricId(),
-        metricsRuleDefinition.getMetricType()
-      );
-      if (metric != null) {
-        Object value = null;
-        try {
-          value = MetricRuleEvaluatorHelper.getMetricValue(
-            metricsRuleDefinition.getMetricElement(),
-            metricsRuleDefinition.getMetricType(),
-            metric
-          );
+      Object value = null;
+      try {
+        value = MetricRuleEvaluatorHelper.getMetricValue(
+          metrics,
+          metricsRuleDefinition.getMetricId(),
+          metricsRuleDefinition.getMetricType(),
+          metricsRuleDefinition.getMetricElement()
+        );
+
+        if(value != null) {
           if (MetricRuleEvaluatorHelper.evaluate(value, metricsRuleDefinition.getCondition())) {
             evaluator.raiseAlert(metrics, metricsRuleDefinition, value);
           }
-        } catch (ObserverException ex) {
-          LOG.error("Error processing metric definition alertDataRule '{}', reason: {}", metricsRuleDefinition.getId(),
-            ex.toString(), ex);
-          AlertManagerHelper.alertException(pipelineName, revision, metrics, value, metricsRuleDefinition);
         }
+      } catch (ObserverException ex) {
+        LOG.error("Error processing metric definition alertDataRule '{}', reason: {}", metricsRuleDefinition.getId(), ex.toString(), ex);
+        AlertManagerHelper.alertException(pipelineName, revision, metrics, value, metricsRuleDefinition);
       }
     }
   }
@@ -274,7 +269,7 @@ public class MetricRuleHandler {
   private void initializeMetricRegistry(
     MetricRegistry metrics,
     MetricRegistryJson metricRegistryJson,
-    PipelineConfigurationJson pipelineConfigurationJson
+    PipelineConfiguration pipelineConfiguration
   ) {
 
     batchProcessingTimer = MetricsHelper.createAndInitTimer(
@@ -400,7 +395,7 @@ public class MetricRuleHandler {
     outputRecordsPerLaneCounter = new HashMap<>();
     outputRecordsPerLaneMeter = new HashMap<>();
 
-    for (StageConfigurationJson s : pipelineConfigurationJson.getStages()) {
+    for (StageConfiguration s : pipelineConfiguration.getStages()) {
       String stageInstanceName = s.getInstanceName();
       String metricsKey = MetricAggregationConstants.STAGE_PREFIX + stageInstanceName;
       stageProcessingTimer.put(

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
  */
 package com.streamsets.pipeline.stage.devtest;
 
+import com.codahale.metrics.Timer;
+import com.github.javafaker.Faker;
 import com.streamsets.pipeline.api.BatchContext;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.EventRecord;
@@ -28,13 +30,20 @@ import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.api.base.BasePushSource;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.lib.util.ThreadUtil;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -53,11 +62,11 @@ import java.util.concurrent.Future;
   version = 5,
   label="Dev Data Generator",
   description = "Generates records with the specified field names based on the selected data type. For development only.",
-  execution = ExecutionMode.STANDALONE,
+  execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
   icon= "dev.png",
   producesEvents = true,
   upgrader = RandomDataGeneratorSourceUpgrader.class,
-  onlineHelpRefUrl = "index.html#Pipeline_Design/DevStages.html"
+  onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
 )
 public class RandomDataGeneratorSource extends BasePushSource {
 
@@ -65,6 +74,9 @@ public class RandomDataGeneratorSource extends BasePushSource {
 
   private final int EVENT_VERSION = 1;
 
+  private final ThreadLocal<Faker> faker = ThreadLocal.withInitial(Faker::new);
+
+  private final List<String> tzValues = new ArrayList<>(ZoneId.getAvailableZoneIds());
 
   private final Random random = new Random();
 
@@ -136,9 +148,24 @@ public class RandomDataGeneratorSource extends BasePushSource {
    */
   private int maxBatchSize;
 
+  private Timer dataGeneratorTimer;
+
   @Override
   protected List<ConfigIssue> init() {
     counter = 0;
+
+    LineageEvent event = getContext().createLineageEvent(LineageEventType.ENTITY_READ);
+    event.setSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE, EndPointType.DEVDATA.name());
+    event.setSpecificAttribute(LineageSpecificAttribute.DESCRIPTION, getContext().getStageInfo().getName());
+    List<String> names = new ArrayList<>();
+    for(DataGeneratorConfig con : dataGenConfigs) {
+      names.add(con.field.isEmpty() ? "<empty field name>" : con.field);
+    }
+    event.setSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME, names.isEmpty() ? "No fields" : String.join(", ", names));
+    getContext().publishLineageEvent(event);
+
+    this.dataGeneratorTimer = getContext().createTimer("Data Generator");
+
     return super.init();
   }
 
@@ -154,24 +181,35 @@ public class RandomDataGeneratorSource extends BasePushSource {
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
     List<Future<Runnable>> futures = new ArrayList<>(numThreads);
 
-    // Run all the threads
-    for(int i = 0; i < numThreads; i++) {
-      Future future = executor.submit(new GeneratorRunnable(i));
-      futures.add(future);
-    }
+    StageException propagateException = null;
 
-    // Wait for proper execution finish
-    for(Future<Runnable> f : futures) {
-      try {
-        f.get();
-      } catch (InterruptedException|ExecutionException e) {
-        LOG.error("Interrupted data generation thread", e);
+    try {
+      // Run all the threads
+      for (int i = 0; i < numThreads; i++) {
+        Future future = executor.submit(new GeneratorRunnable(i));
+        futures.add(future);
       }
+
+      // Wait for proper execution finish
+      for (Future<Runnable> f : futures) {
+        try {
+          f.get();
+        } catch (InterruptedException | ExecutionException e) {
+          LOG.error("Interrupted data generation thread", e);
+          if(propagateException == null) {
+            propagateException = new StageException(Errors.DEV_001, e.toString(), e);
+          }
+        }
+      }
+    } finally {
+      // Terminate executor that will also clear up threads that were created
+      LOG.info("Shutting down executor service");
+      executor.shutdownNow();
     }
 
-    // Terminate executor that will also clear up threads that were created
-    LOG.info("Shutting down executor service");
-    executor.shutdownNow();
+    if(propagateException != null) {
+      throw propagateException;
+    }
   }
 
   public class GeneratorRunnable implements Runnable {
@@ -184,7 +222,7 @@ public class RandomDataGeneratorSource extends BasePushSource {
     @Override
     public void run() {
       // Override thread name, so that it's easier to find threads from this origin
-      Thread.currentThread().setName("RandomDataGenerator-" + threadId);
+      Thread.currentThread().setName("RandomDataGenerator-" + threadId + "::" + getContext().getPipelineId());
 
       while (!getContext().isStopped()) {
         LOG.trace("Starting new batch in thread {}", threadId);
@@ -193,9 +231,11 @@ public class RandomDataGeneratorSource extends BasePushSource {
         BatchContext batchContext = getContext().startBatch();
 
         // Fill it with random records
+        Timer.Context tc  = dataGeneratorTimer.time();
         for (int i = 0; i < maxBatchSize; i++) {
           createRecord(threadId, i, batchContext);
         }
+        tc.stop();
 
         // And finally send them the rest of the pipeline for further processing
         getContext().processBatch(batchContext);
@@ -212,8 +252,7 @@ public class RandomDataGeneratorSource extends BasePushSource {
     // Generate random data per configuration
     LinkedHashMap<String, Field> map = new LinkedHashMap<>();
     for(DataGeneratorConfig dataGeneratorConfig : dataGenConfigs) {
-      map.put(dataGeneratorConfig.field, Field.create(getFieldType(dataGeneratorConfig.type),
-        generateRandomData(dataGeneratorConfig)));
+      map.put(dataGeneratorConfig.field, generateRandomData(dataGeneratorConfig));
     }
 
     // Sent normal record
@@ -246,62 +285,225 @@ public class RandomDataGeneratorSource extends BasePushSource {
     }
   }
 
-  private Field.Type getFieldType(Type type) {
-    switch(type) {
-      case LONG:
-        return Field.Type.LONG;
-      case BOOLEAN:
-        return Field.Type.BOOLEAN;
-      case DOUBLE:
-        return Field.Type.DOUBLE;
-      case DATE:
-        return Field.Type.DATE;
-      case DATETIME:
-        return Field.Type.DATETIME;
-      case TIME:
-        return Field.Type.TIME;
-      case STRING:
-        return Field.Type.STRING;
-      case INTEGER:
-        return Field.Type.INTEGER;
-      case FLOAT:
-        return Field.Type.FLOAT;
-      case DECIMAL:
-        return Field.Type.DECIMAL;
-      case BYTE_ARRAY:
-        return Field.Type.BYTE_ARRAY;
-      case LONG_SEQUENCE:
-        return Field.Type.LONG;
-    }
-    return Field.Type.STRING;
-  }
+  private Field generateRandomData(DataGeneratorConfig config) {
 
-  private Object generateRandomData(DataGeneratorConfig config) {
     switch(config.type) {
       case BOOLEAN :
-        return random.nextBoolean();
+        return Field.create(Field.Type.BOOLEAN, random.nextBoolean());
       case DATE:
-        return getRandomDate();
+        return Field.create(Field.Type.DATE, getRandomDate());
       case DATETIME:
-        return getRandomDateTime();
+        return Field.create(Field.Type.DATETIME, getRandomDateTime());
       case TIME:
-        return getRandomTime();
+        return Field.create(Field.Type.TIME, getRandomTime());
       case DOUBLE:
-        return random.nextDouble();
+        return Field.create(Field.Type.DOUBLE, random.nextDouble());
       case FLOAT:
-        return random.nextFloat();
+        return Field.create(Field.Type.FLOAT, random.nextFloat());
       case INTEGER:
-        return random.nextInt();
+        return Field.create(Field.Type.INTEGER, random.nextInt());
       case LONG:
-        return random.nextLong();
+        return Field.create(Field.Type.LONG, random.nextLong());
       case STRING:
-        return UUID.randomUUID().toString();
+        return Field.create(Field.Type.STRING, UUID.randomUUID().toString());
       case DECIMAL:
-        return new BigDecimal(BigInteger.valueOf(random.nextLong() % (long)Math.pow(10, config.precision)), config.scale);
+        BigDecimal decimal = new BigDecimal(BigInteger.valueOf(random.nextLong() % (long)Math.pow(10, config.precision)), config.scale);
+        Field decimalField = Field.create(Field.Type.DECIMAL, decimal);
+        decimalField.setAttribute(HeaderAttributeConstants.ATTR_SCALE, String.valueOf(config.scale));
+        decimalField.setAttribute(HeaderAttributeConstants.ATTR_PRECISION, String.valueOf(config.precision));
+        return decimalField;
       case BYTE_ARRAY:
-        return "StreamSets Inc, San Francisco".getBytes(StandardCharsets.UTF_8);
+        return Field.create(Field.Type.BYTE_ARRAY, "StreamSets Inc, San Francisco".getBytes(StandardCharsets.UTF_8));
       case LONG_SEQUENCE:
-        return counter++;
+        return Field.create(Field.Type.LONG, counter++);
+      case ZONED_DATETIME:
+        return Field.create(Field.Type.ZONED_DATETIME, getRandomZonedDateTime());
+
+      case ADDRESS_FULL_ADDRESS:
+        return Field.create(faker.get().address().fullAddress());
+
+      case ADDRESS_BUILDING_NUMBER:
+        return Field.create(faker.get().address().buildingNumber());
+
+      case ADDRESS_STREET_ADDRESS:
+        return Field.create(faker.get().address().streetAddress());
+
+      case ADDRESS_CITY:
+        return Field.create(faker.get().address().city());
+
+      case ADDRESS_STATE:
+        return Field.create(faker.get().address().state());
+
+      case ADDRESS_COUNTRY:
+        return Field.create(faker.get().address().country());
+
+      case ADDRESS_LATITUDE:
+        return Field.create(faker.get().address().latitude());
+
+      case ADDRESS_LONGITUDE:
+        return Field.create(faker.get().address().longitude());
+
+      case APP_NAME:
+        return Field.create(faker.get().app().name());
+
+      case APP_AUTHOR:
+        return Field.create(faker.get().app().author());
+
+      case APP_VERSION:
+        return Field.create(faker.get().app().version());
+
+      case ARTIST_NAME:
+        return Field.create(faker.get().artist().name());
+
+      case BOOK_TITLE:
+        return Field.create(faker.get().book().title());
+
+      case BOOK_AUTHOR:
+        return Field.create(faker.get().book().author());
+
+      case BOOK_GENRE:
+        return Field.create(faker.get().book().genre());
+
+      case BOOK_PUBLISHER:
+        return Field.create(faker.get().book().publisher());
+
+      case BUSINESS_CREDIT_CARD_NUMBER:
+        return Field.create(faker.get().business().creditCardNumber());
+
+      case BUSINESS_CREDIT_CARD_EXPIRY:
+        return Field.create(faker.get().business().creditCardExpiry());
+
+      case BUSINESS_CREDIT_CARD_TYPE:
+        return Field.create(faker.get().business().creditCardType());
+
+      case CAT_NAME:
+        return Field.create(faker.get().cat().name());
+
+      case CAT_BREED:
+        return Field.create(faker.get().cat().breed());
+
+      case CAT_REGISTRY:
+        return Field.create(faker.get().cat().registry());
+
+      case CODE_ASIN:
+        return Field.create(faker.get().code().asin());
+
+      case CODE_IMEI:
+        return Field.create(faker.get().code().imei());
+
+      case CODE_ISBN10:
+        return Field.create(faker.get().code().isbn10());
+
+      case CODE_ISBN13:
+        return Field.create(faker.get().code().isbn13());
+
+      case COLOR:
+        return Field.create(faker.get().color().name());
+
+      case COMMERCE_DEPARTMENT:
+        return Field.create(faker.get().commerce().department());
+
+      case COMMERCE_COLOR:
+        return Field.create(faker.get().commerce().color());
+
+      case COMMERCE_MATERIAL:
+        return Field.create(faker.get().commerce().material());
+
+      case COMMERCE_PRICE:
+        return Field.create(faker.get().commerce().price());
+
+      case COMMERCE_PRODUCT_NAME:
+        return Field.create(faker.get().commerce().productName());
+
+      case COMMERCE_PROMOTION_CODE:
+        return Field.create(faker.get().commerce().promotionCode());
+
+      case COMPANY_NAME:
+        return Field.create(faker.get().company().name());
+
+      case COMPANY_INDUSTRY:
+        return Field.create(faker.get().company().industry());
+
+      case COMPANY_BUZZWORD:
+        return Field.create(faker.get().company().buzzword());
+
+      case COMPANY_URL:
+        return Field.create(faker.get().company().url());
+
+      case CRYPTO_MD5:
+        return Field.create(faker.get().crypto().md5());
+
+      case CRYPTO_SHA1:
+        return Field.create(faker.get().crypto().sha1());
+
+      case CRYPTO_SHA256:
+        return Field.create(faker.get().crypto().sha256());
+
+      case CRYPTO_SHA512:
+        return Field.create(faker.get().crypto().sha512());
+
+      case DEMOGRAPHIC:
+        return Field.create(faker.get().demographic().race());
+
+      case EDUCATOR:
+        return Field.create(faker.get().educator().university());
+
+      case FILE:
+        return Field.create(faker.get().file().fileName());
+
+      case FINANCE:
+        return Field.create(faker.get().finance().creditCard());
+
+      case FOOD:
+        return Field.create(faker.get().food().ingredient());
+
+      case GAMEOFTHRONES:
+        return Field.create(faker.get().gameOfThrones().character());
+
+      case HACKER:
+        return Field.create(faker.get().hacker().abbreviation());
+
+      case IDNUMBER:
+        return Field.create(faker.get().idNumber().valid());
+
+      case INTERNET:
+        return Field.create(faker.get().internet().domainName());
+
+      case LOREM:
+        return Field.create(faker.get().lorem().character());
+
+      case MUSIC:
+        return Field.create(faker.get().music().chord());
+
+      case NAME:
+        return Field.create(faker.get().name().fullName());
+
+      case PHONENUMBER:
+        return Field.create(faker.get().phoneNumber().cellPhone());
+
+      case POKEMON:
+        return Field.create(faker.get().pokemon().name());
+
+      case SHAKESPEARE:
+        return Field.create(faker.get().shakespeare().romeoAndJulietQuote());
+
+      case SLACKEMOJI:
+        return Field.create(faker.get().slackEmoji().celebration());
+
+      case SPACE:
+        return Field.create(faker.get().space().company());
+
+      case STOCK:
+        return Field.create(faker.get().stock().nsdqSymbol());
+
+      case SUPERHERO:
+        return Field.create(faker.get().superhero().name());
+
+      case TEAM:
+        return Field.create(faker.get().team().name());
+
+      case UNIVERSITY:
+        return Field.create(faker.get().university().name());
     }
     return null;
   }
@@ -339,6 +541,19 @@ public class RandomDataGeneratorSource extends BasePushSource {
       randBetween(0, gc.getActualMaximum(gc.SECOND))
     );
     return gc.getTime();
+  }
+
+  public ZonedDateTime getRandomZonedDateTime() {
+    String zoneId = tzValues.get(randBetween(0, tzValues.size() - 1));
+    return ZonedDateTime.of(
+        randBetween(1990, 2020),
+        randBetween(1, 12),
+        randBetween(1, 28),
+        randBetween(0, 23),
+        randBetween(0, 59),
+        0,
+        0,
+        ZoneId.of(zoneId));
   }
 
   public static int randBetween(int start, int end) {
@@ -391,11 +606,87 @@ public class RandomDataGeneratorSource extends BasePushSource {
     DOUBLE,
     DATE,
     DATETIME,
+    ZONED_DATETIME,
     TIME,
     BOOLEAN,
     DECIMAL,
     BYTE_ARRAY,
-    LONG_SEQUENCE
+    LONG_SEQUENCE,
+
+    // FAKER Types
+    ADDRESS_FULL_ADDRESS,
+    ADDRESS_BUILDING_NUMBER,
+    ADDRESS_STREET_ADDRESS,
+    ADDRESS_CITY,
+    ADDRESS_STATE,
+    ADDRESS_COUNTRY,
+    ADDRESS_LATITUDE,
+    ADDRESS_LONGITUDE,
+
+    APP_NAME,
+    APP_AUTHOR,
+    APP_VERSION,
+
+    ARTIST_NAME,
+
+    BOOK_TITLE,
+    BOOK_AUTHOR,
+    BOOK_GENRE,
+    BOOK_PUBLISHER,
+
+    BUSINESS_CREDIT_CARD_NUMBER,
+    BUSINESS_CREDIT_CARD_EXPIRY,
+    BUSINESS_CREDIT_CARD_TYPE,
+
+    CAT_NAME,
+    CAT_BREED,
+    CAT_REGISTRY,
+
+    CODE_ASIN,
+    CODE_IMEI,
+    CODE_ISBN10,
+    CODE_ISBN13,
+
+    COLOR,
+
+    COMMERCE_DEPARTMENT,
+    COMMERCE_COLOR,
+    COMMERCE_MATERIAL,
+    COMMERCE_PRICE,
+    COMMERCE_PRODUCT_NAME,
+    COMMERCE_PROMOTION_CODE,
+
+    COMPANY_NAME,
+    COMPANY_INDUSTRY,
+    COMPANY_BUZZWORD,
+    COMPANY_URL,
+
+    CRYPTO_MD5,
+    CRYPTO_SHA1,
+    CRYPTO_SHA256,
+    CRYPTO_SHA512,
+
+    DEMOGRAPHIC,
+    EDUCATOR,
+    FILE,
+    FINANCE,
+    FOOD,
+    GAMEOFTHRONES,
+    HACKER,
+    IDNUMBER,
+    INTERNET,
+    LOREM,
+    MUSIC,
+    NAME,
+    PHONENUMBER,
+    POKEMON,
+    SHAKESPEARE,
+    SLACKEMOJI,
+    SPACE,
+    STOCK,
+    SUPERHERO,
+    TEAM,
+    UNIVERSITY
   }
 
   enum RootType {

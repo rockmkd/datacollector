@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,22 +17,22 @@ package com.streamsets.pipeline.stage.destination.websocket;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
+import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.lib.el.RecordEL;
-import com.streamsets.pipeline.lib.el.VaultEL;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 import com.streamsets.pipeline.stage.destination.http.DataFormatChooserValues;
 import com.streamsets.pipeline.stage.destination.lib.DataGeneratorFormatConfig;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Bean specifying the configuration for an WebSocket Client Target instance.
  */
 public class WebSocketTargetConfig {
-  @ConfigDefBean(groups = {"WEB_SOCKET"})
+  @ConfigDefBean(groups = {"DATA_FORMAT"})
   public DataGeneratorFormatConfig dataGeneratorFormatConfig;
 
   @ConfigDef(
@@ -61,14 +61,14 @@ public class WebSocketTargetConfig {
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.MAP,
+      type = ConfigDef.Type.MODEL,
       label = "Headers",
       description = "Headers to include in the request",
       displayPosition = 70,
-      elDefs = {RecordEL.class, VaultEL.class},
       group = "WEB_SOCKET"
   )
-  public Map<String, String> headers = new HashMap<>();
+  @ListBeanModel
+  public List<HeaderBean> headers = Collections.emptyList();
 
   @ConfigDef(
       required = true,

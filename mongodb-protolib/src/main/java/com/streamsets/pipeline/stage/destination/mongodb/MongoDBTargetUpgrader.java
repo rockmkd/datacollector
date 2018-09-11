@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,15 @@ public class MongoDBTargetUpgrader implements StageUpgrader {
     switch(fromVersion) {
       case 1:
         upgradeV1ToV2(configs);
+        if (toVersion == 2) {
+          break;
+        }
+        // fall through
+      case 2:
+        upgradeV2toV3(configs);
+        // fall through
+      case 3:
+        upgradeV3toV4(configs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
@@ -72,7 +81,7 @@ public class MongoDBTargetUpgrader implements StageUpgrader {
           configsToRemove.add(config);
           break;
         default:
-          // no op
+          break;
       }
     }
 
@@ -103,5 +112,13 @@ public class MongoDBTargetUpgrader implements StageUpgrader {
 
     configs.addAll(configsToAdd);
     configs.removeAll(configsToRemove);
+  }
+
+  private void upgradeV2toV3(List<Config> configs) {
+    configs.add(new Config(MongoDBConfig.CONFIG_PREFIX + "isUpsert", false));
+  }
+
+  private void upgradeV3toV4(List<Config> configs) {
+    configs.add(new Config(MongoDBConfig.MONGO_CONFIG_PREFIX + "authSource", ""));
   }
 }

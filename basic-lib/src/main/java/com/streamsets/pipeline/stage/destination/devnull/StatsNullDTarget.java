@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,9 @@
  */
 package com.streamsets.pipeline.stage.destination.devnull;
 
+import com.streamsets.pipeline.api.ExecutionMode;
+import com.streamsets.pipeline.api.HideStage;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StatsAggregatorStage;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
@@ -25,10 +28,21 @@ import com.streamsets.pipeline.api.StageDef;
     label = "Discard",
     description = "Discards Pipeline Statistic Records",
     icon="",
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
+    },
+    flags = StageBehaviorFlags.PASSTHROUGH,
     onlineHelpRefUrl = ""
 )
 @HideConfigs(preconditions = true, onErrorRecord = true)
 @StatsAggregatorStage
+@HideStage(HideStage.Type.STATS_AGGREGATOR_STAGE)
 @GenerateResourceBundle
 public class StatsNullDTarget extends NullDTarget {
 }

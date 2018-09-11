@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,8 @@ package com.streamsets.pipeline.stage.processor.fieldhasher;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.lib.el.FieldEL;
+import com.streamsets.pipeline.lib.el.RecordEL;
 
 import java.util.List;
 
@@ -28,7 +30,10 @@ public class FieldHasherConfig {
       defaultValue = "",
       label = "Fields to Hash",
       description = "One or more fields to hash",
-      displayPosition = 10
+      displayPosition = 10,
+      evaluation = ConfigDef.Evaluation.EXPLICIT,
+      elDefs = {RecordEL.class, FieldEL.class},
+      group = "FIELD_HASHING"
   )
   @FieldSelectorModel
   public List<String> sourceFieldsToHash;
@@ -39,7 +44,8 @@ public class FieldHasherConfig {
       defaultValue="MD5",
       label = "Hash Type",
       description = "",
-      displayPosition = 20
+      displayPosition = 20,
+      group = "FIELD_HASHING"
   )
   @ValueChooserModel(HashTypeChooserValues.class)
   public HashType hashType;

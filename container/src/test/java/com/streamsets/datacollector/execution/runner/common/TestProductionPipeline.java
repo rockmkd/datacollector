@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +16,11 @@
 package com.streamsets.datacollector.execution.runner.common;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.MemoryLimitConfiguration;
 import com.streamsets.datacollector.config.MemoryLimitExceeded;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.creation.PipelineConfigBean;
 import com.streamsets.datacollector.execution.PipelineStatus;
 import com.streamsets.datacollector.execution.SnapshotStore;
 import com.streamsets.datacollector.execution.StateListener;
@@ -31,11 +33,15 @@ import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
 import com.streamsets.datacollector.memory.TestMemoryUsageCollector;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.runner.MockStages;
+import com.streamsets.datacollector.runner.PipeBatch;
 import com.streamsets.datacollector.runner.Pipeline;
 import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.SourceOffsetTracker;
+import com.streamsets.datacollector.runner.SourcePipe;
+import com.streamsets.datacollector.runner.production.StatsAggregationHandler;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
+import com.streamsets.datacollector.util.PipelineDirectoryUtil;
 import com.streamsets.datacollector.util.TestUtil;
 import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.pipeline.api.Batch;
@@ -64,12 +70,16 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -77,15 +87,20 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Exchanger;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class TestProductionPipeline {
 
+  private static final Logger LOG = LoggerFactory.getLogger(TestProductionPipeline.class);
   private static final String PIPELINE_NAME = "myPipeline";
   private static final String REVISION = "0";
   private static final String SNAPSHOT_NAME = "snapshot";
   private MetricRegistry runtimeInfoMetrics;
   private MemoryLimitConfiguration memoryLimit;
   private RuntimeInfo runtimeInfo;
+  private ProductionPipelineRunner lastCreatedRunner;
 
   // Private enum for this testcase to figure out which pipeline should be used for test
   private enum PipelineType {
@@ -127,7 +142,6 @@ public class TestProductionPipeline {
 
   @Test
   public void testStopPipeline() throws Exception {
-
     ProductionPipeline pipeline = createProductionPipeline(DeliveryGuarantee.AT_LEAST_ONCE, false, PipelineType.DEFAULT);
     pipeline.stop();
     Assert.assertTrue(pipeline.wasStopped());
@@ -218,7 +232,7 @@ public class TestProductionPipeline {
     @Override
     public String produce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
       for (String name : runtimeInfoMetrics.getNames()) {
-        if (name.startsWith(MetricsConfigurator.JMX_PREFIX)) {
+        if (name.startsWith(MetricsConfigurator.JMX_PIPELINE_PREFIX)) {
           return null;
         }
       }
@@ -233,7 +247,7 @@ public class TestProductionPipeline {
     Source capture = new RuntimeInfoMetricCheckSource();
     MockStages.setSourceCapture(capture);
     for (String name : runtimeInfoMetrics.getNames()) {
-      if (name.startsWith(MetricsConfigurator.JMX_PREFIX)) {
+      if (name.startsWith(MetricsConfigurator.JMX_PIPELINE_PREFIX)) {
         Assert.fail();
       }
     }
@@ -241,7 +255,7 @@ public class TestProductionPipeline {
     pipeline.registerStatusListener(new MyStateListener());
     pipeline.run();
     for (String name : runtimeInfoMetrics.getNames()) {
-      if (name.startsWith(MetricsConfigurator.JMX_PREFIX)) {
+      if (name.startsWith(MetricsConfigurator.JMX_PIPELINE_PREFIX)) {
         Assert.fail();
       }
     }
@@ -368,7 +382,7 @@ public class TestProductionPipeline {
     Pipeline actual = prodPipeline.getPipeline();
     Pipeline pipeline = Mockito.spy(actual);
     Issue issue = Mockito.mock(Issue.class);
-    Mockito.doReturn(Arrays.asList(issue)).when(pipeline).init();
+    Mockito.doReturn(Arrays.asList(issue)).when(pipeline).init(true);
     ProductionPipeline mockProdPipeline = Mockito.spy(prodPipeline);
     Mockito.doReturn(pipeline).when(mockProdPipeline).getPipeline();
     try {
@@ -391,19 +405,27 @@ public class TestProductionPipeline {
 
     Mockito.when(snapshotStore.getInfo(PIPELINE_NAME, REVISION, SNAPSHOT_NAME)).thenReturn(
         new SnapshotInfoImpl("user", "SNAPSHOT_NAME", "SNAPSHOT LABEL", PIPELINE_NAME, REVISION,
-            System.currentTimeMillis(), false, 0));
+            System.currentTimeMillis(), false, 0, false));
     BlockingQueue<Object> productionObserveRequests = new ArrayBlockingQueue<>(100, true /* FIFO */);
     Configuration config = new Configuration();
     config.set("monitor.memory", true);
-    ProductionPipelineRunner runner =
-        new ProductionPipelineRunner(PIPELINE_NAME, REVISION, config, runtimeInfo, new MetricRegistry(), snapshotStore,
-            null);
+    ProductionPipelineRunner runner = new ProductionPipelineRunner(
+      PIPELINE_NAME,
+      REVISION,
+      null,
+      config,
+      runtimeInfo,
+      new MetricRegistry(),
+      snapshotStore,
+      null
+    );
     runner.setObserveRequests(productionObserveRequests);
     runner.setMemoryLimitConfiguration(memoryLimit);
     runner.setDeliveryGuarantee(deliveryGuarantee);
     if (rateLimit > 0) {
       runner.setRateLimit(rateLimit);
     }
+    this.lastCreatedRunner = runner;
     PipelineConfiguration pConf = null;
     switch(type) {
       case DEFAULT:
@@ -419,7 +441,7 @@ public class TestProductionPipeline {
         pConf =  MockStages.createPipelineConfigurationPushSourceTarget();
         break;
     }
-
+    Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, PIPELINE_NAME, REVISION).toPath());
     ProductionPipeline pipeline = new ProductionPipelineBuilder(
       PIPELINE_NAME,
       REVISION,
@@ -428,8 +450,14 @@ public class TestProductionPipeline {
       MockStages.createStageLibrary(),
       runner,
       null,
+      Mockito.mock(BlobStoreTask.class),
       Mockito.mock(LineagePublisherTask.class)
-    ).build(MockStages.userContext(), pConf);
+    ).build(
+      MockStages.userContext(),
+      pConf,
+      System.currentTimeMillis()
+    );
+    pipeline.registerStatusListener(Mockito.mock(StateListener.class));
     runner.setOffsetTracker(tracker);
 
     if (captureNextBatch) {
@@ -750,6 +778,7 @@ public class TestProductionPipeline {
     Assert.assertEquals(1, target.records.size());
   }
 
+
   /**
    * Producing error messages should work even outside of batch context
    */
@@ -787,6 +816,103 @@ public class TestProductionPipeline {
     ProductionPipeline pipeline = createProductionPipeline(DeliveryGuarantee.AT_MOST_ONCE, true, PipelineType.PUSH_SOURCE);
     pipeline.registerStatusListener(new MyStateListener());
     pipeline.run();
+  }
+
+  /**
+   * Validate that stats aggregator is called on pipeline.destroy().
+   * @throws Exception
+   */
+  @Test
+  public void testStatsAggregatorCalledOnDestroy() throws Exception {
+    SourceOffsetTracker tracker = new TestUtil.SourceOffsetTrackerImpl(Collections.singletonMap(
+        Source.POLL_SOURCE_OFFSET_KEY,
+        "1"
+    ));
+    SnapshotStore snapshotStore = Mockito.mock(FileSnapshotStore.class);
+    Configuration config = new Configuration();
+    BlockingQueue<Object> productionObserveRequests = new ArrayBlockingQueue<>(100, true /* FIFO */);
+    ProductionPipelineRunner runner = new ProductionPipelineRunner(PIPELINE_NAME,
+        REVISION,
+        null,
+        config,
+        runtimeInfo,
+        new MetricRegistry(),
+        snapshotStore,
+        null
+    );
+    runner.setObserveRequests(productionObserveRequests);
+    runner.setMemoryLimitConfiguration(memoryLimit);
+    runner.setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE);
+    runner.setStatsAggregatorRequests(new ArrayBlockingQueue<>(1));
+    runner.setOffsetTracker(tracker);
+    PipelineConfigBean pipelineConfigBean = new PipelineConfigBean();
+    pipelineConfigBean.constants = new HashMap<>();
+    runner.setRuntimeConfiguration(null, Mockito.mock(PipelineConfiguration.class), pipelineConfigBean);
+    SourcePipe sourcePipe = Mockito.mock(SourcePipe.class);
+    Mockito.doNothing().when(sourcePipe).destroy(Mockito.any(PipeBatch.class));
+    StatsAggregationHandler statsAggregationHandler = Mockito.mock(StatsAggregationHandler.class);
+    runner.destroy(sourcePipe, Collections.emptyList(), null, statsAggregationHandler);
+    Mockito.verify(statsAggregationHandler, Mockito.times(1)).handle(Mockito.anyString(),
+        Mockito.anyString(),
+        Mockito.anyList()
+    );
+    Mockito.verifyNoMoreInteractions(statsAggregationHandler);
+  }
+
+  private static class OffsetCommitSource extends BaseSource implements OffsetCommitter {
+    boolean shouldContinue = true;
+    boolean running = false;
+    boolean committed = false;
+
+    @Override
+    public void commit(String offset) throws StageException {
+      committed = true;
+    }
+
+    @Override
+    public String produce(String lastSourceOffset, int maxBatchSize, BatchMaker batchMaker) throws StageException {
+      LOG.info("Pausing execution in the origin");
+      running = true;
+      while(shouldContinue) {
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException e) {
+          Assert.fail("Unexpected interruption");
+        }
+      }
+
+      return null;
+    }
+  }
+  @Test // SDC-9320
+  public void testSourceOffsetTrackerNotCalledForIdleBatch() throws Exception {
+    OffsetCommitSource source = new OffsetCommitSource();
+    MockStages.setSourceCapture(source);
+    ProductionPipeline pipeline = createProductionPipeline(DeliveryGuarantee.AT_LEAST_ONCE, false, -1, PipelineType.OFFSET_COMMITTERS);
+    Assert.assertNotNull(lastCreatedRunner);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    Future future = executor.submit(() -> {
+      try {
+        LOG.info("Starting the pipeline execution");
+        pipeline.run();
+      } catch (StageException|PipelineRuntimeException e) {
+        Assert.fail("Pipeline execution failed: " + e.toString());
+      }
+    });
+
+    // Wait on the pipeline to "freeze" in running state.
+    while(!source.running) {
+      Thread.sleep(100);
+    }
+
+    // Generating idle batches should result in no commit operation
+    int idleBatches = lastCreatedRunner.produceEmptyBatchesForIdleRunners(0);
+    Assert.assertEquals(1, idleBatches);
+    Assert.assertFalse(source.committed);
+
+    source.shouldContinue = false;
+    future.get();
   }
 
 }

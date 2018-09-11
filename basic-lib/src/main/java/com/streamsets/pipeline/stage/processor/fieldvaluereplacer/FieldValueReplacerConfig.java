@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,8 @@ package com.streamsets.pipeline.stage.processor.fieldvaluereplacer;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.FieldSelectorModel;
+import com.streamsets.pipeline.lib.el.FieldEL;
+import com.streamsets.pipeline.lib.el.RecordEL;
 
 import java.util.List;
 
@@ -28,7 +30,10 @@ public class FieldValueReplacerConfig {
       defaultValue="",
       label = "Fields to Replace",
       description = "You can enter multiple fields to replace with the same value",
-      displayPosition = 10
+      displayPosition = 10,
+      evaluation = ConfigDef.Evaluation.EXPLICIT,
+      elDefs = {RecordEL.class, FieldEL.class},
+      group = "REPLACE"
   )
   @FieldSelectorModel
   public List<String> fields;
@@ -39,7 +44,8 @@ public class FieldValueReplacerConfig {
       defaultValue="",
       label = "Replacement Value",
       description="Value to replace nulls",
-      displayPosition = 20
+      displayPosition = 20,
+      group = "REPLACE"
   )
   public String newValue;
 

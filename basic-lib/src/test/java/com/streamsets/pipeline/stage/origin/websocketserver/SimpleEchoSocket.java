@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class SimpleEchoSocket {
 
   private final CountDownLatch closeLatch;
+  public String receivedMessage;
 
   SimpleEchoSocket() {
     this.closeLatch = new CountDownLatch(1);
@@ -64,5 +65,6 @@ public class SimpleEchoSocket {
   @OnWebSocketMessage
   public void onMessage(String msg) {
     System.out.printf("Got msg: %s%n", msg);
+    receivedMessage = msg;
   }
 }

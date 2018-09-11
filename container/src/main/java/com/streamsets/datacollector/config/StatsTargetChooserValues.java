@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@ package com.streamsets.datacollector.config;
 
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.pipeline.api.ChooserValues;
+import com.streamsets.pipeline.api.StageType;
 
 import java.util.ArrayList;
 import java.util.Collections;

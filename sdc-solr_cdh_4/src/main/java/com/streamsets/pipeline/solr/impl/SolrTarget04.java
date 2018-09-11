@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,10 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.CloudSolrServer;
 import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
+import org.apache.solr.client.solrj.request.QueryRequest;
 import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.util.NamedList;
+import org.apache.solr.common.util.SimpleOrderedMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,33 +39,76 @@ import java.util.Map;
 
 public class SolrTarget04 implements SdcSolrTarget {
   private final static Logger LOG = LoggerFactory.getLogger(SolrTarget04.class);
+  private static final String VERSION = "4.4.0";
+  private static final String SCHEMA_PATH = "/schema";
+  private static final String NAME = "name";
+
   private SolrServer solrClient;
 
-  private String solrURI;
-  private String zookeeperConnect;
-  private String defaultCollection;
-  private String instanceType;
-  private boolean kerberosAuth;
-  private static final String VERSION = "4.4.0";
-
+  private final String solrURI;
+  private final String zookeeperConnect;
+  private final String defaultCollection;
+  private final String instanceType;
+  private final boolean kerberosAuth;
+  private final boolean skipValidation;
+  private final boolean waitFlush;
+  private final boolean waitSearcher;
+  private final boolean softCommit;
+  private final boolean ignoreOptionalFields;
+  private List<String> requiredFieldNamesMap;
 
   public SolrTarget04(
       String instanceType,
       String solrURI,
       String zookeeperConnect,
       String defaultCollection,
-      boolean kerberosAuth
+      boolean kerberosAuth,
+      boolean skipValidation,
+      boolean waitFlush,
+      boolean waitSearcher,
+      boolean softCommit,
+      boolean ignoreOptionalFields
   ) {
     this.instanceType = instanceType;
     this.solrURI = solrURI;
     this.zookeeperConnect = zookeeperConnect;
     this.defaultCollection = defaultCollection;
     this.kerberosAuth = kerberosAuth;
+    this.skipValidation = skipValidation;
+    this.waitFlush = waitFlush;
+    this.waitSearcher = waitSearcher;
+    this.softCommit = softCommit;
+    this.ignoreOptionalFields = ignoreOptionalFields;
+    this.requiredFieldNamesMap = new ArrayList<>();
   }
 
   public void init() throws Exception {
     solrClient = getSolrClient();
-    solrClient.ping();
+    if (!skipValidation) {
+      solrClient.ping();
+    }
+    if (ignoreOptionalFields) {
+      getRequiredFieldNames();
+    }
+  }
+
+  public List<String> getRequiredFieldNamesMap() {
+    return requiredFieldNamesMap;
+  }
+
+  private void getRequiredFieldNames() throws SolrServerException, IOException {
+    QueryRequest request = new QueryRequest();
+    request.setPath(SCHEMA_PATH);
+    NamedList queryResponse = solrClient.request(request);
+
+    SimpleOrderedMap simpleOrderedMap = (SimpleOrderedMap) queryResponse.get("schema");
+    ArrayList<SimpleOrderedMap> fields = (ArrayList<SimpleOrderedMap>) simpleOrderedMap.get("fields");
+
+    for (SimpleOrderedMap field : fields) {
+      if (field.get(REQUIRED) != null && field.get(REQUIRED).equals(true)) {
+        requiredFieldNamesMap.add(field.get(NAME).toString());
+      }
+    }
   }
 
   private SolrServer getSolrClient() throws MalformedURLException {
@@ -125,7 +171,7 @@ public class SolrTarget04 implements SdcSolrTarget {
 
   public void commit() throws StageException {
     try {
-      this.solrClient.commit();
+      this.solrClient.commit(waitFlush, waitSearcher, softCommit);
     } catch (SolrServerException | IOException ex) {
       throw new StageException(Errors.SOLR_05, ex.toString(), ex);
     }

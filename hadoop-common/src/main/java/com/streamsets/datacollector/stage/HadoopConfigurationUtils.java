@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,11 +18,11 @@ package com.streamsets.datacollector.stage;
 import org.apache.hadoop.conf.Configuration;
 
 public class HadoopConfigurationUtils {
+  private static final String HADOOP_SUBJECT_TREAT_EXTERNAL = "hadoop.treat.subject.external";
 
   public static void configureHadoopTreatSubjectExternal(Configuration conf) {
     // Not using constant to make this code compile even for stage libraries that do
     // not have HADOOP-13805 available.
-    conf.setBoolean("hadoop.treat.subject.external", true);
-
+    conf.setBoolean(HADOOP_SUBJECT_TREAT_EXTERNAL, true);
   }
 }

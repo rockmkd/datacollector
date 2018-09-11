@@ -14,7 +14,7 @@
     </tab>
 
     <tab ng-repeat="groupNameToLabelMap in configGroupTabs"
-         disable="!isGroupVisible(detailPaneConfig, detailPaneConfigDefn.configDefinitions, groupNameToLabelMap.name)"
+         disable="!isStageGroupVisible(detailPaneConfig, detailPaneConfigDefn, detailPaneServices, groupNameToLabelMap.name)"
          active="groupNameToLabelMap.active"
          select="onTabSelect(groupNameToLabelMap)">
       <tab-heading>
@@ -36,9 +36,72 @@
             <ng-include ng-if="selectedType !== pipelineConstant.LINK"
                     src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
           </div>
+          <div ng-repeat="service in detailPaneServices" ng-if="detailPaneServices">
+            <div class="form-group "
+                 ng-class="{'has-error': getConfigurationIssues(service.config, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in service.definition.configDefinitions | filter: {group: groupNameToLabelMap.name} | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(service.config, configDefinition)) && configDefinition.group === groupNameToLabelMap.name"
+                 ng-init="configIndex = getConfigIndex(service.config, configDefinition); detailPaneConfig = service.config">
+
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                      src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
         </form>
       </div>
     </tab>
+
+    <tab ng-if="testOriginStageConfig"
+         select="onTabSelect({name: 'testOriginStageConfig'})"
+         active="testOriginStageConfigActive">
+      <tab-heading ng-controller="TestOriginConfigurationController">
+        <i class="fa fa-exclamation-triangle icon-danger"
+           ng-show="showConfigurationWarning(detailPaneConfig, undefined, true)"></i>
+        {{'home.detailPane.testOrigin' | translate}}
+      </tab-heading>
+      <div class="tabs-content" ng-if="testOriginStageConfigActive" ng-controller="TestOriginConfigurationController">
+        <form class="form-horizontal" role="form"
+              ng-class="{'form-group-sm': ($storage.displayDensity === pipelineConstant.DENSITY_COZY || $storage.displayDensity === pipelineConstant.DENSITY_COMPACT)}"
+              name="badRecordsForm">
+          <div class="form-group"
+               ng-class="{'has-error': getConfigurationIssues(detailPaneConfig, configDefinition).length > 0}"
+               ng-repeat="configDefinition in testOriginStageConfigDefn.configDefinitions | orderBy: 'displayPosition'"
+               ng-if="(verifyDependsOnMap(testOriginStageConfig, configDefinition))"
+               ng-init="configIndex = getConfigIndex(testOriginStageConfig, configDefinition);">
+
+            <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                        src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+          </div>
+
+          <div ng-repeat="service in detailPaneServices" ng-if="detailPaneServices">
+            <div class="form-group "
+                 ng-class="{'has-error': getConfigurationIssues(service.config, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in service.definition.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(service.config, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(service.config, configDefinition); detailPaneConfig = service.config">
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
+        </form>
+
+        <div class="row" ng-if="!testOriginStageConfigDefn">
+          <div class="col-md-12" >
+            <div class="alert alert-danger" role="alert">
+              <i class="fa fa-exclamation-triangle"></i>
+              <span translate="home.detailPane.noStageDefinitionFound" translate-values="{stageName: detailPaneConfig.stageName, library: detailPaneConfig.library}"></span>
+            </div>
+          </div>
+
+          <div class="col-md-12 col-md-offset-1" >
+            <button class="btn btn-primary" ng-click="onInstallMissingLibraryClick(detailPaneConfig.library)">Install Missing Stage Library</button>
+          </div>
+
+        </div>
+
+      </div>
+    </tab>
+
 
     <tab ng-if="errorStageConfig"
          select="onTabSelect({name: 'errorStageConfig'})"
@@ -60,6 +123,17 @@
 
             <ng-include ng-if="selectedType !== pipelineConstant.LINK"
                         src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+          </div>
+
+          <div ng-repeat="service in detailPaneServices" ng-if="detailPaneServices">
+            <div class="form-group "
+                 ng-class="{'has-error': getConfigurationIssues(service.config, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in service.definition.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(service.config, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(service.config, configDefinition); detailPaneConfig = service.config">
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
           </div>
         </form>
 
@@ -101,6 +175,17 @@
             <ng-include ng-if="selectedType !== pipelineConstant.LINK"
                         src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
           </div>
+
+          <div ng-repeat="service in detailPaneServices" ng-if="detailPaneServices">
+            <div class="form-group "
+                 ng-class="{'has-error': getConfigurationIssues(service.config, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in service.definition.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(service.config, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(service.config, configDefinition); detailPaneConfig = service.config">
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
         </form>
 
         <div class="row" ng-if="!statsAggregatorStageConfigDefn">
@@ -120,11 +205,118 @@
       </div>
     </tab>
 
+    <tab ng-if="startEventStageConfig"
+         select="onTabSelect({name: 'startEventStageConfig'})"
+         active="startEventStageConfigActive">
+      <tab-heading ng-controller="StartEventConfigurationController">
+        <i class="fa fa-exclamation-triangle icon-danger"
+           ng-show="showConfigurationWarning(detailPaneConfig, undefined, true)"></i>
+        {{'home.detailPane.startEvent' | translate}} - {{startEventStageConfigDefn.label}}
+      </tab-heading>
+      <div class="tabs-content" ng-if="startEventStageConfigActive" ng-controller="StartEventConfigurationController">
+        <form class="form-horizontal" role="form"
+              ng-class="{'form-group-sm': ($storage.displayDensity === pipelineConstant.DENSITY_COZY || $storage.displayDensity === pipelineConstant.DENSITY_COMPACT)}"
+              name="badRecordsForm">
 
+          <div ng-repeat="configurationGroup in startEventStageConfigDefnGroups">
+            <h3 ng-if="isGroupVisible(detailPaneConfig, configurationGroup.configDefinitions, configurationGroup.group.name)">{{configurationGroup.group.label}}</h3>
 
+            <div class="form-group"
+                 ng-class="{'has-error': getConfigurationIssues(detailPaneConfig, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in configurationGroup.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(startEventStageConfig, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(startEventStageConfig, configDefinition);">
+
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
+
+          <div ng-repeat="service in detailPaneServices" ng-if="detailPaneServices">
+            <div class="form-group "
+                 ng-class="{'has-error': getConfigurationIssues(service.config, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in service.definition.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(service.config, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(service.config, configDefinition); detailPaneConfig = service.config">
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
+        </form>
+
+        <div class="row" ng-if="!startEventStageConfigDefn">
+          <div class="col-md-12" >
+            <div class="alert alert-danger" role="alert">
+              <i class="fa fa-exclamation-triangle"></i>
+              <span translate="home.detailPane.noStageDefinitionFound" translate-values="{stageName: detailPaneConfig.stageName, library: detailPaneConfig.library}"></span>
+            </div>
+          </div>
+
+          <div class="col-md-12 col-md-offset-1" >
+            <button class="btn btn-primary" ng-click="onInstallMissingLibraryClick(detailPaneConfig.library)">Install Missing Stage Library</button>
+          </div>
+
+        </div>
+
+      </div>
+    </tab>
+
+    <tab ng-if="stopEventStageConfig"
+         select="onTabSelect({name: 'stopEventStageConfig'})"
+         active="stopEventStageConfigActive">
+      <tab-heading ng-controller="StopEventConfigurationController">
+        <i class="fa fa-exclamation-triangle icon-danger"
+           ng-show="showConfigurationWarning(detailPaneConfig, undefined, true)"></i>
+        {{'home.detailPane.stopEvent' | translate}} - {{stopEventStageConfigDefn.label}}
+      </tab-heading>
+      <div class="tabs-content" ng-if="stopEventStageConfigActive" ng-controller="StopEventConfigurationController">
+        <form class="form-horizontal" role="form"
+              ng-class="{'form-group-sm': ($storage.displayDensity === pipelineConstant.DENSITY_COZY || $storage.displayDensity === pipelineConstant.DENSITY_COMPACT)}"
+              name="badRecordsForm">
+
+          <div ng-repeat="configurationGroup in stopEventStageConfigDefnGroups">
+            <h3 ng-if="isGroupVisible(detailPaneConfig, configurationGroup.configDefinitions, configurationGroup.group.name)">{{configurationGroup.group.label}}</h3>
+
+            <div class="form-group"
+                 ng-class="{'has-error': getConfigurationIssues(detailPaneConfig, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in configurationGroup.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(stopEventStageConfig, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(stopEventStageConfig, configDefinition);">
+
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
+
+          <div ng-repeat="service in detailPaneServices" ng-if="detailPaneServices">
+            <div class="form-group "
+                 ng-class="{'has-error': getConfigurationIssues(service.config, configDefinition).length > 0}"
+                 ng-repeat="configDefinition in service.definition.configDefinitions | orderBy: 'displayPosition'"
+                 ng-if="(verifyDependsOnMap(service.config, configDefinition))"
+                 ng-init="configIndex = getConfigIndex(service.config, configDefinition); detailPaneConfig = service.config">
+              <ng-include ng-if="selectedType !== pipelineConstant.LINK"
+                          src="'app/home/detail/configuration/groupConfiguration.tpl.html'"></ng-include>
+            </div>
+          </div>
+        </form>
+
+        <div class="row" ng-if="!stopEventStageConfigDefn">
+          <div class="col-md-12" >
+            <div class="alert alert-danger" role="alert">
+              <i class="fa fa-exclamation-triangle"></i>
+              <span translate="home.detailPane.noStageDefinitionFound" translate-values="{stageName: detailPaneConfig.stageName, library: detailPaneConfig.library}"></span>
+            </div>
+          </div>
+
+          <div class="col-md-12 col-md-offset-1" >
+            <button class="btn btn-primary" ng-click="onInstallMissingLibraryClick(detailPaneConfig.library)">Install Missing Stage Library</button>
+          </div>
+
+        </div>
+
+      </div>
+    </tab>
   </tabset>
-
 </div>
-
 
 <ng-include src="'app/home/detail/configuration/typeTemplate.tpl.html'"></ng-include>

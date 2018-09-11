@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -98,7 +98,7 @@ public abstract class BaseRedisSource extends BaseSource {
     boolean isOk = true;
     if (null == redisClient) {
       try {
-        redisClient = new Jedis(URI.create(conf.uri), conf.connectionTimeout);
+        redisClient = new Jedis(URI.create(conf.uri), conf.connectionTimeout * 1000); // connectionTimeout value is in seconds
       } catch (Exception e) {
         LOG.error("Can't create redis client", e);
         issues.add(getContext().createConfigIssue(Groups.REDIS.name(), "uri", Errors.REDIS_01, conf.uri, e.toString()));

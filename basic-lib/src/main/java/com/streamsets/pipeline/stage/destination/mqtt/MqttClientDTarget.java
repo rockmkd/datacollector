@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.lib.mqtt.Groups;
 import com.streamsets.pipeline.lib.mqtt.MqttClientConfigBean;
 
@@ -31,9 +31,17 @@ import com.streamsets.pipeline.lib.mqtt.MqttClientConfigBean;
     label = "MQTT Publisher",
     description = "Uses an MQTT Client to publish data to a topic on the MQTT Broker",
     icon = "mqtt.png",
-    execution = ExecutionMode.STANDALONE,
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
+    },
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Destinations/MQTTPublisher.html#task_vbn_cyt_lz",
+    onlineHelpRefUrl ="index.html?contextID=task_vbn_cyt_lz",
     upgrader = MqttClientTargetUpgrader.class
 )
 @ConfigGroups(Groups.class)

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,16 @@
  */
 package com.streamsets.datacollector.main;
 
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.bundles.SupportBundleManager;
+import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.event.handler.EventHandlerTask;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.http.SlaveWebServerTask;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 
 import javax.inject.Inject;
 
@@ -35,7 +38,10 @@ public class SlavePipelineTask extends PipelineTask {
     SlaveWebServerTask slaveWebServerTask,
     EventHandlerTask eventHandlerTask,
     LineagePublisherTask lineagePublisherTask,
-    SupportBundleManager supportBundleManager
+    SupportBundleManager supportBundleManager,
+    BlobStoreTask blobStoreTask,
+    CredentialStoresTask credentialStoresTask,
+    StatsCollector statsCollector
   ) {
     super(
       library,
@@ -44,7 +50,10 @@ public class SlavePipelineTask extends PipelineTask {
       slaveWebServerTask,
       eventHandlerTask,
       lineagePublisherTask,
-      supportBundleManager
+      supportBundleManager,
+      blobStoreTask,
+      credentialStoresTask,
+      statsCollector
     );
   }
 }

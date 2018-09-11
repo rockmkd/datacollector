@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,11 @@
  */
 package com.streamsets.pipeline.stage.destination.lib;
 
+import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.Dependency;
 import com.streamsets.pipeline.api.FieldSelectorModel;
+import com.streamsets.pipeline.api.ProtoConfigurableEntity;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.config.AvroCompression;
@@ -36,17 +38,19 @@ import com.streamsets.pipeline.config.DestinationAvroSchemaSource;
 import com.streamsets.pipeline.config.DestinationAvroSchemaSourceChooserValues;
 import com.streamsets.pipeline.config.JsonMode;
 import com.streamsets.pipeline.config.JsonModeChooserValues;
+import com.streamsets.pipeline.config.TextFieldMissingAction;
+import com.streamsets.pipeline.config.TextFieldMissingActionChooserValues;
 import com.streamsets.pipeline.config.WholeFileExistsAction;
 import com.streamsets.pipeline.config.WholeFileExistsActionChooserValues;
 import com.streamsets.pipeline.lib.el.MathEL;
 import com.streamsets.pipeline.lib.el.RecordEL;
-import com.streamsets.pipeline.lib.el.StringEL;
 import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
 import com.streamsets.pipeline.lib.generator.DataGeneratorFactoryBuilder;
 import com.streamsets.pipeline.lib.generator.binary.BinaryDataGeneratorFactory;
 import com.streamsets.pipeline.lib.generator.delimited.DelimitedDataGeneratorFactory;
 import com.streamsets.pipeline.lib.generator.text.TextDataGeneratorFactory;
 import com.streamsets.pipeline.lib.generator.wholefile.WholeFileDataGeneratorFactory;
+import com.streamsets.pipeline.lib.generator.xml.XmlDataGeneratorFactory;
 import com.streamsets.pipeline.lib.util.AvroTypeUtil;
 import com.streamsets.pipeline.lib.util.DelimitedDataConstants;
 import com.streamsets.pipeline.lib.util.ProtobufConstants;
@@ -73,6 +77,7 @@ import static com.streamsets.pipeline.config.DestinationAvroSchemaSource.INLINE;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.COMPRESSION_CODEC_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.DEFAULT_VALUES_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.INCLUDE_SCHEMA_KEY;
+import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.REGISTER_SCHEMA_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_ID_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_KEY;
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_REPO_URLS_KEY;
@@ -80,7 +85,7 @@ import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SCHEMA_SOURCE_KE
 import static com.streamsets.pipeline.lib.util.AvroSchemaHelper.SUBJECT_KEY;
 import static org.apache.commons.lang.StringUtils.isEmpty;
 
-public class DataGeneratorFormatConfig implements DataFormatConfig{
+public class DataGeneratorFormatConfig implements DataFormatConfig {
   private static final Logger LOG = LoggerFactory.getLogger(DataGeneratorFormatConfig.class);
 
   /* Charset Related -- Shown last */
@@ -91,7 +96,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "UTF-8",
     label = "Charset",
     displayPosition = 1000,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = {"TEXT", "JSON", "DELIMITED"}
   )
@@ -108,7 +113,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "CSV",
     label = "Delimiter Format",
     displayPosition = 310,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "DELIMITED"
   )
@@ -121,7 +126,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "NO_HEADER",
     label = "Header Line",
     displayPosition = 320,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "DELIMITED"
   )
@@ -135,7 +140,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     label = "Replace New Line Characters",
     description = "Replaces new lines characters with configured string constant",
     displayPosition = 330,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "DELIMITED"
   )
@@ -148,7 +153,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     label = "New Line Character Replacement",
     description = "String that will be used to substitute new line characters. Using empty string will remove the new line characters.",
     displayPosition = 335,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "csvReplaceNewLines",
     triggeredByValue = "true"
   )
@@ -160,7 +165,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "|",
     label = "Delimiter Character",
     displayPosition = 340,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "csvFileFormat",
     triggeredByValue = "CUSTOM"
   )
@@ -172,7 +177,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "\\",
     label = "Escape Character",
     displayPosition = 350,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "csvFileFormat",
     triggeredByValue = "CUSTOM"
   )
@@ -184,7 +189,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "\"",
     label = "Quote Character",
     displayPosition = 360,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "csvFileFormat",
     triggeredByValue = "CUSTOM"
   )
@@ -198,12 +203,12 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     defaultValue = "MULTIPLE_OBJECTS",
     label = "JSON Content",
     displayPosition = 370,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "JSON"
   )
   @ValueChooserModel(JsonModeChooserValues.class)
-  public JsonMode jsonMode;
+  public JsonMode jsonMode = JsonMode.MULTIPLE_OBJECTS;
 
   /** For TEXT Content **/
 
@@ -214,7 +219,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     label = "Text Field Path",
     description = "String field that will be written to the destination",
     displayPosition = 380,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "TEXT"
   )
@@ -229,7 +234,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       label = "Record Separator",
       description = "Value to insert in output between records, defaults to newline",
       displayPosition = 385,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependsOn = "dataFormat^",
       triggeredByValue = "TEXT",
       evaluation = ConfigDef.Evaluation.EXPLICIT
@@ -238,14 +243,28 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
 
   @ConfigDef(
     required = true,
+    type = ConfigDef.Type.MODEL,
+    defaultValue = "ERROR",
+    label = "On Missing Field",
+    displayPosition = 387,
+    group = "#0",
+    dependsOn = "dataFormat^",
+    triggeredByValue = "TEXT"
+  )
+  @ValueChooserModel(TextFieldMissingActionChooserValues.class)
+  public TextFieldMissingAction textFieldMissingAction;
+
+  @ConfigDef(
+    required = true,
     type = ConfigDef.Type.BOOLEAN,
     defaultValue = "false",
     label = "Insert Record Separator If No Text",
     description = "Specifies whether a record separator should be inserted in output even after an empty value (no text in field)",
     displayPosition = 390,
-    group = "DATA_FORMAT",
-    dependsOn = "dataFormat^",
-    triggeredByValue = "TEXT"
+    group = "#0",
+    dependencies = {
+      @Dependency(configName = "textFieldMissingAction", triggeredByValues = "IGNORE")
+    }
   )
   public boolean textEmptyLineIfNull;
 
@@ -271,7 +290,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       description = "Overrides the schema included in the data (if any). Optionally use the " +
           "runtime:loadResource function to use a schema stored in a file",
       displayPosition = 410,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependencies = {
           @Dependency(configName = "dataFormat^", triggeredByValues = "AVRO"),
           @Dependency(configName = "avroSchemaSource", triggeredByValues = "INLINE")
@@ -394,7 +413,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       label = "Include Schema",
       description = "Includes the Avro schema in the output",
       displayPosition = 470,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependencies = {
           @Dependency(configName = "dataFormat^", triggeredByValues = "AVRO")
       }
@@ -407,7 +426,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       defaultValue = "NULL",
       label = "Avro Compression Codec",
       displayPosition = 480,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependsOn = "dataFormat^",
       triggeredByValue = "AVRO"
   )
@@ -423,10 +442,9 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     label = "Binary Field Path",
     description = "Field to write data to Kafka",
     displayPosition = 420,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
-    triggeredByValue = "BINARY",
-    elDefs = {StringEL.class}
+    triggeredByValue = "BINARY"
   )
   @FieldSelectorModel(singleValued = true)
   public String binaryFieldPath = "/";
@@ -440,7 +458,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     label = "Protobuf Descriptor File",
     description = "Protobuf Descriptor File (.desc) path relative to SDC resources directory",
     displayPosition = 430,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "PROTOBUF"
   )
@@ -453,7 +471,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     description = "Fully Qualified Message Type name. Use format <packageName>.<messageTypeName>",
     label = "Message Type",
     displayPosition = 440,
-    group = "DATA_FORMAT",
+    group = "#0",
     dependsOn = "dataFormat^",
     triggeredByValue = "PROTOBUF"
   )
@@ -463,13 +481,13 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.STRING,
-      elDefs = {RecordEL.class, StringEL.class, MathEL.class},
+      elDefs = {RecordEL.class, MathEL.class},
       evaluation = ConfigDef.Evaluation.EXPLICIT,
       defaultValue = "",
       description = "File Name Expression",
       label = "File Name Expression",
       displayPosition = 450,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependsOn = "dataFormat^",
       triggeredByValue = "WHOLE_FILE"
   )
@@ -482,7 +500,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       label = "File Exists",
       description = "The action to perform when the file already exists.",
       displayPosition = 470,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependsOn = "dataFormat^",
       triggeredByValue = "WHOLE_FILE"
   )
@@ -496,7 +514,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       label = "Include Checksum in Events",
       description = "Includes checksum information in whole file transfer events.",
       displayPosition = 480,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependsOn = "dataFormat^",
       triggeredByValue = "WHOLE_FILE"
   )
@@ -509,14 +527,67 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       label = "Checksum Algorithm",
       description = "The checksum algorithm for calculating checksum for the file.",
       displayPosition = 490,
-      group = "DATA_FORMAT",
+      group = "#0",
       dependsOn = "includeChecksumInTheEvents",
       triggeredByValue = "true"
   )
   @ValueChooserModel(ChecksumAlgorithmChooserValues.class)
   public ChecksumAlgorithm checksumAlgorithm = ChecksumAlgorithm.MD5;
 
-/** End Config Defs **/
+  /** For XML Content **/
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "true",
+      label = "Pretty Format",
+      description = "Format XML with human readable indentation (requires more bytes on output).",
+      displayPosition = 500,
+      group = "#0",
+      dependencies = {
+          @Dependency(configName = "dataFormat^", triggeredByValues = "XML")
+      }
+  )
+  public boolean xmlPrettyPrint = true;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      defaultValue = "false",
+      label = "Validate Schema",
+      description = "Validate that resulting record corresponds to given schema(s).",
+      displayPosition = 510,
+      group = "#0",
+      dependencies = {
+          @Dependency(configName = "dataFormat^", triggeredByValues = "XML")
+      }
+  )
+  public boolean xmlValidateSchema = false;
+
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.TEXT,
+      label = "XML Schema",
+      description = "XML schema that should be used to validate serialized record.",
+      displayPosition = 520,
+      group = "#0",
+      dependencies = {
+          @Dependency(configName = "xmlValidateSchema", triggeredByValues = "true")
+    }
+  )
+  public String xmlSchema = "";
+
+  /**
+   * Indicates whether delimiter must be written after each protobuf message.
+   * By default messages are always written with a delimiter.
+   *
+   * Not writing a delimiter should be supported only in case of destinations that write one record as one message.
+   * For example, in Kafka (with multiple messages per batch) & google pub/sub. Therefore this option must be exposed
+   * to the user only in those destinations.
+   */
+  public boolean isDelimited = true;
+
+  /** End Config Defs **/
 
   private DataGeneratorFactory dataGeneratorFactory;
 
@@ -526,7 +597,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
 
   @Override
   public boolean init(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String groupName,
       String configPrefix,
@@ -544,6 +615,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       case DELIMITED:
       case SDC_JSON:
       case AVRO:
+      case XML:
         // no-op
         break;
       case PROTOBUF:
@@ -563,7 +635,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
   }
 
   private boolean validateDataGenerator (
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       DataFormat dataFormat,
       String groupName,
       String configPrefix,
@@ -571,8 +643,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
   ) {
     boolean valid = true;
 
-    DataGeneratorFactoryBuilder builder = new DataGeneratorFactoryBuilder(context,
-      dataFormat.getGeneratorFormat());
+    DataGeneratorFactoryBuilder builder = new DataGeneratorFactoryBuilder(context, dataFormat.getGeneratorFormat());
     if(charset == null || charset.trim().isEmpty()) {
       charset = StandardCharsets.UTF_8.name();
     }
@@ -603,6 +674,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
         builder.setConfig(TextDataGeneratorFactory.FIELD_PATH_KEY, textFieldPath);
         builder.setConfig(TextDataGeneratorFactory.RECORD_SEPARATOR_IF_NULL_KEY, textEmptyLineIfNull);
         builder.setConfig(TextDataGeneratorFactory.RECORD_SEPARATOR_KEY, textRecordSeparator);
+        builder.setConfig(TextDataGeneratorFactory.MISSING_FIELD_ACTION_KEY, textFieldMissingAction);
         break;
       case JSON:
         builder.setMode(jsonMode.getFormat());
@@ -615,11 +687,17 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
         break;
       case PROTOBUF:
         builder.setConfig(ProtobufConstants.PROTO_DESCRIPTOR_FILE_KEY, protoDescriptorFile)
-          .setConfig(ProtobufConstants.MESSAGE_TYPE_KEY, messageType);
+          .setConfig(ProtobufConstants.MESSAGE_TYPE_KEY, messageType)
+          .setConfig(ProtobufConstants.DELIMITED_KEY, isDelimited);
         break;
       case WHOLE_FILE:
         builder.setConfig(WholeFileDataGeneratorFactory.INCLUDE_CHECKSUM_IN_THE_EVENTS_KEY, includeChecksumInTheEvents);
         builder.setConfig(WholeFileDataGeneratorFactory.CHECKSUM_ALGO_KEY, checksumAlgorithm);
+        break;
+      case XML:
+        builder.setConfig(XmlDataGeneratorFactory.PRETTY_FORMAT, xmlPrettyPrint);
+        builder.setConfig(XmlDataGeneratorFactory.SCHEMA_VALIDATION, xmlValidateSchema);
+        builder.setConfig(XmlDataGeneratorFactory.SCHEMAS, ImmutableList.of(xmlSchema));
         break;
       case SDC_JSON:
       default:
@@ -650,7 +728,7 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
   }
 
   private boolean configureAvroDataGenerator(
-      Stage.Context context,
+      ProtoConfigurableEntity.Context context,
       String configPrefix,
       List<Stage.ConfigIssue> issues,
       DataGeneratorFactoryBuilder builder
@@ -709,13 +787,16 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
       builder.setConfig(SCHEMA_ID_KEY, schemaId);
     }
     builder.setConfig(INCLUDE_SCHEMA_KEY, includeSchema);
+    builder.setConfig(REGISTER_SCHEMA_KEY, registerSchema);
     builder.setConfig(COMPRESSION_CODEC_KEY, avroCompression.getCodecName());
 
     return valid;
   }
 
   private boolean validateProtobufFormat(
-      Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
   ) {
     boolean valid = true;
     if (isEmpty(protoDescriptorFile)) {
@@ -746,7 +827,9 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
   }
 
   private boolean validateBinaryFormat(
-      Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
   ) {
     // required field configuration to be set and it is "/" by default
     boolean valid = true;
@@ -764,7 +847,9 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
   }
 
   private boolean validateTextFormat(
-      Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues
+      ProtoConfigurableEntity.Context context,
+      String configPrefix,
+      List<Stage.ConfigIssue> issues
   ) {
     // required field configuration to be set and it is "/" by default
     boolean valid = true;
@@ -778,7 +863,11 @@ public class DataGeneratorFormatConfig implements DataFormatConfig{
     return valid;
   }
 
-  private boolean validateWholeFileFormat(Stage.Context context, String configPrefix, List<Stage.ConfigIssue> issues) {
+  private boolean validateWholeFileFormat(
+    ProtoConfigurableEntity.Context context,
+    String configPrefix,
+    List<Stage.ConfigIssue> issues
+  ) {
     boolean valid = true;
     if (isEmpty(fileNameEL)) {
       issues.add(

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,14 +21,16 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @StageDef(
+  // We're reusing upgrader for both ToErrorSdcIpcDTarget and SdcIpcDTarget, make sure that you
+  // upgrade both versions at the same time when changing.
     version = 2,
     label = "SDC RPC",
     description = "Sends records via SDC RPC to a Data Collector pipeline that uses an SDC RPC origin",
     icon="sdcipc.png",
-    onlineHelpRefUrl = "index.html#Destinations/SDC_RPCdest.html#task_nbl_r2x_dt",
+    onlineHelpRefUrl ="index.html?contextID=task_nbl_r2x_dt",
     upgrader = SdcIpcTargetUpgrader.class
 )
 @ConfigGroups(Groups.class)

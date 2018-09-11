@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +18,11 @@ package com.streamsets.pipeline.stage.destination.cassandra;
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ProtocolVersion;
 import com.streamsets.pipeline.api.ConfigDef;
+import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
+import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -130,26 +132,27 @@ public class CassandraTargetConfig {
   /** Credentials group **/
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Username",
       displayPosition = 10,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "authProviderOption",
       triggeredByValue = {"PLAINTEXT", "DSE_PLAINTEXT"}
   )
-  public String username;
+  public CredentialValue username;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Password",
       defaultValue = "",
       displayPosition = 20,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "authProviderOption",
       triggeredByValue = {"PLAINTEXT", "DSE_PLAINTEXT"}
   )
-  public String password;
+  public CredentialValue password;
+
+  @ConfigDefBean(groups = "TLS")
+  public TlsConfigBean tlsConfig = new TlsConfigBean();
 }

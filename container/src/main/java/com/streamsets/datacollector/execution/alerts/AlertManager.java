@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.streamsets.datacollector.execution.alerts;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Charsets;
+import com.google.common.base.Strings;
 import com.google.common.io.Resources;
 import com.streamsets.datacollector.alerts.AlertsUtil;
 import com.streamsets.datacollector.config.AuthenticationType;
@@ -32,6 +33,7 @@ import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.util.PipelineException;
+import com.streamsets.pipeline.api.StageException;
 import org.apache.commons.lang3.StringUtils;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 import org.slf4j.Logger;
@@ -102,8 +104,8 @@ public class AlertManager {
       java.text.DateFormat dateTimeFormat = new SimpleDateFormat(EmailConstants.DATE_MASK, Locale.ENGLISH);
       emailBody = emailBody.replace(EmailConstants.ERROR_CODE, errorCode)
         .replace(EmailConstants.TIME_KEY, dateTimeFormat.format(new Date(timestamp)))
-        .replace(EmailConstants.PIPELINE_NAME_KEY, pipelineTitle)
-        .replace(EmailConstants.DESCRIPTION_KEY, description)
+        .replace(EmailConstants.PIPELINE_NAME_KEY, Strings.nullToEmpty(pipelineTitle))
+        .replace(EmailConstants.DESCRIPTION_KEY, Strings.nullToEmpty(description))
         .replace(EmailConstants.URL_KEY, runtimeInfo.getBaseHttpUrl() + EmailConstants.PIPELINE_URL + pipelineId);
       subject = EmailConstants.STREAMSETS_DATA_COLLECTOR_ALERT + subject;
       if (LOG.isDebugEnabled()) {
@@ -124,7 +126,6 @@ public class AlertManager {
   @SuppressWarnings("unchecked")
   public void alert(
       Object value,
-      List<String> emailIds,
       RuleDefinitionsConfigBean ruleDefinitionsConfigBean,
       RuleDefinition ruleDefinition
   ) {
@@ -148,8 +149,8 @@ public class AlertManager {
           java.text.DateFormat dateTimeFormat = new SimpleDateFormat(EmailConstants.DATE_MASK, Locale.ENGLISH);
           emailBody = emailBody.replace(EmailConstants.ALERT_VALUE_KEY, String.valueOf(value))
             .replace(EmailConstants.TIME_KEY, dateTimeFormat.format(new Date((Long) System.currentTimeMillis())))
-            .replace(EmailConstants.PIPELINE_NAME_KEY, pipelineTitle)
-            .replace(EmailConstants.CONDITION_KEY, ruleDefinition.getCondition())
+            .replace(EmailConstants.PIPELINE_NAME_KEY, Strings.nullToEmpty(pipelineTitle))
+            .replace(EmailConstants.CONDITION_KEY, Strings.nullToEmpty(ruleDefinition.getCondition()))
             .replace(EmailConstants.URL_KEY, runtimeInfo.getBaseHttpUrl() + EmailConstants.PIPELINE_URL + pipelineId);
 
           if(ruleDefinition instanceof DataRuleDefinition) {
@@ -162,7 +163,11 @@ public class AlertManager {
             LOG.error("Email Sender is not configured. Alert '{}' with message '{}' will not be sent via email.",
               ruleDefinition.getId(), emailBody);
           } else {
-            emailSender.send(emailIds, EmailConstants.STREAMSETS_DATA_COLLECTOR_ALERT + ruleDefinition.getAlertText(), emailBody);
+            emailSender.send(
+                ruleDefinitionsConfigBean.emailIDs,
+                EmailConstants.STREAMSETS_DATA_COLLECTOR_ALERT + ruleDefinition.getAlertText(),
+                emailBody
+            );
           }
         } catch (EmailException | IOException e) {
           LOG.error("Error sending alert email, reason: {}", e.toString(), e);
@@ -203,12 +208,12 @@ public class AlertManager {
         Response response = null;
         try {
           String payload = webhookConfig.payload
-              .replace(WebhookConstants.ALERT_TEXT_KEY, ruleDefinition.getAlertText())
-              .replace(WebhookConstants.ALERT_NAME_KEY, alertName)
+              .replace(WebhookConstants.ALERT_TEXT_KEY, Strings.nullToEmpty(ruleDefinition.getAlertText()))
+              .replace(WebhookConstants.ALERT_NAME_KEY, Strings.nullToEmpty(alertName))
               .replace(WebhookConstants.ALERT_VALUE_KEY, String.valueOf(value))
-              .replace(WebhookConstants.ALERT_CONDITION_KEY, ruleDefinition.getCondition())
+              .replace(WebhookConstants.ALERT_CONDITION_KEY, Strings.nullToEmpty(ruleDefinition.getCondition()))
               .replace(WebhookConstants.TIME_KEY, dateTimeFormat.format(new Date((Long) System.currentTimeMillis())))
-              .replace(WebhookConstants.PIPELINE_TITLE_KEY, pipelineTitle)
+              .replace(WebhookConstants.PIPELINE_TITLE_KEY, Strings.nullToEmpty(pipelineTitle))
               .replace(WebhookConstants.PIPELINE_URL_KEY, runtimeInfo.getBaseHttpUrl() +
                   EmailConstants.PIPELINE_URL + pipelineId.replaceAll(" ", "%20"));
 
@@ -238,22 +243,22 @@ public class AlertManager {
     }
   }
 
-  private void configurePasswordAuth(WebhookCommonConfig webhookConfig, WebTarget webTarget) {
+  private void configurePasswordAuth(WebhookCommonConfig webhookConfig, WebTarget webTarget) throws StageException {
     if (webhookConfig.authType == AuthenticationType.BASIC) {
       webTarget.register(
-          HttpAuthenticationFeature.basic(webhookConfig.username, webhookConfig.password)
+          HttpAuthenticationFeature.basic(webhookConfig.username.get(), webhookConfig.password.get())
       );
     }
 
     if (webhookConfig.authType == AuthenticationType.DIGEST) {
       webTarget.register(
-          HttpAuthenticationFeature.digest(webhookConfig.username, webhookConfig.password)
+          HttpAuthenticationFeature.digest(webhookConfig.username.get(), webhookConfig.password.get())
       );
     }
 
     if (webhookConfig.authType == AuthenticationType.UNIVERSAL) {
       webTarget.register(
-          HttpAuthenticationFeature.universal(webhookConfig.username, webhookConfig.password)
+          HttpAuthenticationFeature.universal(webhookConfig.username.get(), webhookConfig.password.get())
       );
     }
   }

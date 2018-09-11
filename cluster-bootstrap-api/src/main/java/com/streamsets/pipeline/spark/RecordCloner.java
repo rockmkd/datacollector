@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,7 +51,7 @@ public class RecordCloner {
       Class headerClassCl = Class.forName("com.streamsets.datacollector.record.HeaderImpl");
 
       Object newHeader = headerClassCl.newInstance();
-      headerClassCl.getMethod("setAllAttributes", Map.class).invoke(newHeader, headers);
+      headerClassCl.getMethod("overrideUserAndSystemAttributes", Map.class).invoke(newHeader, headers);
 
       Field resultField = cloneField(field);
 

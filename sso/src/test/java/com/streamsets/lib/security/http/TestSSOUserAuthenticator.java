@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -157,6 +157,37 @@ public class TestSSOUserAuthenticator {
             "=" +
             URLEncoder.encode("http://foo/bar?a=A&b=B", "UTF-8") + "&" + SSOConstants.REPEATED_REDIRECT_PARAM + "=",
         redirect.getValue()
+    );
+  }
+
+  @Test
+  public void testRedirectToLoginUsingMetaRedirect() throws Exception {
+    RemoteSSOService ssoService = new RemoteSSOService();
+    Configuration conf = new Configuration();
+    conf.set(RemoteSSOService.SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG, "authToken");
+    conf.set(RemoteSSOService.SECURITY_SERVICE_COMPONENT_ID_CONFIG, "componentId");
+    conf.set(SSOUserAuthenticator.HTTP_META_REDIRECT_TO_SSO, true);
+    ssoService.setConfiguration(conf);
+    SSOUserAuthenticator authenticator = new SSOUserAuthenticator(ssoService, conf);
+
+    HttpServletRequest req = Mockito.mock(HttpServletRequest.class);
+    Mockito.when(req.getRequestURL()).thenReturn(new StringBuffer("http://foo/bar"));
+    Mockito.when(req.getQueryString()).thenReturn("a=A&b=B");
+
+    StringWriter output = new StringWriter();
+    PrintWriter printWriter = new PrintWriter(output);
+    HttpServletResponse res = Mockito.mock(HttpServletResponse.class);
+    Mockito.when(res.getWriter()).thenReturn(printWriter);
+
+    Assert.assertEquals(Authentication.SEND_CONTINUE, authenticator.redirectToLogin(req, res));
+    Mockito.verify(res).setContentType(Mockito.eq("text/html"));
+    Mockito.verify(res).setStatus(Mockito.eq(HttpServletResponse.SC_OK));
+
+    printWriter.flush();
+    Assert.assertEquals(String.format(
+        SSOUserAuthenticator.HTML_META_REDIRECT,
+        authenticator.getLoginUrl(req, false)),
+        output.toString().trim()
     );
   }
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.core.Context;
 
 @Path("/v1/authentication")
+@RequiresCredentialsDeployed
 public class AuthenticationResource {
 
   @POST

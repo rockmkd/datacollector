@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,6 @@
 package com.streamsets.datacollector.runner;
 
 import com.google.common.collect.ImmutableList;
-import com.streamsets.datacollector.runner.BatchImpl;
-import com.streamsets.datacollector.runner.SourceOffsetTracker;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.Record;
 

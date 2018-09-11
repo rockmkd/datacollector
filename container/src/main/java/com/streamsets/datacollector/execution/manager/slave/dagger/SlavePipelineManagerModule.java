@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
  */
 package com.streamsets.datacollector.execution.manager.slave.dagger;
 
+import com.streamsets.datacollector.blobstore.BlobStoreModule;
+import com.streamsets.datacollector.credential.CredentialStoresModule;
 import com.streamsets.datacollector.execution.executor.SlaveExecutorModule;
 import com.streamsets.datacollector.execution.manager.slave.SlavePipelineManager;
 import com.streamsets.datacollector.execution.runner.provider.dagger.SlaveRunnerProviderModule;
@@ -24,6 +26,7 @@ import com.streamsets.datacollector.lineage.LineageModule;
 import com.streamsets.datacollector.store.SlaveAclStoreModule;
 import com.streamsets.datacollector.store.SlavePipelineStoreModule;
 
+import com.streamsets.datacollector.usagestats.StatsCollectorModule;
 import dagger.Module;
 
 /**
@@ -39,8 +42,11 @@ import dagger.Module;
     SlaveExecutorModule.class,
     SlaveRunnerProviderModule.class,
     SlaveCacheSnapshotStoreModule.class,
-    LineageModule.class
-})
+    LineageModule.class,
+    BlobStoreModule.class,
+    CredentialStoresModule.class,
+    StatsCollectorModule.class
+  })
 public class SlavePipelineManagerModule {
 
 }

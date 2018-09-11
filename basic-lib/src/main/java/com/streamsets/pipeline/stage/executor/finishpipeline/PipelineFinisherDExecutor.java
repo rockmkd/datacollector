@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,8 +17,9 @@ package com.streamsets.pipeline.stage.executor.finishpipeline;
 
 import com.streamsets.pipeline.api.Executor;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DExecutor;
+import com.streamsets.pipeline.api.base.configurablestage.DExecutor;
 
 @GenerateResourceBundle
 @StageDef(
@@ -26,7 +27,8 @@ import com.streamsets.pipeline.configurablestage.DExecutor;
     label = "Pipeline Finisher Executor",
     description = "Forces pipeline to transition to Finished after receiving an event.",
     icon = "finisher.png",
-    onlineHelpRefUrl = "index.html#Executors/PipelineFinisher.html#task_lrm_pws_3z"
+    flags = StageBehaviorFlags.PASSTHROUGH,
+    onlineHelpRefUrl ="index.html?contextID=task_lrm_pws_3z"
 )
 
 public class PipelineFinisherDExecutor extends DExecutor {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ import com.streamsets.pipeline.lib.generator.DataGeneratorException;
 import com.streamsets.pipeline.lib.generator.DataGeneratorFactory;
 import com.streamsets.pipeline.sdk.ContextInfoCreator;
 import com.streamsets.pipeline.sdk.RecordCreator;
-import com.streamsets.pipeline.stage.destination.hdfs.Errors;
+import com.streamsets.pipeline.lib.hdfs.common.Errors;
 import com.streamsets.pipeline.stage.destination.hdfs.HdfsDTarget;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;

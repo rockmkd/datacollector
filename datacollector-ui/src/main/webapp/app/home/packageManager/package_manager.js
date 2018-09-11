@@ -34,11 +34,15 @@ angular
         }
       });
   }])
-  .controller('PackageManagerController', function ($scope, $rootScope, $routeParams, $q, $modal, $location,
-                                                    pipelineService, api, configuration, pipelineConstant, Analytics) {
+  .controller('PackageManagerController', function (
+    $scope, $rootScope, $routeParams, $q, $modal, $location, pipelineService, api, configuration, pipelineConstant,
+    Analytics
+  ) {
     $location.search('auth_token', null);
     $location.search('auth_user', null);
     $rootScope.common.errors = [];
+
+    var mlRegex = new RegExp('(TensorFlow)|(Databricks ML)', 'i');
 
     var pipelinesLimit = 60;
 
@@ -47,13 +51,26 @@ angular
       navigationItems: [
         'All Stage Libraries',
         'Installed Stage Libraries',
+        'Machine Learning',
+        'Amazon Web Services',
         'Apache Kafka',
         'Apache Kudu',
         'Apache Solr',
+        'Azure',
         'CDH',
         'Elasticsearch',
+        'Google Cloud',
+        'Groovy',
         'HDP',
-        'MapR'
+        'InfluxDB',
+        'JDBC',
+        'JMS',
+        'Jython',
+        'MapR',
+        'MongoDB',
+        'MySql BinLog',
+        'Omniture',
+        'RabbitMQ'
       ],
       extrasNavigationItem: 'EXTRAS',
       selectedNavigationItem: 'All Stage Libraries',
@@ -98,6 +115,11 @@ angular
           case 'Installed Stage Libraries':
             $scope.filteredStageLibraries = _.filter($scope.stageLibraries, function(stageLibrary) {
               return regex.test(stageLibrary.label) && stageLibrary.installed;
+            });
+            break;
+          case 'Machine Learning':
+            $scope.filteredStageLibraries = _.filter($scope.stageLibraries, function(stageLibrary) {
+              return regex.test(stageLibrary.label) && mlRegex.test(stageLibrary.label);
             });
             break;
           default:
@@ -150,7 +172,7 @@ angular
       unSelectStageLibrary: function(stageLibrary) {
         $scope.selectedStageLibraryMap[stageLibrary.id] = false;
         var index = $scope.selectedStageLibraryList.indexOf(stageLibrary.id);
-        if (index != -1) {
+        if (index !== -1) {
           $scope.selectedStageLibraryList.splice(index, 1);
         }
         $scope.allSelected = false;
@@ -188,6 +210,10 @@ angular
        * Callback function when Install button clicked.
        */
       onInstallSelectedLibrariesClick: function() {
+        if($scope.isManagedByClouderaManager) {
+          return;
+        }
+
         $rootScope.common.trackEvent(
           pipelineConstant.BUTTON_CATEGORY,
           pipelineConstant.CLICK_ACTION,
@@ -204,6 +230,10 @@ angular
        * Callback function when Uninstall button clicked.
        */
       onUninstallSelectedLibrariesClick: function() {
+        if($scope.isManagedByClouderaManager) {
+          return;
+        }
+
         $rootScope.common.trackEvent(
           pipelineConstant.BUTTON_CATEGORY,
           pipelineConstant.CLICK_ACTION,
@@ -336,7 +366,7 @@ angular
     $q.all([
       configuration.init()
     ]).then(
-      function (results) {
+      function () {
         if(configuration.isAnalyticsEnabled()) {
           Analytics.trackPage('/collector/packageManager');
         }
@@ -376,7 +406,6 @@ angular
           }
         );
     };
-
 
     var getStageLibrariesExtras = function() {
       $scope.stageLibrariesExtras = [];
@@ -451,7 +480,6 @@ angular
       }, function () {
       });
     };
-
 
     var updateCustomRepoUrl= function() {
       var modalInstance = $modal.open({

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,9 +17,9 @@ package com.streamsets.datacollector.definition;
 
 import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.cluster.ClusterModeConstants;
+import com.streamsets.datacollector.config.ServiceDependencyDefinition;
 import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.config.StageLibraryDefinition;
-import com.streamsets.datacollector.config.StageType;
 import com.streamsets.datacollector.creation.StageConfigBean;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.BatchMaker;
@@ -29,18 +29,24 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.ErrorStage;
 import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.HideStage;
 import com.streamsets.pipeline.api.Label;
 import com.streamsets.pipeline.api.OffsetCommitTrigger;
 import com.streamsets.pipeline.api.OffsetCommitter;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
 import com.streamsets.pipeline.api.RawSource;
 import com.streamsets.pipeline.api.RawSourcePreviewer;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.StageUpgrader;
+import com.streamsets.pipeline.api.base.BaseProcessor;
 import com.streamsets.pipeline.api.base.BasePushSource;
 import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.api.base.BaseTarget;
 import com.streamsets.pipeline.api.base.BaseExecutor;
+import com.streamsets.pipeline.api.service.ServiceConfiguration;
+import com.streamsets.pipeline.api.service.ServiceDependency;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -84,7 +90,11 @@ public class TestStageDefinitionExtractor {
       description = "D",
       icon = "TargetIcon.svg",
       libJarsRegex = {ClusterModeConstants.AVRO_JAR_REGEX, ClusterModeConstants.AVRO_MAPRED_JAR_REGEX},
-      onlineHelpRefUrl = ""
+      onlineHelpRefUrl = "",
+      services = @ServiceDependency(service = Runnable.class, configuration = {
+        @ServiceConfiguration(name = "country", value = "Czech"),
+        @ServiceConfiguration(name = "importance", value = "high"),
+      })
   )
   public static class Source1 extends BaseSource {
 
@@ -222,6 +232,15 @@ public class TestStageDefinitionExtractor {
     }
   }
 
+  @StageDef(version = 1, label = "L", onlineHelpRefUrl = "")
+  @PipelineLifecycleStage
+  public static class PipelineLifecycleTarget extends Target1 {
+    @Override
+    public void write(Batch batch) throws StageException {
+
+    }
+  }
+
   @StageDef(version = 1, label = "L", outputStreams = StageDef.VariableOutputStreams.class,
     outputStreamsDrivenByConfig = "config1", onlineHelpRefUrl = "")
   public static class OffsetCommitSource extends Source1 implements OffsetCommitTrigger {
@@ -263,6 +282,14 @@ public class TestStageDefinitionExtractor {
     }
   }
 
+  @StageDef(version = 1, label = "Hidden stage", onlineHelpRefUrl = "")
+  @HideStage(HideStage.Type.FIELD_PROCESSOR)
+  public static class HiddenStage extends BaseProcessor {
+    @Override
+    public void process(Batch batch, BatchMaker batchMaker) throws StageException {
+    }
+  }
+
   private static final StageLibraryDefinition MOCK_LIB_DEF =
       new StageLibraryDefinition(TestStageDefinitionExtractor.class.getClassLoader(), "mock", "MOCK", new Properties(),
                                  null, null, null);
@@ -280,7 +307,7 @@ public class TestStageDefinitionExtractor {
     Assert.assertEquals(0, def.getConfigGroupDefinition().getGroupNames().size());
     Assert.assertEquals(3, def.getConfigDefinitions().size());
     Assert.assertEquals(1, def.getOutputStreams());
-    Assert.assertEquals(4, def.getExecutionModes().size());
+    Assert.assertEquals(5, def.getExecutionModes().size());
     Assert.assertEquals(2, def.getLibJarsRegex().size());
     Assert.assertEquals("TargetIcon.svg", def.getIcon());
     Assert.assertEquals(StageDef.DefaultOutputStreams.class.getName(), def.getOutputStreamLabelProviderClass());
@@ -292,6 +319,19 @@ public class TestStageDefinitionExtractor {
     Assert.assertFalse(def.getRecordsByRef());
     Assert.assertTrue(def.getUpgrader() instanceof StageUpgrader.Default);
     Assert.assertFalse(def.isProducingEvents());
+
+    Assert.assertEquals(1, def.getServices().size());
+    ServiceDependencyDefinition service = def.getServices().get(0);
+    Assert.assertNotNull(service);
+    Assert.assertEquals(Runnable.class, service.getService());
+    Assert.assertEquals(2, service.getConfiguration().size());
+    Assert.assertTrue(service.getConfiguration().containsKey("country"));
+    Assert.assertTrue(service.getConfiguration().containsKey("importance"));
+    Assert.assertEquals("Czech", service.getConfiguration().get("country"));
+    Assert.assertEquals("high", service.getConfiguration().get("importance"));
+
+    Assert.assertNotNull(def.getHideStage());
+    Assert.assertEquals(0, def.getHideStage().size());
   }
 
   @Test
@@ -422,6 +462,13 @@ public class TestStageDefinitionExtractor {
   }
 
   @Test
+  public void testExtractPipelineLifecycleStage() {
+    StageDefinition def = StageDefinitionExtractor.get().extract(MOCK_LIB_DEF, PipelineLifecycleTarget.class, "x");
+    Assert.assertEquals(StageType.TARGET, def.getType());
+    Assert.assertTrue(def.isPipelineLifecycleStage());
+  }
+
+  @Test
   public void testPushOriginMarkedWithOffsetCommitter() {
     try {
       StageDefinitionExtractor.get().extract(MOCK_LIB_DEF, OffsetCommitterPushSource.class, "x");
@@ -451,6 +498,15 @@ public class TestStageDefinitionExtractor {
 
     StageDefinition def = StageDefinitionExtractor.get().extract(libDef, ProducesEventsTarger.class, "x");
     Assert.assertTrue(def.isProducingEvents());
+  }
+
+  @Test
+  public void testExtractHideStage() {
+    StageDefinition def = StageDefinitionExtractor.get().extract(MOCK_LIB_DEF, HiddenStage.class, "x");
+
+    Assert.assertNotNull(def.getHideStage());
+    Assert.assertEquals(1, def.getHideStage().size());
+    Assert.assertEquals(HideStage.Type.FIELD_PROCESSOR, def.getHideStage().get(0));
   }
 
 }

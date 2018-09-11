@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 @GenerateResourceBundle
 public enum Errors implements ErrorCode {
   TEXT_GENERATOR_00("Record '{}' cannot convert field path '{}' value to string"),
+  TEXT_GENERATOR_01("Record '{}' is missing field {}"),
   ;
 
   private final String msg;

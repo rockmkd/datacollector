@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,6 @@ package com.streamsets.datacollector.definition;
 import com.streamsets.datacollector.config.ConfigGroupDefinition;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.Label;
-import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
 
@@ -39,7 +38,7 @@ public abstract class ConfigGroupExtractor {
     return EXTRACTOR;
   }
 
-  public List<ErrorMessage> validate(Class<? extends Stage> klass, Object contextMsg) {
+  public List<ErrorMessage> validate(Class klass, Object contextMsg) {
     List<ErrorMessage> errors = new ArrayList<>();
     List<ConfigGroups> allConfigGroups = getAllConfigGroups(klass);
     Set<String> allGroupNames = new HashSet<>();
@@ -62,7 +61,7 @@ public abstract class ConfigGroupExtractor {
     return errors;
   }
 
-  public ConfigGroupDefinition extract(Class<? extends Stage> klass, Object contextMsg) {
+  public ConfigGroupDefinition extract(Class klass, Object contextMsg) {
     List<ErrorMessage> errors = validate(klass, contextMsg);
     if (errors.isEmpty()) {
       List<ConfigGroups> allConfigGroups = getAllConfigGroups(klass);

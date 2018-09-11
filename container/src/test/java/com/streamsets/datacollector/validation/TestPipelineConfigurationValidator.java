@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -356,5 +356,88 @@ public class TestPipelineConfigurationValidator {
     List<Issue> issues = conf.getIssues().getIssues();
     Assert.assertEquals(1, issues.size());
     Assert.assertEquals(ValidationError.VALIDATION_0103.name(), issues.get(0).getErrorCode());
+  }
+
+  // Proper pipeline lifecycle event configuration
+  @Test
+  public void testPipelineLifecycleEvents() {
+    StageLibraryTask lib = MockStages.createStageLibrary();
+    PipelineConfiguration conf = MockStages.createPipelineConfigurationLifecycleEvents();
+    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(lib, "name", conf);
+    validator.validate();
+
+    Assert.assertFalse(validator.getIssues().hasIssues());
+    Assert.assertTrue(validator.canPreview());
+  }
+
+  // Incorrect configuration - input and event lanes
+  @Test
+  public void testPipelineLifecycleEventsIncorrect() {
+    StageLibraryTask lib = MockStages.createStageLibrary();
+    PipelineConfiguration conf = MockStages.createPipelineConfigurationLifecycleEventsIncorrect();
+    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(lib, "name", conf);
+    validator.validate();
+
+    Assert.assertTrue(validator.getIssues().hasIssues());
+    Assert.assertFalse(validator.canPreview());
+
+    List<Issue> issues = conf.getIssues().getIssues();
+    Assert.assertEquals(2, issues.size());
+    Assert.assertEquals(ValidationError.VALIDATION_0036.name(), issues.get(0).getErrorCode());
+    Assert.assertEquals(ValidationError.VALIDATION_0012.name(), issues.get(1).getErrorCode());
+  }
+
+  // Incorrect configuration - cluster mode
+  @Test
+  public void testPipelineLifecycleEventsClusterMode() {
+    StageLibraryTask lib = MockStages.createStageLibrary();
+    PipelineConfiguration conf = MockStages.createPipelineConfigurationLifecycleEvents();
+    conf.getConfiguration().remove(conf.getConfiguration("executionMode"));
+    conf.getConfiguration().add(new Config("executionMode", ExecutionMode.CLUSTER_BATCH));
+
+    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(lib, "name", conf);
+    validator.validate();
+
+    Assert.assertTrue(validator.getIssues().hasIssues());
+    Assert.assertFalse(validator.canPreview());
+
+    List<Issue> issues = conf.getIssues().getIssues();
+    Assert.assertEquals(2, issues.size());
+    Assert.assertEquals(ValidationError.VALIDATION_0106.name(), issues.get(0).getErrorCode());
+    Assert.assertEquals(ValidationError.VALIDATION_0106.name(), issues.get(1).getErrorCode());
+  }
+
+  @Test
+  public void testFragmentUnrolled() {
+    doTestFragmentUnrolled(MockStages.createPipelineConfigSourceFragmentTarget());
+  }
+
+  @Test
+  public void testNestedFragmentUnrolled() {
+    doTestFragmentUnrolled(MockStages.createPipelineConfigSourceFragmentInsideFragmentTarget());
+  }
+
+  private void doTestFragmentUnrolled(PipelineConfiguration conf) {
+    StageLibraryTask lib = MockStages.createStageLibrary();
+    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(lib, "name", conf);
+    Assert.assertFalse(validator.validate().getIssues().hasIssues());
+    Assert.assertTrue(validator.canPreview());
+    Assert.assertFalse(validator.getIssues().hasIssues());
+    Assert.assertTrue(validator.getOpenLanes().isEmpty());
+  }
+
+  @Test
+  public void testHiddenStageOnPipelineCanvas() {
+    StageLibraryTask lib = MockStages.createStageLibrary();
+    PipelineConfiguration conf = MockStages.createPipelineWithHiddenStage();
+    PipelineConfigurationValidator validator = new PipelineConfigurationValidator(lib, "name", conf);
+    validator.validate();
+
+    Assert.assertTrue(validator.getIssues().hasIssues());
+    Assert.assertFalse(validator.canPreview());
+
+    List<Issue> issues = conf.getIssues().getIssues();
+    Assert.assertEquals(1, issues.size());
+    Assert.assertEquals(ValidationError.VALIDATION_0037.name(), issues.get(0).getErrorCode());
   }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.lib.generator.DataGeneratorException;
 import com.streamsets.pipeline.lib.util.AvroJavaSnappyCodec;
+import com.streamsets.pipeline.lib.util.AvroSchemaHelper;
 import com.streamsets.pipeline.lib.util.AvroTypeUtil;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
@@ -49,9 +50,12 @@ public class AvroDataOutputStreamGenerator extends BaseAvroDataGenerator {
       OutputStream outputStream,
       String compressionCodec,
       Schema schema,
-      Map<String, Object> defaultValueMap
+      Map<String, Object> defaultValueMap,
+      String schemaSubject,
+      AvroSchemaHelper schemaHelper,
+      int schemaId
   ) throws IOException {
-    super(schemaInHeader, schema, defaultValueMap);
+    super(schemaInHeader, schema, defaultValueMap, schemaHelper, schemaSubject, schemaId);
     this.compressionCodec = compressionCodec;
     this.outputStream = outputStream;
     if(!schemaInHeader) {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +23,8 @@ import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.TargetRunner;
-import com.streamsets.pipeline.stage.BaseHiveIT;
 import com.streamsets.pipeline.stage.HiveMetastoreTargetBuilder;
+import com.streamsets.pipeline.stage.HiveTestUtil;
 import com.streamsets.pipeline.stage.lib.hive.Errors;
 import com.streamsets.pipeline.stage.lib.hive.HiveConfigBean;
 import com.streamsets.pipeline.stage.lib.hive.HiveMetastoreUtil;
@@ -44,7 +44,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.api.support.membermodification.MemberMatcher;
@@ -80,6 +79,8 @@ import java.util.Map;
 public class TestHiveMetastoreTarget {
   private static final Logger LOG = LoggerFactory.getLogger(TestHiveMetastoreTarget.class);
 
+
+
   @Before
   public void setup() throws Exception{
     PowerMockito.suppress(
@@ -91,18 +92,6 @@ public class TestHiveMetastoreTarget {
             List.class
         )
     );
-    PowerMockito.replace(
-        MemberMatcher.method(
-            HMSCache.Builder.class,
-            "build"
-        )
-    ).with(new InvocationHandler() {
-      @Override
-      public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        args[0] = Mockito.mock(HiveQueryExecutor.class);
-        return method.invoke(proxy, args);
-      }
-    });
     PowerMockito.replace(
         MemberMatcher.method(
             HiveConfigBean.class,
@@ -150,7 +139,7 @@ public class TestHiveMetastoreTarget {
         generateColumnTypeInfo(),
         generatePartitionTypeInfo(),
         true,
-        BaseHiveIT.getDefaultWareHouseDir() +"/sample",
+        HiveTestUtil.WAREHOUSE_DIR +"/sample",
         "",
         HMPDataFormat.AVRO
     );

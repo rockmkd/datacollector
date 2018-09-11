@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.streamsets.pipeline.stage.destination.solr;
 
 import com.esotericsoftware.minlog.Log;
 import com.streamsets.pipeline.api.Batch;
+import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
@@ -51,13 +52,31 @@ public class SolrTarget extends BaseTarget {
   private final List<SolrFieldMappingConfig> fieldNamesMap;
   private final boolean kerberosAuth;
   private final MissingFieldAction missingFieldAction;
+  private final boolean skipValidation;
+  private final boolean waitFlush;
+  private final boolean waitSearcher;
+  private final boolean softCommit;
+  private final boolean ignoreOptionalFields;
 
   private ErrorRecordHandler errorRecordHandler;
   private SdcSolrTarget sdcSolrTarget;
+  private List<String> requiredFieldNamesMap;
 
-  public SolrTarget(final InstanceTypeOptions instanceType, final String solrURI, final String zookeeperConnect,
-                    final ProcessingMode indexingMode, final List<SolrFieldMappingConfig> fieldNamesMap,
-                    String defaultCollection, boolean kerberosAuth, MissingFieldAction missingFieldAction) {
+  public SolrTarget(
+      final InstanceTypeOptions instanceType,
+      final String solrURI,
+      final String zookeeperConnect,
+      final ProcessingMode indexingMode,
+      final List<SolrFieldMappingConfig> fieldNamesMap,
+      String defaultCollection,
+      boolean kerberosAuth,
+      MissingFieldAction missingFieldAction,
+      boolean skipValidation,
+      boolean waitFlush,
+      boolean waitSearcher,
+      boolean softCommit,
+      boolean ignoreOptionalFields
+  ) {
     this.instanceType = instanceType;
     this.solrURI = solrURI;
     this.zookeeperConnect = zookeeperConnect;
@@ -66,6 +85,11 @@ public class SolrTarget extends BaseTarget {
     this.fieldNamesMap = fieldNamesMap;
     this.kerberosAuth = kerberosAuth;
     this.missingFieldAction = missingFieldAction;
+    this.skipValidation = skipValidation;
+    this.waitFlush = waitFlush;
+    this.waitSearcher = waitSearcher;
+    this.softCommit = softCommit;
+    this.ignoreOptionalFields = ignoreOptionalFields;
   }
 
   @Override
@@ -84,7 +108,7 @@ public class SolrTarget extends BaseTarget {
       issues.add(getContext().createConfigIssue(Groups.SOLR.name(), "zookeeperConnect", Errors.SOLR_01));
     }
 
-    if(fieldNamesMap == null || fieldNamesMap.isEmpty()) {
+    if (fieldNamesMap == null || fieldNamesMap.isEmpty()) {
       issues.add(getContext().createConfigIssue(Groups.SOLR.name(), "fieldNamesMap", Errors.SOLR_02));
     }
 
@@ -94,11 +118,17 @@ public class SolrTarget extends BaseTarget {
           solrURI,
           zookeeperConnect,
           defaultCollection,
-          kerberosAuth
+          kerberosAuth,
+          skipValidation,
+          waitFlush,
+          waitSearcher,
+          softCommit,
+          ignoreOptionalFields
       );
       sdcSolrTarget = SdcSolrTargetFactory.create(settings).create();
       try {
         sdcSolrTarget.init();
+        this.requiredFieldNamesMap = sdcSolrTarget.getRequiredFieldNamesMap();
       } catch (Exception ex) {
         String configName = "solrURI";
         if(InstanceTypeOptions.SOLR_CLOUD.equals(instanceType.getInstanceType())) {
@@ -127,6 +157,11 @@ public class SolrTarget extends BaseTarget {
         for (SolrFieldMappingConfig fieldMapping : fieldNamesMap) {
           Field field = record.get(fieldMapping.field);
           if (field == null) {
+            if (ignoreOptionalFields) {
+              if (requiredFieldNamesMap == null || !requiredFieldNamesMap.contains(fieldMapping.field)) {
+                continue;
+              }
+            }
             switch (missingFieldAction) {
               case DISCARD:
                 LOG.debug(Errors.SOLR_06.getMessage(), fieldMapping.field);

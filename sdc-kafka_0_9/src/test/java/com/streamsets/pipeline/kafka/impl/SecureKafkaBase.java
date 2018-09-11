@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -116,7 +116,8 @@ public abstract class SecureKafkaBase {
       1000,
       sourceContext,
       consumerConfig,
-      "test"
+      "test",
+      100
     );
     SdcKafkaConsumerFactory sdcKafkaConsumerFactory = SdcKafkaConsumerFactory.create(consumerFactorySettings);
     SdcKafkaConsumer sdcKafkaConsumer = sdcKafkaConsumerFactory.create();
@@ -133,7 +134,8 @@ public abstract class SecureKafkaBase {
       kafkaProducerConfigs,
       PartitionStrategy.DEFAULT,
       "localhost:" + getSecurePort(),
-      DataFormat.JSON
+      DataFormat.JSON,
+      false
     );
     SdcKafkaProducerFactory sdcKafkaProducerFactory = SdcKafkaProducerFactory.create(settings);
     SdcKafkaProducer sdcKafkaProducer = sdcKafkaProducerFactory.create();
@@ -143,7 +145,7 @@ public abstract class SecureKafkaBase {
     for(int i = 0; i < 10; i++) {
       sdcKafkaProducer.enqueueMessage(getTopic(), message.getBytes(), "0");
     }
-    sdcKafkaProducer.write();
+    sdcKafkaProducer.write(null);
 
     // read 10 messages
     List<MessageAndOffset> read = new ArrayList<>();

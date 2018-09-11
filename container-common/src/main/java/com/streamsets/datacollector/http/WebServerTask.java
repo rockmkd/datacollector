@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 package com.streamsets.datacollector.http;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.streamsets.datacollector.activation.Activation;
+import com.streamsets.datacollector.activation.ActivationAuthenticator;
 import com.streamsets.datacollector.main.BuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.restapi.WebServerAgentCondition;
 import com.streamsets.datacollector.task.AbstractTask;
 import com.streamsets.datacollector.util.Configuration;
+import com.streamsets.lib.security.RegistrationResponseJson;
 import com.streamsets.lib.security.http.DisconnectedSSOManager;
 import com.streamsets.lib.security.http.DisconnectedSSOService;
 import com.streamsets.lib.security.http.FailoverSSOService;
 import com.streamsets.lib.security.http.ProxySSOService;
+import com.streamsets.lib.security.http.RegistrationResponseDelegate;
 import com.streamsets.lib.security.http.RemoteSSOService;
 import com.streamsets.lib.security.http.SSOAuthenticator;
 import com.streamsets.lib.security.http.SSOConstants;
@@ -35,6 +41,7 @@ import com.streamsets.pipeline.api.impl.Utils;
 import org.eclipse.jetty.jaas.JAASLoginService;
 import org.eclipse.jetty.rewrite.handler.RewriteHandler;
 import org.eclipse.jetty.rewrite.handler.RewriteRegexRule;
+import org.eclipse.jetty.security.Authenticator;
 import org.eclipse.jetty.security.ConstraintMapping;
 import org.eclipse.jetty.security.ConstraintSecurityHandler;
 import org.eclipse.jetty.security.DefaultIdentityService;
@@ -106,7 +113,8 @@ import java.util.Set;
  * protected means authentication IS required.
  *
  */
-public abstract class WebServerTask extends AbstractTask {
+public abstract class WebServerTask extends AbstractTask implements RegistrationResponseDelegate {
+
   public static final String HTTP_BIND_HOST = "http.bindHost";
   private static final String HTTP_BIND_HOST_DEFAULT = "0.0.0.0";
 
@@ -166,6 +174,7 @@ public abstract class WebServerTask extends AbstractTask {
   private final BuildInfo buildInfo;
   private final RuntimeInfo runtimeInfo;
   private final Configuration conf;
+  private final Activation activation;
   private final Set<WebAppProvider> webAppProviders;
   private final Set<ContextConfigurator> contextConfigurators;
   private int port;
@@ -179,10 +188,11 @@ public abstract class WebServerTask extends AbstractTask {
       BuildInfo buildInfo,
       RuntimeInfo runtimeInfo,
       Configuration conf,
+      Activation activation,
       Set<ContextConfigurator> contextConfigurators,
       Set<WebAppProvider> webAppProviders
   ) {
-    this("webserver", buildInfo, runtimeInfo, conf, contextConfigurators, webAppProviders);
+    this("webserver", buildInfo, runtimeInfo, conf, activation, contextConfigurators, webAppProviders);
   }
 
   public WebServerTask(
@@ -190,6 +200,7 @@ public abstract class WebServerTask extends AbstractTask {
       BuildInfo buildInfo,
       RuntimeInfo runtimeInfo,
       Configuration conf,
+      Activation activation,
       Set<ContextConfigurator> contextConfigurators,
       Set<WebAppProvider> webAppProviders
   ) {
@@ -198,6 +209,7 @@ public abstract class WebServerTask extends AbstractTask {
     this.buildInfo = buildInfo;
     this.runtimeInfo = runtimeInfo;
     this.conf = conf;
+    this.activation = activation;
     this.webAppProviders = webAppProviders;
     this.contextConfigurators = contextConfigurators;
   }
@@ -216,7 +228,7 @@ public abstract class WebServerTask extends AbstractTask {
 
     synchronized (getRuntimeInfo()) {
       if (!getRuntimeInfo().hasAttribute(SSO_SERVICES_ATTR)) {
-        getRuntimeInfo().setAttribute(SSO_SERVICES_ATTR, Collections.synchronizedList(new ArrayList<Object>()));
+        getRuntimeInfo().setAttribute(SSO_SERVICES_ATTR, Collections.synchronizedList(new ArrayList<>()));
       }
     }
 
@@ -260,12 +272,9 @@ public abstract class WebServerTask extends AbstractTask {
       redirector = createRedirectorServer();
     }
 
-    addToPostStart(new Runnable() {
-      @Override
-      public void run() {
-        for (WebAppProvider appProvider : webAppProviders) {
-          appProvider.postStart();
-        }
+    addToPostStart(() -> {
+      for (WebAppProvider appProvider : webAppProviders) {
+        appProvider.postStart();
       }
     });
 
@@ -299,6 +308,17 @@ public abstract class WebServerTask extends AbstractTask {
     uiRewriteRule.setRegex("^/collector/.*");
     uiRewriteRule.setReplacement("/");
     handler.addRule(uiRewriteRule);
+
+    uiRewriteRule = new RewriteRegexRule();
+    uiRewriteRule.setRegex("^/sch/.*");
+    uiRewriteRule.setReplacement("/");
+    handler.addRule(uiRewriteRule);
+
+    uiRewriteRule = new RewriteRegexRule();
+    uiRewriteRule.setRegex("^/adminApp/.*");
+    uiRewriteRule.setReplacement("/");
+    handler.addRule(uiRewriteRule);
+
     handler.setHandler(appHandler);
 
     HandlerCollection handlerCollection = new HandlerCollection();
@@ -440,9 +460,25 @@ public abstract class WebServerTask extends AbstractTask {
     }
   }
 
+  @Override
+  public void processRegistrationResponse(RegistrationResponseJson response) {
+    LOG.info("Received registration command from Control Hub");
+
+    // Propagate new configuration
+    try {
+      if(!response.getConfiguration().isEmpty()) {
+        RuntimeInfo.storeControlHubConfigs(runtimeInfo, response.getConfiguration());
+        conf.set(response.getConfiguration());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e.toString(), e);
+    }
+  }
+
   RemoteSSOService createRemoteSSOService(Configuration appConf) {
     RemoteSSOService remoteSsoService = new RemoteSSOService();
     remoteSsoService.setConfiguration(appConf);
+    remoteSsoService.setRegistrationResponseDelegate(this);
     return remoteSsoService;
   }
 
@@ -484,13 +520,10 @@ public abstract class WebServerTask extends AbstractTask {
       ssoService = remoteSsoService;
     }
 
-    addToPostStart(new Runnable() {
-      @Override
-      public void run() {
-        LOG.debug("Validating application token for DPM component ID '{}'", componentId);
-        ssoService.register(getRegistrationAttributes());
-        runtimeInfo.setRemoteRegistrationStatus(true);
-      }
+    addToPostStart(() -> {
+      LOG.debug("Validating application token for DPM component ID '{}'", componentId);
+      ssoService.register(getRegistrationAttributes());
+      runtimeInfo.setRemoteRegistrationStatus(true);
     });
 
     SSOService proxySsoService = new ProxySSOService(ssoService);
@@ -498,8 +531,12 @@ public abstract class WebServerTask extends AbstractTask {
     // registering ssoService with runtime, to enable cache flushing
     ((List)getRuntimeInfo().getAttribute(SSO_SERVICES_ATTR)).add(proxySsoService);
     appHandler.getServletContext().setAttribute(SSOService.SSO_SERVICE_KEY, proxySsoService);
-    security.setAuthenticator(new SSOAuthenticator(appContext, proxySsoService, appConf));
+    security.setAuthenticator(injectActivationCheck(new SSOAuthenticator(appContext, proxySsoService, appConf)));
     return security;
+  }
+
+  protected Authenticator injectActivationCheck(Authenticator authenticator) {
+    return (activation == null) ? authenticator : new ActivationAuthenticator(authenticator, activation);
   }
 
   private ConstraintSecurityHandler configureDigestBasic(Configuration conf, Server server, String mode) {
@@ -509,10 +546,18 @@ public abstract class WebServerTask extends AbstractTask {
     ConstraintSecurityHandler security = new ConstraintSecurityHandler();
     switch (mode) {
       case "digest":
-        security.setAuthenticator(new ProxyAuthenticator(new DigestAuthenticator(), runtimeInfo, conf));
+        security.setAuthenticator(injectActivationCheck(new ProxyAuthenticator(
+            new DigestAuthenticator(),
+            runtimeInfo,
+            conf
+        )));
         break;
       case "basic":
-        security.setAuthenticator(new ProxyAuthenticator(new BasicAuthenticator(), runtimeInfo, conf));
+        security.setAuthenticator(injectActivationCheck(new ProxyAuthenticator(
+            new BasicAuthenticator(),
+            runtimeInfo,
+            conf
+        )));
         break;
       default:
         // no action
@@ -530,7 +575,7 @@ public abstract class WebServerTask extends AbstractTask {
     securityHandler.setLoginService(loginService);
 
     FormAuthenticator authenticator = new FormAuthenticator("/login.html", "/login.html?error=true", true);
-    securityHandler.setAuthenticator(new ProxyAuthenticator(authenticator, runtimeInfo, conf));
+    securityHandler.setAuthenticator(injectActivationCheck(new ProxyAuthenticator(authenticator, runtimeInfo, conf)));
     return securityHandler;
   }
 
@@ -710,6 +755,15 @@ public abstract class WebServerTask extends AbstractTask {
 
   @Override
   protected void runTask() {
+    runTaskInternal();
+    try {
+      WebServerAgentCondition.waitForCredentials();
+    } catch (InterruptedException ex) {
+      LOG.error("Interrupted while waiting for credentials to be deployed", ex);
+    }
+  }
+
+  private void runTaskInternal() {
     for (ContextConfigurator cc : contextConfigurators) {
       cc.start();
     }
@@ -874,9 +928,7 @@ public abstract class WebServerTask extends AbstractTask {
         String[] map = mapping.split(":", 2);
         String ldapRole = map[0].trim();
         String[] streamSetsRoles = map[1].split(",");
-        if (roleMapping.get(ldapRole) == null) {
-          roleMapping.put(ldapRole, new HashSet<String>());
-        }
+        roleMapping.computeIfAbsent(ldapRole, k -> new HashSet<>());
         final Set<String> streamSetsRolesSet = roleMapping.get(ldapRole);
         for (String streamSetsRole : streamSetsRoles) {
           streamSetsRolesSet.add(streamSetsRole.trim());
@@ -890,7 +942,7 @@ public abstract class WebServerTask extends AbstractTask {
   }
 
   protected Set<String> tryMappingRole(String role) {
-    Set<String> roles = new HashSet<String>();
+    Set<String> roles = new HashSet<>();
     if (roleMapping == null || roleMapping.isEmpty()) {
       return roles;
     }

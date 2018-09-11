@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -167,6 +167,12 @@ public class FailoverSSOService implements SSOService {
   public void clearCaches() {
     failoverIfRemoteNotActive(false);
     getActiveService().clearCaches();
+  }
+
+  @Override
+  public void setRegistrationResponseDelegate(RegistrationResponseDelegate delegate) {
+    remoteService.setRegistrationResponseDelegate(delegate);
+    disconnectedService.setRegistrationResponseDelegate(delegate);
   }
 
 }

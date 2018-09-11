@@ -68,6 +68,16 @@
       <fileMode>0644</fileMode>
     </fileSet>
 
+    <!-- systemd -->
+    <fileSet>
+      <directory>${basedir}/src/main</directory>
+      <outputDirectory>/</outputDirectory>
+      <includes>
+        <include>systemd/*</include>
+      </includes>
+      <fileMode>0644</fileMode>
+    </fileSet>
+
     <!-- libexec -->
     <fileSet>
       <directory>${basedir}/src/main</directory>
@@ -132,6 +142,11 @@
       </excludes>
     </fileSet>
 
+    <fileSet>
+      <directory>${basedir}/target/edge-binaries</directory>
+      <outputDirectory>/edge-binaries</outputDirectory>
+    </fileSet>
+
     <!-- local docs -->
     <fileSet>
       <directory>${docs.dist-dir}</directory>
@@ -168,6 +183,18 @@
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
+    <!-- DataFormants libs -->
+    <fileSet>
+      <directory>${basedir}/../dataformats-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+<!-- crypto-lib -->
+    <fileSet>
+      <directory>${basedir}/../crypto-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
     <!-- stats-lib -->
     <fileSet>
       <directory>${basedir}/../stats-lib/target/streamsets-libs/</directory>
@@ -177,6 +204,12 @@
     <!-- omniture-lib -->
     <fileSet>
       <directory>${basedir}/../omniture-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- jks-credentialstore-lib -->
+    <fileSet>
+      <directory>${basedir}/../jks-credentialstore-lib/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -206,39 +239,11 @@
 
     <!-- dev-lib -->
     <fileSet>
-      <directory>${basedir}/../dev-lib/target/user-libs/</directory>
-      <outputDirectory>/user-libs/</outputDirectory>
+      <directory>${basedir}/../dev-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
     <!-- CDH libs -->
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_2-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_3-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_4-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_5-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_7-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_8-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_9-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
     <fileSet>
       <directory>${basedir}/../${cdh_5_10-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
@@ -247,114 +252,117 @@
       <directory>${basedir}/../${cdh_5_11-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_5_12-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_5_13-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_5_14-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_5_15-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_6_0-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
 
     <!-- CDH Spark Kafka lib -->
     <fileSet>
-      <directory>${basedir}/../${cdh_5_4-cluster-cdh_kafka_1_2-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${cdh-spark_2_1-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${basedir}/../${cdh_5_4-cluster-cdh_kafka_1_3-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${cdh-spark_2_2-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${basedir}/../${cdh_5_5-cluster-cdh_kafka_1_2-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_5-cluster-cdh_kafka_1_3-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_7-cluster-cdh_kafka_2_0-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_8-cluster-cdh_kafka_2_0-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_9-cluster-cdh_kafka_2_0-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_10-cluster-cdh_kafka_2_1-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_5_11-cluster-cdh_kafka_2_1-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${cdh-spark_2_3-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
     <!-- HDP Libs -->
     <fileSet>
-      <directory>${basedir}/../${hdp_2_2-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${hdp_2_3-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${hdp_2_4-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${hdp_2_5-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
       <directory>${basedir}/../${hdp_2_6-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${hdp_2_6_1-hive1-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${hdp_2_6_2-hive1-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${hdp_2_6-hive2-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${hdp_2_6-flume-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
     <!-- MapR Libs -->
     <fileSet>
-      <directory>${basedir}/../${mapr_5_0-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${mapr_5_1-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
       <directory>${basedir}/../${mapr_5_2-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
-
+    <fileSet>
+      <directory>${basedir}/../${mapr_6_0-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${mapr_6_0-mep4-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${mapr_6_0-mep5-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
     <!-- Apache Kudu libs -->
     <fileSet>
-      <directory>${basedir}/../${apache-kudu_1_0-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${apache-kudu_1_1-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${apache-kudu_1_2-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
       <directory>${basedir}/../${apache-kudu_1_3-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${apache-kudu_1_4-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${apache-kudu_1_5-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${apache-kudu_1_6-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${apache-kudu_1_7-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
     <!-- Apache Kafka libs -->
     <fileSet>
-      <directory>${basedir}/../${apache-kafka_0_8_1-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${apache-kafka_0_11-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${basedir}/../${apache-kafka_0_8_2-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${apache-kafka_1_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${basedir}/../${apache-kafka_0_9-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${apache-kafka_1_1-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${basedir}/../${apache-kafka_0_10-lib}/target/streamsets-libs/</directory>
+      <directory>${basedir}/../${apache-kafka_2_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -369,6 +377,10 @@
       <directory>${basedir}/../aws-lib/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
+    <fileSet>
+      <directory>${basedir}/../kinesis-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
 
     <!-- Azure libs -->
     <fileSet>
@@ -376,9 +388,8 @@
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
-    <!-- Bigtable -->
     <fileSet>
-      <directory>${basedir}/../bigtable-lib/target/streamsets-libs/</directory>
+      <directory>${basedir}/../azure-keyvault-credentialstore-lib/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -394,21 +405,20 @@
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
+    <!-- Aerospike -->
+    <fileSet>
+        <directory>${basedir}/../aerospike-lib/target/streamsets-libs/</directory>
+        <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+
     <!-- CDH5 Kafka libs -->
     <fileSet>
-      <directory>${basedir}/../${cdh_kafka_1_2-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_kafka_1_3-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
-      <directory>${basedir}/../${cdh_kafka_2_0-lib}/target/streamsets-libs/</directory>
-      <outputDirectory>/streamsets-libs/</outputDirectory>
-    </fileSet>
-    <fileSet>
       <directory>${basedir}/../${cdh_kafka_2_1-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${cdh_kafka_3_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -422,15 +432,42 @@
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
+    <!-- CouchBase libs -->
+     <fileSet>
+      <directory>${basedir}/../${couchbase_5-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
     <!-- Jython libs -->
     <fileSet>
       <directory>${basedir}/../${jython_2_7-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
+    <!-- Google Cloud Libraries -->
+    <fileSet>
+      <directory>${basedir}/../${google-cloud-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <fileSet>
+      <directory>${basedir}/../${bigtable-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
     <!-- Groovy libs -->
     <fileSet>
       <directory>${basedir}/../${groovy_2_4-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- Kinetica libs -->
+     <fileSet>
+      <directory>${basedir}/../${kinetica_6_0-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../${kinetica_6_1-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -461,6 +498,60 @@
     <!-- Salesforce -->
     <fileSet>
       <directory>${basedir}/../salesforce-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- Databricks ML libs -->
+    <fileSet>
+      <directory>${basedir}/../${databricks-ml_2-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- TensorFlow -->
+    <fileSet>
+      <directory>${basedir}/../${tensorflow-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- vault-credentialstore-lib -->
+    <fileSet>
+      <directory>${basedir}/../vault-credentialstore-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- windows-lib-->
+    <fileSet>
+      <directory>${basedir}/../${windows-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- cyberark-credentialstore-lib -->
+    <fileSet>
+      <directory>${basedir}/../cyberark-credentialstore-lib/target/streamsets-libs/</directory>
+    </fileSet>
+
+    <!-- wholefile-transformer-lib -->
+    <fileSet>
+      <directory>${basedir}/../wholefile-transformer-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- EMR libs -->
+
+    <fileSet>
+      <directory>${basedir}/../${emr_hadoop_2_8_3-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <!-- Pulsar libs -->
+
+    <fileSet>
+      <directory>${basedir}/../${apache-pulsar_2-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
+    <fileSet>
+      <directory>${basedir}/../${azure-keyvault_1_0-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
@@ -530,6 +621,7 @@
         <include>com.streamsets:streamsets-datacollector-cluster-bootstrap-api</include>
         <include>com.streamsets:streamsets-datacollector-cluster-bootstrap</include>
         <include>com.streamsets:streamsets-datacollector-mapr-cluster-bootstrap</include>
+        <include>com.streamsets:streamsets-datacollector-mapr-cluster-bootstrap_2_2</include>
         <include>com.streamsets:streamsets-datacollector-mesos-bootstrap</include>
         <include>com.streamsets:streamsets-datacollector-spark-api</include>
       </includes>

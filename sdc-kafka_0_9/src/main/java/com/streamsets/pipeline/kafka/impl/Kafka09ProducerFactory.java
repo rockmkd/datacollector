@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,8 @@ public class Kafka09ProducerFactory extends SdcKafkaProducerFactory {
     return new KafkaProducer09(
         settings.getMetadataBrokerList(),
         settings.getKafkaProducerConfigs(),
-        settings.getPartitionStrategy()
+        settings.getPartitionStrategy(),
+        settings.isSendWriteResponse()
     );
   }
 }

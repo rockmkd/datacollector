@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
  */
 package com.streamsets.pipeline.stage.lib.aws;
 
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.common.InterfaceAudience;
 import com.streamsets.pipeline.common.InterfaceStability;
@@ -26,27 +26,21 @@ public class AWSConfig {
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Access Key ID",
-      description = "",
-      defaultValue = "",
       displayPosition = -110,
-      elDefs = VaultEL.class,
       group = "#0"
   )
-  public String awsAccessKeyId;
+  public CredentialValue awsAccessKeyId;
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Secret Access Key",
-      description = "",
-      defaultValue = "",
       displayPosition = -100,
-      elDefs = VaultEL.class,
       group = "#0"
   )
-  public String awsSecretAccessKey;
+  public CredentialValue awsSecretAccessKey;
 
   /**
    * FakeS3 used for testing does not support chunked encoding

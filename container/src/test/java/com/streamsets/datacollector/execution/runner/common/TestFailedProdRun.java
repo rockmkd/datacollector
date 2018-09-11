@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,9 @@
 package com.streamsets.datacollector.execution.runner.common;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
+import com.streamsets.datacollector.util.PipelineDirectoryUtil;
 import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.ErrorListener;
 import com.streamsets.pipeline.api.Field;
@@ -38,6 +40,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -76,7 +80,7 @@ public class TestFailedProdRun {
     SourceOffsetTracker tracker = Mockito.mock(SourceOffsetTracker.class);
     BlockingQueue<Object> productionObserveRequests = new ArrayBlockingQueue<>(100, true /*FIFO*/);
     Configuration conf = new Configuration();
-    ProductionPipelineRunner runner = new ProductionPipelineRunner(PIPELINE_NAME, REVISION, conf, runtimeInfo,
+    ProductionPipelineRunner runner = new ProductionPipelineRunner(PIPELINE_NAME, REVISION, null, conf, runtimeInfo,
       new MetricRegistry(), Mockito.mock(FileSnapshotStore.class), null);
     runner.setMemoryLimitConfiguration(new MemoryLimitConfiguration());
     runner.setObserveRequests(productionObserveRequests);
@@ -91,8 +95,13 @@ public class TestFailedProdRun {
       MockStages.createStageLibrary(),
       runner,
       null,
+      Mockito.mock(BlobStoreTask.class),
       Mockito.mock(LineagePublisherTask.class)
-    ).build(MockStages.userContext(), pipelineConfiguration);
+    ).build(
+      MockStages.userContext(),
+      pipelineConfiguration,
+      System.currentTimeMillis()
+    );
 
 
   }
@@ -123,7 +132,7 @@ public class TestFailedProdRun {
   }
 
   @Test
-  public void testPipelineError() throws PipelineRuntimeException, StageException {
+  public void testPipelineError() throws PipelineRuntimeException, StageException, IOException {
     String msg = "ERROR YALL";
     ErrorListeningSource.thrownError = new SomeException(msg);
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
@@ -133,12 +142,13 @@ public class TestFailedProdRun {
     SourceOffsetTracker tracker = Mockito.mock(SourceOffsetTracker.class);
     BlockingQueue<Object> productionObserveRequests = new ArrayBlockingQueue<>(100, true /*FIFO*/);
     Configuration conf = new Configuration();
-    ProductionPipelineRunner runner = new ProductionPipelineRunner(PIPELINE_NAME, REVISION, conf, runtimeInfo, new MetricRegistry(), Mockito.mock(FileSnapshotStore.class),
+    ProductionPipelineRunner runner = new ProductionPipelineRunner(PIPELINE_NAME, REVISION, null, conf, runtimeInfo, new MetricRegistry(), Mockito.mock(FileSnapshotStore.class),
       null);
     runner.setMemoryLimitConfiguration(new MemoryLimitConfiguration());
     runner.setObserveRequests(productionObserveRequests);
     runner.setOffsetTracker(tracker);
     PipelineConfiguration pipelineConfiguration = MockStages.createPipelineConfigurationSourceProcessorTarget();
+    Files.createDirectories(PipelineDirectoryUtil.getPipelineDir(runtimeInfo, PIPELINE_NAME, REVISION).toPath());
     ProductionPipeline pipeline = new ProductionPipelineBuilder(
       PIPELINE_NAME,
       REVISION,
@@ -147,8 +157,13 @@ public class TestFailedProdRun {
       MockStages.createStageLibrary(),
       runner,
       null,
+      Mockito.mock(BlobStoreTask.class),
       Mockito.mock(LineagePublisherTask.class)
-    ).build(MockStages.userContext(), pipelineConfiguration);
+    ).build(
+      MockStages.userContext(),
+      pipelineConfiguration,
+      System.currentTimeMillis()
+    );
     try {
       pipeline.registerStatusListener(new TestProductionPipeline.MyStateListener());
       pipeline.run();

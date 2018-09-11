@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,23 +26,22 @@ import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.lib.util.ThreadUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 @GenerateResourceBundle
 @StageDef(
   version = 1,
   label = "Dev Random Record Source",
   description = "Generates records with the specified field names, using Long data. For development only.",
-  execution = ExecutionMode.STANDALONE,
+  execution = {ExecutionMode.STANDALONE, ExecutionMode.EDGE},
   icon = "dev.png",
-  onlineHelpRefUrl = "index.html#Pipeline_Design/DevStages.html"
+  onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
 )
 public class RandomSource extends BaseSource {
   private static final Logger LOG = LoggerFactory.getLogger(RandomSource.class);

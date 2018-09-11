@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,16 +18,20 @@ package com.streamsets.pipeline.stage.destination.sdcipc;
 import com.streamsets.pipeline.api.ErrorStage;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.HideStage;
+import com.streamsets.pipeline.api.PipelineLifecycleStage;
 import com.streamsets.pipeline.api.StageDef;
 
 @StageDef(
-    version = 1,
+  // We're reusing upgrader for both ToErrorSdcIpcDTarget and SdcIpcDTarget, make sure that you
+  // upgrade both versions at the same time when changing.
+    version = 2,
     label = "Write to Another Pipeline",
     description = "",
     icon = "",
-    onlineHelpRefUrl = "index.html#Pipeline_Configuration/ErrorHandling.html#concept_kgc_l4y_5r"
+    onlineHelpRefUrl ="index.html?contextID=concept_kgc_l4y_5r",
+    upgrader = SdcIpcTargetUpgrader.class
 )
-@ErrorStage
 @HideConfigs(
     preconditions = true,
     onErrorRecord = true,
@@ -38,6 +42,9 @@ import com.streamsets.pipeline.api.StageDef;
         "config.tlsConfigBean.keyStoreAlgorithm"
     }
 )
+@ErrorStage
+@PipelineLifecycleStage
+@HideStage({HideStage.Type.ERROR_STAGE, HideStage.Type.LIFECYCLE_STAGE})
 @GenerateResourceBundle
 public class ToErrorSdcIpcDTarget extends SdcIpcDTarget {
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +18,11 @@ package com.streamsets.datacollector.definition;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Primitives;
+import com.streamsets.datacollector.credential.ClearCredentialValue;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.util.ElUtil;
 import com.streamsets.pipeline.api.ConfigDef;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
 
@@ -48,6 +50,10 @@ public abstract class ConfigValueExtractor {
                                                                    Float.class, Float.TYPE,
                                                                    Double.class, Double.TYPE);
   public final static Set<Class> CHARACTER_TYPES = ImmutableSet.<Class>of(Character.class, Character.TYPE);
+
+  public static boolean isCredentialValueConfig(Class type) {
+    return CredentialValue.class.isAssignableFrom(type);
+  }
 
   @SuppressWarnings("unchecked")
   public List<ErrorMessage> validate(Field field, ConfigDef.Type type, String valueStr, Object contextMsg,
@@ -149,6 +155,16 @@ public abstract class ConfigValueExtractor {
               errors.add(new ErrorMessage(DefinitionError.DEF_011, contextMsg, field.getType()));
             }
             break;
+          case CREDENTIAL:
+            if (!CredentialValue.class.isAssignableFrom(field.getType())) {
+              errors.add(new ErrorMessage(DefinitionError.DEF_014, contextMsg, field.getType()));
+            }
+            break;
+          case RUNTIME:
+            if (!NUMBER_TYPES.contains(field.getType()) && !String.class.isAssignableFrom(field.getType())) {
+              errors.add(new ErrorMessage(DefinitionError.DEF_015, contextMsg, field.getType()));
+            }
+            break;
         }
       }
     }
@@ -180,19 +196,7 @@ public abstract class ConfigValueExtractor {
                 value = Boolean.parseBoolean(valueStr);
                 break;
               case NUMBER:
-                if (field.getType() == Byte.TYPE || field.getType() == Byte.class) {
-                  value = Byte.parseByte(valueStr);
-                } else  if (field.getType() == Short.TYPE || field.getType() == Short.class) {
-                  value = Short.parseShort(valueStr);
-                } else   if (field.getType() == Integer.TYPE || field.getType() == Integer.class) {
-                  value = Integer.parseInt(valueStr);
-                } else if (field.getType() == Long.TYPE || field.getType() == Long.class) {
-                  value = Long.parseLong(valueStr);
-                } else if (field.getType() == Float.TYPE || field.getType() == Float.class) {
-                  value = Float.parseFloat(valueStr);
-                } else if (field.getType() == Double.TYPE || field.getType() == Double.class) {
-                  value = Double.parseDouble(valueStr);
-                }
+                value = extractAsNumber(field, valueStr);
                 break;
               case STRING:
               case MODEL:
@@ -207,9 +211,7 @@ public abstract class ConfigValueExtractor {
                 }
                 break;
               case LIST:
-                value = ObjectMapperFactory.get().readValue(valueStr, List.class);
-                // convert to enum if necessary
-                value = convertElementsToEnum(field, (List) value);
+                value = extractAsList(field, valueStr);
                 break;
               case MAP:
                 Map<String, ?> map = ObjectMapperFactory.get().readValue(valueStr, LinkedHashMap.class);
@@ -225,6 +227,12 @@ public abstract class ConfigValueExtractor {
               case TEXT:
                 value = valueStr;
                 break;
+              case CREDENTIAL:
+                value = new ClearCredentialValue(valueStr);
+                break;
+              case RUNTIME:
+                value = extractAsRuntime(field, valueStr);
+                break;
             }
           } catch (IOException ex) {
             throw new RuntimeException(Utils.format("Unexpected exception: {}", ex.toString()), ex);
@@ -235,6 +243,47 @@ public abstract class ConfigValueExtractor {
     } else {
       throw new IllegalArgumentException(Utils.format("Invalid configuration value: {}", errors));
     }
+  }
+
+  // RUNTIME supports only Numeric types and String at the moment
+  private Object extractAsRuntime(Field field, String valueStr) {
+     if (field.getType() == Byte.TYPE || field.getType() == Byte.class ||
+         field.getType() == Short.TYPE || field.getType() == Short.class ||
+         field.getType() == Integer.TYPE || field.getType() == Integer.class ||
+         field.getType() == Long.TYPE || field.getType() == Long.class ||
+         field.getType() == Float.TYPE || field.getType() == Float.class ||
+         field.getType() == Double.TYPE || field.getType() == Double.class) {
+       return extractAsNumber(field, valueStr);
+    } else if (String.class.isAssignableFrom(field.getType())) {
+       return valueStr;
+    }
+
+    throw new IllegalArgumentException(Utils.format("Invalid type for RUNTIME type: {}", field.getType()));
+  }
+
+  private Object extractAsList(Field field, String valueStr) throws IOException {
+    Object value = ObjectMapperFactory.get().readValue(valueStr, List.class);
+    // convert to enum if necessary
+    value = convertElementsToEnum(field, (List) value);
+    return value;
+  }
+
+  private Object extractAsNumber(Field field, String valueStr) {
+    if (field.getType() == Byte.TYPE || field.getType() == Byte.class) {
+      return Byte.parseByte(valueStr);
+    } else if (field.getType() == Short.TYPE || field.getType() == Short.class) {
+      return Short.parseShort(valueStr);
+    } else if (field.getType() == Integer.TYPE || field.getType() == Integer.class) {
+      return Integer.parseInt(valueStr);
+    } else if (field.getType() == Long.TYPE || field.getType() == Long.class) {
+      return Long.parseLong(valueStr);
+    } else if (field.getType() == Float.TYPE || field.getType() == Float.class) {
+      return Float.parseFloat(valueStr);
+    } else if (field.getType() == Double.TYPE || field.getType() == Double.class) {
+      return Double.parseDouble(valueStr);
+    }
+
+    throw new IllegalArgumentException(Utils.format("Invalid number type: ", field.getType()));
   }
 
   Class getListType(Field listField) {

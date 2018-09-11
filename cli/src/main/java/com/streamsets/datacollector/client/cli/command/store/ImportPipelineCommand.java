@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,6 +78,8 @@ public class ImportPipelineCommand extends BaseCommand {
             "0",
             overwrite,
             autoGeneratePipelineId,
+            false,
+            false,
             pipelineEnvelopeJson
         );
         System.out.println("Successfully imported from file '" + fileName + "' to pipeline - " + pipelineTitle );

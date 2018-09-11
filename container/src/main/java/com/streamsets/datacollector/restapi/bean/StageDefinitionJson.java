@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@ package com.streamsets.datacollector.restapi.bean;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.pipeline.api.ExecutionMode;
 
 import java.util.List;
@@ -24,9 +25,9 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StageDefinitionJson {
 
-  private final com.streamsets.datacollector.config.StageDefinition stageDefinition;
+  private final StageDefinition stageDefinition;
 
-  public StageDefinitionJson(com.streamsets.datacollector.config.StageDefinition stageDefinition) {
+  public StageDefinitionJson(StageDefinition stageDefinition) {
     this.stageDefinition = stageDefinition;
   }
 
@@ -78,6 +79,10 @@ public class StageDefinitionJson {
     return stageDefinition.isStatsAggregatorStage();
   }
 
+  public boolean isPipelineLifecycleStage() {
+    return stageDefinition.isPipelineLifecycleStage();
+  }
+
   public boolean isOffsetCommitTrigger() {
     return stageDefinition.isOffsetCommitTrigger();
   }
@@ -112,6 +117,10 @@ public class StageDefinitionJson {
     return stageDefinition.getOutputStreamLabelProviderClass();
   }
 
+  public String getOutputStreamsDrivenByConfig() {
+    return stageDefinition.getOutputStreamsDrivenByConfig();
+  }
+
   public String getLibrary() {
     return stageDefinition.getLibrary();
   }
@@ -135,5 +144,17 @@ public class StageDefinitionJson {
   @JsonProperty("producingEvents")
   public boolean isProducingEvents() {
     return stageDefinition.isProducingEvents();
+  }
+
+  public List<ServiceDependencyDefinitionJson> getServices() {
+    return BeanHelper.wrapServiceDependencyDefinitions(stageDefinition.getServices());
+  }
+
+  public List<String> getHideStage() {
+    return BeanHelper.wrapHideStage(stageDefinition.getHideStage());
+  }
+
+  public boolean getSendsResponse() {
+    return stageDefinition.getSendsResponse();
   }
 }

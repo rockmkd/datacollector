@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,12 +40,15 @@ public enum Errors implements ErrorCode {
   MONGODB_17("Error writing records to Mongo : {}"),
   MONGODB_18("Operation '{}' requires unique key to be configured"),
   MONGODB_19("Initial Offset is required when the offset field is ObjectId type"),
+  MONGODB_20("Unknown Offset type : {}"),
+  MONGODB_21("Error parsing {} to Date"),
 
   MONGODB_30("Oplog Document Missing the follow mandatory fields '{}'"),
   MONGODB_31("Oplog Offset Invalid, Cannot parse offset '{}'," +
       " offset should be of the form 'time_t::ordinal'. Reason {}"),
   MONGODB_32("Invalid Initial Offset Value for '{}', should be greater than -1 if '{}' is not -1"),
   MONGODB_33("Invalid Oplog Collection Name '{}', Oplog collection should start with 'oplog.'"),
+  MONGODB_34("Can't create credential object: {}"),
 
   ;
   private final String msg;

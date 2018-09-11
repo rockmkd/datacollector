@@ -1,13 +1,9 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
- * Licensed under the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -29,7 +25,6 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.BlockingQueue;
 
 public class TestLineagePublisherDefinitionExtractor {
 
@@ -45,8 +40,8 @@ public class TestLineagePublisherDefinitionExtractor {
     }
 
     @Override
-    public void run(List<LineageEvent> list) {
-
+    public boolean publishEvents(List<LineageEvent> events) {
+      return false;
     }
 
     @Override

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@ import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.Runner;
+import com.streamsets.datacollector.execution.StartPipelineContextBuilder;
 import com.streamsets.datacollector.http.ServerNotYetRunningException;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.main.BuildInfo;
@@ -77,7 +78,7 @@ public class MiniITDataCollector implements DataCollector {
     StageLibraryTask stageLibrary = pipelineTask.getStageLibraryTask();
     PipelineStoreTask store = pipelineTask.getPipelineStoreTask();
     PipelineConfiguration tmpPipelineConfig =
-      store.create(user, pipelineName, pipelineName, desc, false);
+      store.create(user, pipelineName, pipelineName, desc, false, false);
     // we might want to add an import API as now to import have to create one then update it
     realPipelineConfig.setUuid(tmpPipelineConfig.getUuid());
     PipelineConfigurationValidator validator =
@@ -100,7 +101,7 @@ public class MiniITDataCollector implements DataCollector {
     this.pipelineRev = Utils.checkNotNull(realPipelineConfig.getInfo(), "Pipeline Info").getLastRev();
     createAndSave(pipelineName);
     runner = pipelineManager.getRunner(pipelineName, pipelineRev);
-    runner.start(realPipelineConfig.getInfo().getCreator());
+    runner.start(new StartPipelineContextBuilder(realPipelineConfig.getInfo().getCreator()).build());
   }
 
   @Override
@@ -122,7 +123,7 @@ public class MiniITDataCollector implements DataCollector {
   public void startPipeline() throws Exception {
     Utils.checkNotNull(pipelineName, "No pipeline to run");
     runner = pipelineManager.getRunner(pipelineName, pipelineRev);
-    runner.start(realPipelineConfig.getInfo().getCreator());
+    runner.start(new StartPipelineContextBuilder(realPipelineConfig.getInfo().getCreator()).build());
   }
 
   @Override
@@ -223,7 +224,7 @@ public class MiniITDataCollector implements DataCollector {
     ObjectMapper json = ObjectMapperFactory.getOneLine();
     RuleDefinitionsJson ruleDefinitionsJson = json.readValue(ruleDefinitionsJsonString, RuleDefinitionsJson.class);
     RuleDefinitions ruleDefinitions = BeanHelper.unwrapRuleDefinitions(ruleDefinitionsJson);
-    RuleDefinitions ruleDefinitions1 = pipelineTask.getPipelineStoreTask().storeRules(name, tag, ruleDefinitions);
+    RuleDefinitions ruleDefinitions1 = pipelineTask.getPipelineStoreTask().storeRules(name, tag, ruleDefinitions, false);
     return ObjectMapperFactory.get().writeValueAsString(BeanHelper.wrapRuleDefinitions(ruleDefinitions1));
   }
 

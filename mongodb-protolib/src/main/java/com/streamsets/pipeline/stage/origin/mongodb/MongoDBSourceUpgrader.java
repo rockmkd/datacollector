@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +43,9 @@ public class MongoDBSourceUpgrader implements StageUpgrader {
         // fall through
       case 2:
         upgradeV2ToV3(configs);
+        // fall through
+      case 3:
+        upgradeV3toV4(configs);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected fromVersion {}", fromVersion));
@@ -136,5 +139,9 @@ public class MongoDBSourceUpgrader implements StageUpgrader {
 
   private void upgradeV2ToV3(List<Config> configs) {
     configs.add(new Config(MongoDBConfig.CONFIG_PREFIX + "offsetType", OffsetFieldType.OBJECTID));
+  }
+
+  private void upgradeV3toV4(List<Config> configs) {
+    configs.add(new Config(MongoDBConfig.MONGO_CONFIG_PREFIX + "authSource", ""));
   }
 }

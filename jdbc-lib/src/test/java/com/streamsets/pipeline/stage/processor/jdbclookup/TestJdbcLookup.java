@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.stage.processor.jdbclookup;
 
 import com.google.common.collect.ImmutableList;
+import com.streamsets.pipeline.api.ConfigIssue;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Record;
@@ -27,7 +28,10 @@ import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnMapping;
 import com.streamsets.pipeline.sdk.ProcessorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.stage.common.MissingValuesBehavior;
 import com.streamsets.pipeline.stage.common.MultipleValuesBehavior;
+import com.streamsets.pipeline.stage.processor.kv.CacheConfig;
+import com.streamsets.pipeline.stage.processor.kv.EvictionPolicyType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -35,6 +39,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import javax.validation.constraints.AssertTrue;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -98,26 +103,30 @@ public class TestJdbcLookup {
     connection.close();
   }
 
-  private HikariPoolConfigBean createConfigBean(String connectionString, String username, String password) {
-    HikariPoolConfigBean bean = new HikariPoolConfigBean();
-    bean.connectionString = connectionString;
-    bean.username = username;
-    bean.password = password;
+  private JdbcLookupDProcessor createProcessor() {
+    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
+    processor.hikariConfigBean = new HikariPoolConfigBean();
+    processor.hikariConfigBean.connectionString = h2ConnectionString;
+    processor.hikariConfigBean.useCredentials = true;
+    processor.hikariConfigBean.username = () -> username;
+    processor.hikariConfigBean.password = () -> password;
+    processor.cacheConfig = new CacheConfig();
+    processor.cacheConfig.evictionPolicyType = EvictionPolicyType.EXPIRE_AFTER_WRITE;
 
-    return bean;
+    return processor;
   }
 
   @Test
   public void testEmptyBatch() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[3]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -137,13 +146,13 @@ public class TestJdbcLookup {
   public void testSingleRecordList() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -174,13 +183,13 @@ public class TestJdbcLookup {
   public void testSingleRecordMap() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "/p_id"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", mapQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -211,13 +220,14 @@ public class TestJdbcLookup {
   public void testMultiRecord() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
+    processor.cacheConfig.enabled = true;
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -256,13 +266,13 @@ public class TestJdbcLookup {
 
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -292,16 +302,62 @@ public class TestJdbcLookup {
   }
 
   @Test
-  public void testBadConnectionString() throws Exception {
+  public void testMultiRecordMissingRowNoError() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean("bad connection string", username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.PASS_RECORD_ON)
+        .addConfiguration("maxClobSize", 1000)
+        .addConfiguration("maxBlobSize", 1000)
+        .addOutputLane("lane")
+        .build();
+
+    Record record1 = RecordCreator.create();
+    List<Field> fields1 = new ArrayList<>();
+    fields1.add(Field.create("Adam"));
+    fields1.add(Field.create("Kunicki"));
+    record1.set(Field.create(fields1));
+
+    Record record2 = RecordCreator.create();
+    List<Field> fields2 = new ArrayList<>();
+    fields2.add(Field.create("Jon"));
+    fields2.add(Field.create("Natkins"));
+    record2.set(Field.create(fields2));
+
+    Record record3 = RecordCreator.create();
+    List<Field> fields3 = new ArrayList<>();
+    fields3.add(Field.create("Pat"));
+    fields3.add(Field.create("Patterson"));
+    record3.set(Field.create(fields3));
+
+    List<Record> records = ImmutableList.of(record1, record2, record3);
+    processorRunner.runInit();
+    processorRunner.runProcess(records);
+
+    List<Record> outputRecords = processorRunner.runProcess(records).getRecords().get("lane");
+
+    Assert.assertEquals(1, outputRecords.get(0).get("[2]").getValueAsInteger());
+    Assert.assertEquals(2, outputRecords.get(1).get("[2]").getValueAsInteger());
+    Assert.assertEquals(null, outputRecords.get(2).get("[2]"));
+  }
+
+  @Test
+  public void testBadConnectionString() throws Exception {
+    List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
+
+    JdbcLookupDProcessor processor = createProcessor();
+    processor.hikariConfigBean.connectionString = "bad connection string";
+
+    ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
+        .addConfiguration("query", listQuery)
+        .addConfiguration("columnMappings", columnMappings)
+        .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -315,13 +371,15 @@ public class TestJdbcLookup {
   public void testBadCredentials() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, "foo", "bar");
+    JdbcLookupDProcessor processor = createProcessor();
+    processor.hikariConfigBean.username = () -> "foo";
+    processor.hikariConfigBean.password = () -> "bar";
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -335,13 +393,13 @@ public class TestJdbcLookup {
   public void testMissingColumnMappingList() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of();
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -378,13 +436,13 @@ public class TestJdbcLookup {
   public void testMissingColumnMappingMap() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of();
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", mapQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -423,13 +481,13 @@ public class TestJdbcLookup {
         new JdbcFieldColumnMapping("P_ID", "[2]", "100", DataType.USE_COLUMN_TYPE)
     );
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -446,37 +504,23 @@ public class TestJdbcLookup {
         new JdbcFieldColumnMapping("P_ID", "[2]", "HUNDRED", DataType.INTEGER)
     );
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", queryReturnsNoRow)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .setOnRecordError(OnRecordError.TO_ERROR)
         .addOutputLane("lane")
         .build();
 
-    Record record = RecordCreator.create();
-    List<Field> fields = new ArrayList<>();
-    fields.add(Field.create("Adam"));
-    fields.add(Field.create("Kunicki"));
-    record.set(Field.create(fields));
-
-    List<Record> singleRecord = ImmutableList.of(record);
-    processorRunner.runInit();
-    try {
-      StageRunner.Output output = processorRunner.runProcess(singleRecord);
-      Assert.assertEquals(0, output.getRecords().get("lane").size());
-
-      // Make sure record is sent to error.
-      List<Record> errors = processorRunner.getErrorRecords();
-      Assert.assertEquals(1, errors.size());
-    } finally {
-      processorRunner.runDestroy();
-    }
+    List<Stage.ConfigIssue> issues = processorRunner.runValidateConfigs();
+    Assert.assertEquals(1, issues.size());
+    String issue = issues.get(0).toString();
+    Assert.assertTrue(issue, issue.contains("JDBC_03 - Failed to parse column 'P_ID' to field with value HUNDRED.'"));
   }
 
   @Test
@@ -485,13 +529,13 @@ public class TestJdbcLookup {
         new JdbcFieldColumnMapping("P_ID", "[2]", "100", DataType.INTEGER)
     );
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", queryReturnsNoRow)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -524,13 +568,13 @@ public class TestJdbcLookup {
         new JdbcFieldColumnMapping("P_ID", "[2]", "1-1-1999", DataType.DATE)
     );
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -548,13 +592,13 @@ public class TestJdbcLookup {
         new JdbcFieldColumnMapping("P_ID", "[2]", timeStr, DataType.DATETIME)
     );
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", queryReturnsNoRow)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -593,13 +637,13 @@ public class TestJdbcLookup {
   public void testMultipleValuesSplitIntoMultipleRecords() throws Exception {
     List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(new JdbcFieldColumnMapping("P_ID", "[2]"));
 
-    JdbcLookupDProcessor processor = new JdbcLookupDProcessor();
-    processor.hikariConfigBean = createConfigBean(h2ConnectionString, username, password);
+    JdbcLookupDProcessor processor = createProcessor();
 
     ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
         .addConfiguration("query", listQuery)
         .addConfiguration("columnMappings", columnMappings)
         .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.SPLIT_INTO_MULTIPLE_RECORDS)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
         .addConfiguration("maxClobSize", 1000)
         .addConfiguration("maxBlobSize", 1000)
         .addOutputLane("lane")
@@ -623,6 +667,60 @@ public class TestJdbcLookup {
       record = output.getRecords().get("lane").get(1);
       Assert.assertEquals(5, record.get("[2]").getValueAsInteger());
 
+    } finally {
+      processorRunner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testRetryOnCacheMiss() throws Exception {
+    List<JdbcFieldColumnMapping> columnMappings = ImmutableList.of(
+        new JdbcFieldColumnMapping("P_ID", "[2]", "666", DataType.INTEGER)
+    );
+
+    JdbcLookupDProcessor processor = createProcessor();
+    processor.cacheConfig.enabled = true;
+    processor.cacheConfig.retryOnCacheMiss = true;
+
+    ProcessorRunner processorRunner = new ProcessorRunner.Builder(JdbcLookupDProcessor.class, processor)
+        .addConfiguration("query", listQuery)
+        .addConfiguration("columnMappings", columnMappings)
+        .addConfiguration("multipleValuesBehavior", MultipleValuesBehavior.FIRST_ONLY)
+        .addConfiguration("missingValuesBehavior", MissingValuesBehavior.SEND_TO_ERROR)
+        .addConfiguration("maxClobSize", 1000)
+        .addConfiguration("maxBlobSize", 1000)
+        .addOutputLane("lane")
+        .build();
+
+    Record record = RecordCreator.create();
+    List<Field> fields = new ArrayList<>();
+    fields.add(Field.create("Jarcec"));
+    fields.add(Field.create(""));
+    record.set(Field.create(fields));
+
+    List<Record> singleRecord = ImmutableList.of(record);
+    processorRunner.runInit();
+    try {
+      // First run should return default value
+      StageRunner.Output output = processorRunner.runProcess(singleRecord);
+      Assert.assertEquals(1, output.getRecords().get("lane").size());
+      record = output.getRecords().get("lane").get(0);
+      Assert.assertNotEquals(null, record.get("[2]"));
+      Assert.assertEquals(666, record.get("[2]").getValueAsInteger());
+
+      // Insert new entry
+      try (Statement statement = connection.createStatement()) {
+        statement.addBatch("INSERT INTO TEST.TEST_TABLE VALUES (20, 'Jarcec', '')");
+
+        statement.executeBatch();
+      }
+
+      // Second run should however return the new value (no caching for "cache miss")
+      output = processorRunner.runProcess(singleRecord);
+      Assert.assertEquals(1, output.getRecords().get("lane").size());
+      record = output.getRecords().get("lane").get(0);
+      Assert.assertNotEquals(null, record.get("[2]"));
+      Assert.assertEquals(20, record.get("[2]").getValueAsInteger());
     } finally {
       processorRunner.runDestroy();
     }

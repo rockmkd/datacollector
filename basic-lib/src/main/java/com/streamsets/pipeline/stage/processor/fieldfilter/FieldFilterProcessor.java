@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,20 +18,27 @@ package com.streamsets.pipeline.stage.processor.fieldfilter;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.SingleLaneRecordProcessor;
+import com.streamsets.pipeline.api.el.ELEval;
+import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.lib.util.FieldPathExpressionUtil;
 import com.streamsets.pipeline.lib.util.FieldRegexUtil;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.Iterator;
 import java.util.Set;
+import java.util.HashSet;
 
 public class FieldFilterProcessor extends SingleLaneRecordProcessor {
 
   private final FilterOperation filterOperation;
   private final List<String> fields;
+  private ELEval fieldPathEval;
+  private ELVars fieldPathVars;
 
 
   public FieldFilterProcessor(FilterOperation filterOperation, List<String> fields) {
@@ -40,25 +47,44 @@ public class FieldFilterProcessor extends SingleLaneRecordProcessor {
   }
 
   @Override
+  protected List<ConfigIssue> init() {
+    fieldPathEval = getContext().createELEval("fields");
+    fieldPathVars = getContext().createELVars();
+    return super.init();
+  }
+
+  @Override
   protected void process(Record record, SingleLaneBatchMaker batchMaker) throws StageException {
-    Set<String> fieldPaths = record.getEscapedFieldPaths();
-    List<String> list;
+    // use List to preserve the order of list fieldPaths - need to watch out for duplicates though
+    List<String> allFieldPaths = record.getEscapedFieldPathsOrdered();
+    // use LinkedHashSet to preserve order and dedupe as we go
+    LinkedHashSet<String> fieldsToRemove;
     switch(filterOperation) {
       case REMOVE:
-        list = new ArrayList<>();
+        fieldsToRemove = new LinkedHashSet<>();
         for(String field : fields) {
-          List<String> matchingFieldPaths = FieldRegexUtil.getMatchingFieldPaths(field, fieldPaths);
-          list.addAll(matchingFieldPaths);
+          List<String> matchingFieldPaths = FieldPathExpressionUtil.evaluateMatchingFieldPaths(
+              field,
+              fieldPathEval,
+              fieldPathVars,
+              record,
+              allFieldPaths
+          );
+          fieldsToRemove.addAll(matchingFieldPaths);
         }
         break;
       case REMOVE_NULL:
-        list = new ArrayList<>();
+        fieldsToRemove = new LinkedHashSet<>();
         for (String field : fields) {
-          List<String> matchingFieldPaths = FieldRegexUtil.getMatchingFieldPaths(field, fieldPaths);
+          List<String> matchingFieldPaths = FieldPathExpressionUtil.evaluateMatchingFieldPaths(
+              field,
+              fieldPathEval,
+              fieldPathVars,
+              record,
+              allFieldPaths
+          );
           for (String fieldPath : matchingFieldPaths) {
-            if (fieldPaths.contains(fieldPath) && record.get(fieldPath).getValue() == null) {
-              list.add(fieldPath);
-            }
+            if (record.has(fieldPath) && record.get(fieldPath).getValue() == null) fieldsToRemove.add(fieldPath);
           }
         }
         break;
@@ -70,42 +96,38 @@ public class FieldFilterProcessor extends SingleLaneRecordProcessor {
         //   (Account for presence of wild card characters while doing so) The remaining set of fields is what must be
         //   removed from the record.
         //
-        // - Sort this set before deleting fields. Last element of a list must be removed first.
-
-        Set<String> fieldsToRemove = new HashSet<>();
+        // - Keep fieldsToRemove in order - sorting is too costly
         //List all the possible field paths in this record
-        fieldsToRemove.addAll(fieldPaths);
-
+        fieldsToRemove = new LinkedHashSet<>(allFieldPaths);
         for(String field : fields) {
           //Keep parent fields
-
           //get the parent fieldPaths for each of the fields to keep
           List<String> parentFieldPaths = getParentFields(field);
           //remove parent paths from the fieldsToRemove set
           //Note that parent names could contain wild card characters
           for(String parentField : parentFieldPaths) {
-            List<String> matchingFieldPaths = FieldRegexUtil.getMatchingFieldPaths(parentField, fieldPaths);
+            List<String> matchingFieldPaths = FieldRegexUtil.getMatchingFieldPaths(parentField, allFieldPaths);
             fieldsToRemove.removeAll(matchingFieldPaths);
           }
 
           //Keep the field itself
-
           //remove the field path itself from the fieldsToRemove set
           //Consider wild card characters
-
-          List<String> matchingFieldPaths = FieldRegexUtil.getMatchingFieldPaths(field, fieldPaths);
+          List<String> matchingFieldPaths = FieldPathExpressionUtil.evaluateMatchingFieldPaths(
+              field,
+              fieldPathEval,
+              fieldPathVars,
+              record,
+              allFieldPaths
+          );
           fieldsToRemove.removeAll(matchingFieldPaths);
-          //Keep the children of the field
 
-          //For each of the fieldPaths that match the argument field path, generate all the child paths
-          List<String> childFieldsToRemove = new ArrayList<>();
+          //Keep the children of the field
+          //For each of the fieldPaths that match the argument field path, remove all the child paths
+          // Remove children at the end to avoid ConcurrentModificationException
+          Set<String> childrenToKeep = new HashSet<>();
           for(String matchingFieldPath : matchingFieldPaths) {
             for(String fieldToRemove : fieldsToRemove) {
-              // this change is due to SDC-3970 and SDC-3942 (and others).
-              // for example, if the record has field1, field12, and field13 and the user
-              // specifies "keep only field1", using startsWith will also match field12 and field13. so
-              // in this case we need "equals".
-              //
               // for the old way, startsWith is appropriate when we have
               // different path structures, or "nested" (multiple dimensioned) index structures.
               //  eg: /USA[0]/SanFrancisco/folsom/streets[0] must still match:
@@ -113,26 +135,26 @@ public class FieldFilterProcessor extends SingleLaneRecordProcessor {
               if (StringUtils.countMatches(fieldToRemove, "/") == StringUtils.countMatches(matchingFieldPath, "/")
                   && StringUtils.countMatches(fieldToRemove, "[") == StringUtils.countMatches(matchingFieldPath, "[")) {
                 if (fieldToRemove.equals(matchingFieldPath)) {
-                  childFieldsToRemove.add(fieldToRemove);
+                  childrenToKeep.add(fieldToRemove);
                 }
               } else {
                 if (fieldToRemove.startsWith(matchingFieldPath)) {
-                  childFieldsToRemove.add(fieldToRemove);
+                  childrenToKeep.add(fieldToRemove);
                 }
               }
             }
           }
-
-          fieldsToRemove.removeAll(childFieldsToRemove);
+          fieldsToRemove.removeAll(childrenToKeep);
         }
-        list = new ArrayList<>(fieldsToRemove);
         break;
       default:
         throw new IllegalStateException(Utils.format("Unexpected Filter Operation '{}'", filterOperation.name()));
     }
-    Collections.sort(list);
-    for (int i = list.size()-1; i >= 0; i--) {
-      record.delete(list.get(i));
+    // We don't sort because we maintained list fields in ascending order (but not a full ordering)
+    // Instead we just iterate in reverse to delete
+    Iterator<String> itr = (new LinkedList<>(fieldsToRemove)).descendingIterator();
+    while(itr.hasNext()) {
+      record.delete(itr.next());
     }
     batchMaker.addRecord(record);
   }

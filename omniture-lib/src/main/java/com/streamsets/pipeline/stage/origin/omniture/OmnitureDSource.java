@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.origin.omniture;
 
-import com.streamsets.pipeline.lib.el.VaultEL;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
@@ -24,7 +23,8 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DSource;
+import com.streamsets.pipeline.api.base.configurablestage.DSource;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 
 @StageDef(
     version = 2,
@@ -34,7 +34,7 @@ import com.streamsets.pipeline.configurablestage.DSource;
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
     upgrader = OmnitureSourceUpgrader.class,
-    onlineHelpRefUrl = "index.html#Origins/Omniture.html#task_of4_wpw_1s"
+    onlineHelpRefUrl ="index.html?contextID=task_of4_wpw_1s"
 )
 
 @ConfigGroups(Groups.class)
@@ -127,26 +127,23 @@ public class OmnitureDSource extends DSource {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Username",
       description = "Omniture Username",
       displayPosition = 45,
-      elDefs = VaultEL.class,
       group = "OMNITURE"
   )
-  public String username;
+  public CredentialValue username;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Shared Secret",
       description = "Omniture Shared Secret",
       displayPosition = 50,
-      elDefs = VaultEL.class,
       group = "OMNITURE"
   )
-  public String sharedSecret;
-
+  public CredentialValue sharedSecret;
 
   @ConfigDef(
       required = true,

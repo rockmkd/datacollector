@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,9 @@ import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.ErrorCode;
 import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Record;
+
+import java.util.Collection;
+import java.util.List;
 
 /**
  * SDK implementation of the BatchContext interface
@@ -58,6 +61,21 @@ public class BatchContextSdkImpl implements BatchContext {
   @Override
   public void toEvent(EventRecord record) {
     context.toEvent(record);
+  }
+
+  @Override
+  public void complete(Record record) {
+    context.complete(record);
+  }
+
+  @Override
+  public void complete(Collection<Record> records) {
+    context.complete(records);
+  }
+
+  @Override
+  public List<Record> getSourceResponseRecords() {
+    return context.getSourceResponseSink().getResponseRecords();
   }
 
 }

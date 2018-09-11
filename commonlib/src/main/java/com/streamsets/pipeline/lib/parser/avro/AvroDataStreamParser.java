@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +15,13 @@
  */
 package com.streamsets.pipeline.lib.parser.avro;
 
+import com.streamsets.pipeline.api.ProtoConfigurableEntity;
 import com.streamsets.pipeline.api.Record;
-import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.lib.io.OverrunInputStream;
 import com.streamsets.pipeline.lib.parser.AbstractDataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.util.AvroTypeUtil;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.generic.GenericData;
@@ -42,11 +43,16 @@ public class AvroDataStreamParser extends AbstractDataParser {
   private final DataFileStream<GenericRecord> dataFileStream;
   private final OverrunInputStream overrunInputStream;
   private boolean eof;
-  private Stage.Context context;
+  private ProtoConfigurableEntity.Context context;
 
-  public AvroDataStreamParser(Stage.Context context, Schema schema, String streamName, InputStream inputStream,
-                              long recordCount, int maxObjectLength)
-    throws IOException {
+  public AvroDataStreamParser(
+      ProtoConfigurableEntity.Context context,
+      Schema schema,
+      String streamName,
+      InputStream inputStream,
+      long recordCount,
+      int maxObjectLength
+  ) throws IOException {
     this.context = context;
     avroSchema = schema;
     this.streamName = streamName;
@@ -70,6 +76,7 @@ public class AvroDataStreamParser extends AbstractDataParser {
       recordCount++;
       Record record = context.createRecord(streamName + OFFSET_SEPARATOR + recordCount);
       record.set(AvroTypeUtil.avroToSdcField(record, avroRecord.getSchema(), avroRecord));
+      record.getHeader().setAttribute(HeaderAttributeConstants.AVRO_SCHEMA, avroRecord.getSchema().toString());
       return record;
     }
     eof = true;

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,6 +59,7 @@ import javax.inject.Singleton;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
+import javax.ws.rs.HEAD;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -74,6 +75,7 @@ import java.security.KeyPairGenerator;
 import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -280,6 +282,11 @@ public class HttpClientSourceIT extends JerseyTest {
       String queriedName = map.get(name);
       final String entity = "{\"name\": \"" + queriedName + "\"}\r\n";
       return entityOnlyOnFirstRequest(entity);
+    }
+
+    @HEAD
+    public Response headRequest() {
+      return Response.ok().build();
     }
   }
 
@@ -550,6 +557,24 @@ public class HttpClientSourceIT extends JerseyTest {
     }
   }
 
+  @Path("/jsonArray")
+  @Produces("application/json")
+  public static class JsonArrayResource {
+    @GET
+    public Response getJsonArray() {
+      return entityOnlyOnFirstRequest(
+          "[{\"AccountId\":1,\"DeviceId\":77,\"DeviceName\":\"Tetraphis Moss\",\"Latitude\":8.5681393," +
+              "\"Longitude\":-70.3583879,\"Heading\":100,\"Velocity\":33,\"Satellites\":16,\"Ignition\":13," +
+              "\"LastMoved\":\"2017-06-03\",\"LastUpdated\":\"2017-04-21\",\"OutputFlags\":92,\"Power\":62}," +
+              "{\"AccountId\":2,\"DeviceId\":85,\"DeviceName\":\"Field Locoweed\",\"Latitude\":54.3667173," +
+              "\"Longitude\":92.1024101,\"Heading\":51,\"Velocity\":64,\"Satellites\":81,\"Ignition\":44," +
+              "\"LastMoved\":\"2017-06-04\",\"LastUpdated\":\"2017-07-23\",\"OutputFlags\":68,\"Power\":58}," +
+              "{\"AccountId\":3,\"DeviceId\":50,\"DeviceName\":\"Eggplant\",\"Latitude\":40.039342," +
+              "\"Longitude\":116.260921,\"Heading\":56,\"Velocity\":58,\"Satellites\":16,\"Ignition\":40," +
+              "\"LastMoved\":\"2017-08-30\",\"LastUpdated\":\"2018-02-01\",\"OutputFlags\":64,\"Power\":79}]");
+    }
+  }
+
   @Override
   protected Application configure() {
     forceSet(TestProperties.CONTAINER_PORT, "0");
@@ -569,7 +594,8 @@ public class HttpClientSourceIT extends JerseyTest {
             Auth2Resource.class,
             Auth2ResourceOwnerWithIdResource.class,
             Auth2BasicResource.class,
-            Auth2JWTResource.class
+            Auth2JWTResource.class,
+            JsonArrayResource.class
         )
     );
   }
@@ -599,7 +625,8 @@ public class HttpClientSourceIT extends JerseyTest {
                     Auth2Resource.class,
                     Auth2ResourceOwnerWithIdResource.class,
                     Auth2BasicResource.class,
-                    Auth2JWTResource.class
+                    Auth2JWTResource.class,
+                    JsonArrayResource.class
                 )
             )
         )
@@ -655,8 +682,11 @@ public class HttpClientSourceIT extends JerseyTest {
         .build();
     runner.runInit();
 
+    int batchId = -1;
+
     try {
       for (String[] expectedNames : expectedNameBatches) {
+        batchId++;
         StageRunner.Output output = runner.runProduce(null, 1000);
         Map<String, List<Record>> recordMap = output.getRecords();
         List<Record> parsedRecords = new ArrayList<>(recordMap.get("lane"));
@@ -667,7 +697,7 @@ public class HttpClientSourceIT extends JerseyTest {
         }
 
 
-        assertEquals(expectedNames.length, parsedRecords.size());
+        assertEquals("Expected size different fot batch id: " + batchId, expectedNames.length, parsedRecords.size());
 
         for (int i = 0; i < parsedRecords.size(); i++) {
           if (dataFormat == DataFormat.JSON || dataFormat == DataFormat.XML) {
@@ -680,6 +710,85 @@ public class HttpClientSourceIT extends JerseyTest {
       runner.runDestroy();
     }
   }
+
+  @Test
+  public void testStreamingHead() throws Exception {
+    // Validates that a HEAD request successfully gets headers and has exactly 1 record output with an empty body
+    HttpClientConfigBean conf = new HttpClientConfigBean();
+    conf.client.authType = AuthenticationType.NONE;
+    conf.httpMode = HttpClientMode.STREAMING;
+    conf.headers.put("abcdef", "ghijkl");
+    conf.resourceUrl = getBaseUri() + "headers";
+    conf.client.readTimeoutMillis = 1000;
+    conf.basic.maxBatchSize = 100;
+    conf.basic.maxWaitTime = 1000;
+    conf.pollingInterval = 1000;
+    conf.httpMethod = HttpMethod.HEAD;
+    conf.dataFormat = DataFormat.JSON;
+    conf.dataFormatConfig.jsonContent = JsonMode.MULTIPLE_OBJECTS;
+
+    HttpClientSource origin = new HttpClientSource(conf);
+
+    SourceRunner runner = new SourceRunner.Builder(HttpClientDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+    runner.runInit();
+
+    try {
+      List<Record> parsedRecords = getRecords(runner);
+      assertEquals(1, parsedRecords.size());
+
+      Map<String, Object> lowerCasedKeys = new HashMap<>();
+      parsedRecords.get(0).getHeader().getAllAttributes().forEach((k, v) -> lowerCasedKeys.put(k.toLowerCase(), v));
+      assertEquals("StreamSets", lowerCasedKeys.get("x-test-header"));
+      assertEquals("[a, b]", lowerCasedKeys.get("x-list-header"));
+
+    } finally {
+      runner.runDestroy();
+    }
+
+  }
+
+  @Test
+  public void testBatchHead() throws Exception {
+    // Validates that a HEAD request successfully gets headers and has exactly 1 record output with an empty body
+    HttpClientConfigBean conf = new HttpClientConfigBean();
+    conf.client.authType = AuthenticationType.NONE;
+    conf.httpMode = HttpClientMode.POLLING;
+    conf.headers.put("abcdef", "ghijkl");
+    conf.resourceUrl = getBaseUri() + "headers";
+    conf.client.readTimeoutMillis = 1000;
+    conf.basic.maxBatchSize = 100;
+    conf.basic.maxWaitTime = 1000;
+    conf.pollingInterval = 5000;
+    conf.httpMethod = HttpMethod.HEAD;
+    conf.dataFormat = DataFormat.JSON;
+    conf.dataFormatConfig.jsonContent = JsonMode.MULTIPLE_OBJECTS;
+
+    HttpClientSource origin = new HttpClientSource(conf);
+
+    SourceRunner runner = new SourceRunner.Builder(HttpClientDSource.class, origin)
+            .addOutputLane("lane")
+            .build();
+    runner.runInit();
+
+    try {
+      List<Record> parsedRecords = getRecords(runner);
+
+      assertEquals(1, parsedRecords.size());
+
+      Map<String, Object> lowerCasedKeys = new HashMap<>();
+      parsedRecords.get(0).getHeader().getAllAttributes().forEach((k, v) -> lowerCasedKeys.put(k.toLowerCase(), v));
+      assertEquals("StreamSets", lowerCasedKeys.get("x-test-header"));
+      assertEquals("[a, b]", lowerCasedKeys.get("x-list-header"));
+
+
+    } finally {
+      runner.runDestroy();
+    }
+
+  }
+
 
   @Test
   public void testStreamingPost() throws Exception {
@@ -930,7 +1039,7 @@ public class HttpClientSourceIT extends JerseyTest {
     conf.resourceUrl = getBaseUri() + "stream/slow-stream";
     conf.client.readTimeoutMillis = (int)SLOW_STREAM_UNIT_TIME*3;
     conf.basic.maxBatchSize = 3;
-    conf.basic.maxWaitTime = 10000;
+    conf.basic.maxWaitTime = 700;
     conf.pollingInterval = 1000;
     conf.httpMethod = HttpMethod.GET;
     conf.dataFormat = DataFormat.JSON;
@@ -1080,8 +1189,8 @@ public class HttpClientSourceIT extends JerseyTest {
   public void testUniversalAuth() throws Exception {
     HttpClientConfigBean conf = new HttpClientConfigBean();
     conf.client.authType = AuthenticationType.UNIVERSAL;
-    conf.client.basicAuth.username = "foo";
-    conf.client.basicAuth.password = "bar";
+    conf.client.basicAuth.username = () -> "foo";
+    conf.client.basicAuth.password = () -> "bar";
     conf.httpMode = HttpClientMode.POLLING;
     conf.resourceUrl = getBaseUri() + "auth";
     conf.client.readTimeoutMillis = 1000;
@@ -1117,8 +1226,8 @@ public class HttpClientSourceIT extends JerseyTest {
   public void testNoWWWAuthenticate() throws Exception {
     HttpClientConfigBean conf = new HttpClientConfigBean();
     conf.client.authType = AuthenticationType.BASIC;
-    conf.client.basicAuth.username = "foo";
-    conf.client.basicAuth.password = "bar";
+    conf.client.basicAuth.username = () -> "foo";
+    conf.client.basicAuth.password = () -> "bar";
     conf.httpMode = HttpClientMode.POLLING;
     conf.resourceUrl = getBaseUri() + "preemptive";
     conf.client.readTimeoutMillis = 1000;
@@ -1161,10 +1270,14 @@ public class HttpClientSourceIT extends JerseyTest {
 
       for (int i = 0; i < parsedRecords.size(); i++) {
         assertTrue(parsedRecords.get(i).has("/name"));
-        // Grizzly is from some reason lower-casing the header attribute names. That is however correct as RFC 2616 clearly
-        // states that header names are case-insensitive.
-        assertEquals("StreamSets", parsedRecords.get(i).getHeader().getAttribute("x-test-header"));
-        assertEquals("[a, b]", parsedRecords.get(i).getHeader().getAttribute("x-list-header"));
+
+        // Grizzly might lower-case the header attribute names on some platforms/versions. That is however correct
+        // as RFC 2616 clearly states that header names are case-insensitive.
+        Map<String, Object> lowerCasedKeys = new HashMap<>();
+        parsedRecords.get(i).getHeader().getAllAttributes().forEach((k, v) -> lowerCasedKeys.put(k.toLowerCase(), v));
+
+        assertEquals("StreamSets", lowerCasedKeys.get("x-test-header"));
+        assertEquals("[a, b]", lowerCasedKeys.get("x-list-header"));
         assertEquals(EXPECTED_NAMES[i], extractValueFromRecord(parsedRecords.get(i), DataFormat.JSON));
       }
     } finally {
@@ -1233,8 +1346,8 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.NONE;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = CLIENT_CREDENTIALS;
-      conf.client.oauth2.clientId = CLIENT_ID;
-      conf.client.oauth2.clientSecret = CLIENT_SECRET;
+      conf.client.oauth2.clientId = () -> CLIENT_ID;
+      conf.client.oauth2.clientSecret = () -> CLIENT_SECRET;
       conf.client.oauth2.tokenUrl = getBaseUri() + "credentialsToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "stream";
@@ -1262,8 +1375,8 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.NONE;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = RESOURCE_OWNER;
-      conf.client.oauth2.username = USERNAME;
-      conf.client.oauth2.password = PASSWORD;
+      conf.client.oauth2.username = () -> USERNAME;
+      conf.client.oauth2.password = () -> PASSWORD;
       conf.client.oauth2.tokenUrl = getBaseUri() + "credentialsToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "stream";
@@ -1291,8 +1404,8 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.NONE;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = CLIENT_CREDENTIALS;
-      conf.client.oauth2.clientId = CLIENT_ID;
-      conf.client.oauth2.clientSecret = CLIENT_SECRET;
+      conf.client.oauth2.clientId = () -> CLIENT_ID;
+      conf.client.oauth2.clientSecret = () -> CLIENT_SECRET;
       conf.client.oauth2.tokenUrl = getBaseUri() + "credentialsToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "tokenresetstream";
@@ -1328,8 +1441,8 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.NONE;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = RESOURCE_OWNER;
-      conf.client.oauth2.username = USERNAME;
-      conf.client.oauth2.password = PASSWORD;
+      conf.client.oauth2.username = () -> USERNAME;
+      conf.client.oauth2.password = () -> PASSWORD;
       conf.client.oauth2.tokenUrl = getBaseUri() + "credentialsToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "tokenresetstream";
@@ -1365,10 +1478,10 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.NONE;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = RESOURCE_OWNER;
-      conf.client.oauth2.username = USERNAME;
-      conf.client.oauth2.password = PASSWORD;
-      conf.client.oauth2.resourceOwnerClientId = CLIENT_ID;
-      conf.client.oauth2.resourceOwnerClientSecret = CLIENT_SECRET;
+      conf.client.oauth2.username = () -> USERNAME;
+      conf.client.oauth2.password = () -> PASSWORD;
+      conf.client.oauth2.resourceOwnerClientId = () -> CLIENT_ID;
+      conf.client.oauth2.resourceOwnerClientSecret = () -> CLIENT_SECRET;
       conf.client.oauth2.tokenUrl = getBaseUri() + "resourceToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "stream";
@@ -1396,10 +1509,10 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.NONE;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = RESOURCE_OWNER;
-      conf.client.oauth2.username = USERNAME;
-      conf.client.oauth2.password = PASSWORD;
-      conf.client.oauth2.resourceOwnerClientId = CLIENT_ID;
-      conf.client.oauth2.resourceOwnerClientSecret = CLIENT_SECRET;
+      conf.client.oauth2.username = () -> USERNAME;
+      conf.client.oauth2.password = () -> PASSWORD;
+      conf.client.oauth2.resourceOwnerClientId = () -> CLIENT_ID;
+      conf.client.oauth2.resourceOwnerClientSecret = () -> CLIENT_SECRET;
       conf.client.oauth2.tokenUrl = getBaseUri() + "resourceToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "tokenresetstream";
@@ -1435,8 +1548,8 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.authType = AuthenticationType.BASIC;
       conf.client.useOAuth2 = true;
       conf.client.oauth2.credentialsGrantType = CLIENT_CREDENTIALS;
-      conf.client.basicAuth.password = CLIENT_SECRET;
-      conf.client.basicAuth.username = CLIENT_ID;
+      conf.client.basicAuth.password = () -> CLIENT_SECRET;
+      conf.client.basicAuth.username = () -> CLIENT_ID;
       conf.client.oauth2.tokenUrl = getBaseUri() + "basicToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "stream";
@@ -1468,7 +1581,7 @@ public class HttpClientSourceIT extends JerseyTest {
       conf.client.oauth2.credentialsGrantType = OAuth2GrantTypes.JWT;
       conf.client.oauth2.algorithm = SigningAlgorithms.RS256;
       conf.client.oauth2.jwtClaims = JWT;
-      conf.client.oauth2.key = Base64.encodeBase64String(keyPair.getPrivate().getEncoded());
+      conf.client.oauth2.key = () -> Base64.encodeBase64String(keyPair.getPrivate().getEncoded());
       conf.client.oauth2.tokenUrl = getBaseUri() + "jwtToken";
       conf.httpMode = HttpClientMode.STREAMING;
       conf.resourceUrl = getBaseUri() + "stream";
@@ -1487,4 +1600,49 @@ public class HttpClientSourceIT extends JerseyTest {
     }
   }
 
+  @Test
+  public void testJsonArray() throws Exception {
+    HttpClientConfigBean conf = new HttpClientConfigBean();
+    conf.client.authType = AuthenticationType.NONE;
+    conf.httpMode = HttpClientMode.STREAMING;
+    conf.resourceUrl = getBaseUri() + "jsonArray";
+    conf.client.readTimeoutMillis = 1000;
+    conf.basic.maxBatchSize = 100;
+    conf.basic.maxWaitTime = 1000;
+    conf.pollingInterval = 1000;
+    conf.httpMethod = HttpMethod.GET;
+    conf.dataFormat = DataFormat.JSON;
+    conf.dataFormatConfig.jsonContent = JsonMode.ARRAY_OBJECTS;
+
+    HttpClientSource origin = new HttpClientSource(conf);
+
+    SourceRunner runner = new SourceRunner.Builder(HttpClientDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+    runner.runInit();
+
+    try {
+      List<Record> parsedRecords = getRecords(runner);
+
+      assertEquals(3, parsedRecords.size());
+
+      for (int i = 0; i < parsedRecords.size(); i++) {
+        assertTrue(parsedRecords.get(i).has("/AccountId"));
+        assertTrue(parsedRecords.get(i).has("/DeviceId"));
+        assertTrue(parsedRecords.get(i).has("/DeviceName"));
+        assertTrue(parsedRecords.get(i).has("/Heading"));
+        assertTrue(parsedRecords.get(i).has("/Ignition"));
+        assertTrue(parsedRecords.get(i).has("/LastMoved"));
+        assertTrue(parsedRecords.get(i).has("/LastUpdated"));
+        assertTrue(parsedRecords.get(i).has("/Latitude"));
+        assertTrue(parsedRecords.get(i).has("/Longitude"));
+        assertTrue(parsedRecords.get(i).has("/OutputFlags"));
+        assertTrue(parsedRecords.get(i).has("/Power"));
+        assertTrue(parsedRecords.get(i).has("/Satellites"));
+        assertTrue(parsedRecords.get(i).has("/Velocity"));
+      }
+    } finally {
+      runner.runDestroy();
+    }
+  }
 }

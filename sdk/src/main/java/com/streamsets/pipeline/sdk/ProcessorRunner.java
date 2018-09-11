@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
  */
 package com.streamsets.pipeline.sdk;
 
-import com.streamsets.datacollector.config.StageType;
+import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.runner.BatchImpl;
 import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.DeliveryGuarantee;
@@ -25,6 +25,7 @@ import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.StageType;
 import com.streamsets.pipeline.api.impl.Utils;
 
 import org.slf4j.Logger;
@@ -47,7 +48,9 @@ public class ProcessorRunner extends StageRunner<Processor> {
     Map<String, String> stageSdcConf,
     ExecutionMode executionMode,
     DeliveryGuarantee deliveryGuarantee,
-    String resourcesDir
+    String resourcesDir,
+    RuntimeInfo runtimeInfo,
+    List<ServiceRunner> services
   ) {
     super(
       processorClass,
@@ -61,7 +64,9 @@ public class ProcessorRunner extends StageRunner<Processor> {
       stageSdcConf,
       executionMode,
       deliveryGuarantee,
-      resourcesDir
+      resourcesDir,
+      runtimeInfo,
+      services
     );
   }
 
@@ -75,7 +80,9 @@ public class ProcessorRunner extends StageRunner<Processor> {
     Map<String, String> stageSdcConf,
     ExecutionMode executionMode,
     DeliveryGuarantee deliveryGuarantee,
-    String resourcesDir
+    String resourcesDir,
+    RuntimeInfo runtimeInfo,
+    List<ServiceRunner> services
   ) {
     super(
       processorClass,
@@ -88,7 +95,9 @@ public class ProcessorRunner extends StageRunner<Processor> {
       stageSdcConf,
       executionMode,
       deliveryGuarantee,
-      resourcesDir
+      resourcesDir,
+      runtimeInfo,
+      services
     );
   }
 
@@ -131,7 +140,9 @@ public class ProcessorRunner extends StageRunner<Processor> {
           stageSdcConf,
           executionMode,
           deliveryGuarantee,
-          resourcesDir
+          resourcesDir,
+          runtimeInfo,
+          services
         );
       } else {
         return new ProcessorRunner(
@@ -144,7 +155,9 @@ public class ProcessorRunner extends StageRunner<Processor> {
           stageSdcConf,
           executionMode,
           deliveryGuarantee,
-          resourcesDir
+          resourcesDir,
+          runtimeInfo,
+          services
         );
       }
     }

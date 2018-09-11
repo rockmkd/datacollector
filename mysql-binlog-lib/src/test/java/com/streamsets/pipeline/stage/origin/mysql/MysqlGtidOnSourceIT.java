@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +46,7 @@ import static org.junit.Assert.fail;
 public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
   @ClassRule
   public static GenericContainer gtid_on = new MySQLContainer("mysql:5.6")
-      .withFileSystemBind(Resources.getResource("mysql_gtid_on").getPath(), "/etc/mysql/conf.d", BindMode.READ_ONLY);
+      .withFileSystemBind(Resources.getResource("mysql_gtid_on/my.cnf").getPath(), "/etc/mysql/conf.d/my.cnf", BindMode.READ_ONLY);
 
   @BeforeClass
   public static void setUp() throws Exception {
@@ -61,12 +61,11 @@ public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
     mysql.stop();
   }
 
-  @Ignore
   @Test
   public void shouldWriteGtidAndSeqNoAndIncompleteTx() throws Exception {
     MysqlSourceConfig config = createConfig("root");
     MysqlSource source = createMysqlSource(config);
-    SourceRunner runner = new SourceRunner.Builder(MysqlDSource.class, source)
+    runner = new SourceRunner.Builder(MysqlDSource.class, source)
         .addOutputLane(LANE)
         .build();
     runner.runInit();
@@ -131,14 +130,13 @@ public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
     assertThat(go.incompleteTransactionsContain(nextServerGtid, 2), is(false));
 
     assertThat(records.get(1).get("/Offset").getValueAsString(), is(output.getNewOffset()));
-    execute(ds, "TRUNCATE foo");
   }
 
   @Test
   public void shouldSkipIncompleteTransactions() throws Exception {
     MysqlSourceConfig config = createConfig("root");
     MysqlSource source = createMysqlSource(config);
-    SourceRunner runner = new SourceRunner.Builder(MysqlDSource.class, source)
+    runner = new SourceRunner.Builder(MysqlDSource.class, source)
         .addOutputLane(LANE)
         .build();
     runner.runInit();
@@ -172,7 +170,6 @@ public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
     assertThat(records.get(0).get("/Offset").getValueAsString(), is(offset2));
     assertThat(records.get(0).get("/SeqNo"), is(create(2L)));
     assertThat(records.get(0).get("/Data/bar"), is(create(3)));
-    execute(ds, "TRUNCATE foo");
   }
 
   public String getNextServerGtid() throws Exception {
@@ -204,7 +201,7 @@ public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
     MysqlSourceConfig config = createConfig("root");
     config.initialOffset = offset;
     MysqlSource source = createMysqlSource(config);
-    SourceRunner runner = new SourceRunner.Builder(MysqlDSource.class, source)
+    runner = new SourceRunner.Builder(MysqlDSource.class, source)
         .addOutputLane(LANE)
         .build();
     runner.runInit();
@@ -232,15 +229,13 @@ public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
         fail("Value before start offset found");
       }
     }
-    execute(ds, "TRUNCATE foo");
   }
 
-  @Ignore
   @Test
   public void testMultipleOperations() throws Exception {
     MysqlSourceConfig config = createConfig("root");
     MysqlSource source = createMysqlSource(config);
-    SourceRunner runner = new SourceRunner.Builder(MysqlDSource.class, source)
+    runner = new SourceRunner.Builder(MysqlDSource.class, source)
         .addOutputLane(LANE)
         .build();
     runner.runInit();
@@ -274,6 +269,5 @@ public class MysqlGtidOnSourceIT extends AbstractMysqlSource {
         records.get(2).getHeader().getAttribute(OperationType.SDC_OPERATION_TYPE),
         is(String.valueOf(OperationType.DELETE_CODE))
     );
-    execute(ds, "TRUNCATE foo");
   }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,6 @@
 package com.streamsets.pipeline.stage.executor.shell.config;
 
 import com.streamsets.pipeline.api.ConfigDef;
-import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
 

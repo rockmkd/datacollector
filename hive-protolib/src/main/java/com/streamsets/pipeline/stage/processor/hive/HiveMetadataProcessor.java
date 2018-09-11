@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.streamsets.pipeline.api.Label;
+import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Field;
@@ -31,7 +31,6 @@ import com.streamsets.pipeline.api.base.RecordProcessor;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
-import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.lib.el.ELUtils;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeEL;
@@ -53,7 +52,6 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -78,6 +76,7 @@ public class HiveMetadataProcessor extends RecordProcessor {
   private static final String COMMENT_EXPRESSION = "commentExpression";
   private static final String TEMP_AVRO_DIR_NAME = "/.avro";
   private static final String ATTRIBUTE_EXPRESSION = "metadataHeaderAttributeConfigs";
+  private static final String KEY_HMS_CACHE = "hms-cache";
 
   protected static final String HDFS_HEADER_ROLL = "roll";
   protected static final String HDFS_HEADER_AVROSCHEMA = "avroSchema";
@@ -191,7 +190,7 @@ public class HiveMetadataProcessor extends RecordProcessor {
       PartitionColumnTypeChooserValues supportedPartitionTypes = new PartitionColumnTypeChooserValues();
       for (PartitionConfig partition: partitionConfigList) {
         // Validation on partition column name
-        if (!HiveMetastoreUtil.validateColumnName(partition.name)) {
+        if (!HiveMetastoreUtil.validateObjectName(partition.name)) {
           issues.add(getContext().createConfigIssue(
               Groups.HIVE.name(),
               "partitionList",
@@ -255,29 +254,34 @@ public class HiveMetadataProcessor extends RecordProcessor {
         // We have exactly one instance of the query executor per stage to calculate it's metrics
         queryExecutor = new HiveQueryExecutor(hiveConfigBean, getContext());
 
-        cache = HMSCache.newCacheBuilder()
-            .addCacheTypeSupport(
-                Arrays.asList(
-                    HMSCacheType.TBLPROPERTIES_INFO,
-                    HMSCacheType.TYPE_INFO,
-                    HMSCacheType.PARTITION_VALUE_INFO,
-                    HMSCacheType.AVRO_SCHEMA_INFO
-                )
-            )
-            .maxCacheSize(hiveConfigBean.maxCacheSize)
-            .build(queryExecutor);
+        Map<String, Object> runnerSharedMap = getContext().getStageRunnerSharedMap();
+        synchronized (runnerSharedMap) {
+          if(runnerSharedMap.containsKey(KEY_HMS_CACHE)) {
+            cache = (HMSCache) runnerSharedMap.get(KEY_HMS_CACHE);
+          } else {
+            cache = HMSCache.newCacheBuilder()
+              .maxCacheSize(hiveConfigBean.maxCacheSize)
+              .addCacheTypeSupport(ImmutableList.of(
+                HMSCacheType.TBLPROPERTIES_INFO,
+                HMSCacheType.TYPE_INFO,
+                HMSCacheType.PARTITION_VALUE_INFO,
+                HMSCacheType.AVRO_SCHEMA_INFO
+              )).build();
 
-          databaseCache = CacheBuilder
-            .newBuilder()
-            .maximumSize(50)
-            .build(new CacheLoader<String, String>() {
+            runnerSharedMap.put(KEY_HMS_CACHE, cache);
+          }
+        }
+
+        databaseCache = CacheBuilder
+          .newBuilder()
+          .maximumSize(50)
+          .build(new CacheLoader<String, String>() {
               @Override
               public String load(String dbName) throws Exception {
                 return queryExecutor.executeDescribeDatabase(dbName);
               }
             });
-
-        } catch (StageException e) {
+      } catch (StageException e) {
         issues.add(getContext().createConfigIssue(
             Groups.HIVE.name(),
             "hiveConfigBean.hiveJDBCUrl",
@@ -292,26 +296,16 @@ public class HiveMetadataProcessor extends RecordProcessor {
           String attributeNameExpression = entry.getKey();
           String attributeValueExpression = entry.getValue();
 
-          ELUtils.validateExpression(
-                  elEvals.metadataHeaderAttributeEL,
-                  getContext().createELVars(),
-                  attributeNameExpression,
+          ELUtils.validateExpression(attributeNameExpression,
                   getContext(),
                   ATTRIBUTE_EXPRESSION,
                   "headerAttributeConfigs",
-                  Errors.HIVE_METADATA_12,
-                  Object.class,
-                  issues);
-          ELUtils.validateExpression(
-                  elEvals.metadataHeaderAttributeEL,
-                  getContext().createELVars(),
-                  attributeValueExpression,
+                  Errors.HIVE_METADATA_12, issues);
+          ELUtils.validateExpression(attributeValueExpression,
                   getContext(),
                   ATTRIBUTE_EXPRESSION,
                   "headerAttributeConfigs",
-                  Errors.HIVE_METADATA_12,
-                  Object.class,
-                  issues);
+                  Errors.HIVE_METADATA_12, issues);
         }
       } else {
         metadataHeadersToAddExist = false;
@@ -371,6 +365,13 @@ public class HiveMetadataProcessor extends RecordProcessor {
       dbName = DEFAULT_DB;
     }
     try {
+      // Validate Database and Table names
+      if (!HiveMetastoreUtil.validateObjectName(dbName)) {
+        throw new HiveStageCheckedException(Errors.HIVE_METADATA_03, "database name", dbName);
+      }
+      if (!HiveMetastoreUtil.validateObjectName(tableName)) {
+        throw new HiveStageCheckedException(Errors.HIVE_METADATA_03, "table name", tableName);
+      }
 
       partitionValMap = getPartitionValuesFromRecord(variables);
 
@@ -423,7 +424,8 @@ public class HiveMetadataProcessor extends RecordProcessor {
       TBLPropertiesInfoCacheSupport.TBLPropertiesInfo tblPropertiesInfo = HiveMetastoreUtil.getCacheInfo(
           cache,
           HMSCacheType.TBLPROPERTIES_INFO,
-          qualifiedName
+          qualifiedName,
+          queryExecutor
       );
 
       if (tblPropertiesInfo != null) {
@@ -442,7 +444,8 @@ public class HiveMetadataProcessor extends RecordProcessor {
       TypeInfoCacheSupport.TypeInfo tableCache = HiveMetastoreUtil.getCacheInfo(
           cache,
           HMSCacheType.TYPE_INFO,
-          qualifiedName
+          qualifiedName,
+          queryExecutor
       );
 
       if (tableCache != null) {
@@ -464,12 +467,22 @@ public class HiveMetadataProcessor extends RecordProcessor {
             );
           }
         }
+        // Validate that the columns from record itself does not clash with partition columns
+        for(String columnName : recordStructure.keySet()) {
+          if(cachedPartitionTypeInfoMap.containsKey(columnName)) {
+             throw new HiveStageCheckedException(
+                com.streamsets.pipeline.stage.lib.hive.Errors.HIVE_40,
+                columnName
+            );
+          }
+        }
       }
 
       AvroSchemaInfoCacheSupport.AvroSchemaInfo schemaCache = HiveMetastoreUtil.getCacheInfo(
           cache,
           HMSCacheType.AVRO_SCHEMA_INFO,
-          qualifiedName
+          qualifiedName,
+          queryExecutor
       );
 
       // True if there was a schema drift (including detection of new table)
@@ -521,18 +534,36 @@ public class HiveMetadataProcessor extends RecordProcessor {
         PartitionInfoCacheSupport.PartitionInfo pCache = HiveMetastoreUtil.getCacheInfo(
             cache,
             HMSCacheType.PARTITION_VALUE_INFO,
-            qualifiedName
+            qualifiedName,
+            queryExecutor
         );
+
+        PartitionInfoCacheSupport.PartitionValues partitionValues = new PartitionInfoCacheSupport.PartitionValues(partitionValMap);
+
+        // If the partition information exist (thus this is not a cold start)
+        if(pCache != null) {
+          // If we detected drift, we need to persist that information and "roll" all partitions next time
+          // we will see them.
+          if (schemaDrift) {
+            pCache.setAllPartitionsToBeRolled();
+          }
+
+          // If we performed drift for the table and this is the firs time we see this partition, we need to
+          // set the roll flag anyway.
+          if (pCache.shouldRoll(partitionValues)) {
+            schemaDrift = true;
+          }
+        }
 
         // Append partition path to target path as all paths from now should be with the partition info
         targetPath += partitionStr;
 
-        Map<PartitionInfoCacheSupport.PartitionValues, String> diff = detectNewPartition(partitionValMap, pCache, targetPath);
+        Map<PartitionInfoCacheSupport.PartitionValues, String> diff = detectNewPartition(partitionValues, pCache, targetPath);
 
         // Send new partition metadata if new partition is detected.
         if (diff != null) {
           // Add custom metadata attributes if they are specified
-          Map<String, String> partitionMetadataHeaderAttributeMap = new LinkedHashMap();
+          Map<String, String> partitionMetadataHeaderAttributeMap = new LinkedHashMap<>();
           if (metadataHeadersToAddExist) {
             partitionMetadataHeaderAttributeMap = generateResolvedHeaderAttributeMap(metadataHeaderAttributeConfigs, variables);
           }
@@ -556,12 +587,12 @@ public class HiveMetadataProcessor extends RecordProcessor {
   }
 
   private void validateNames(String dbName, String tableName) throws HiveStageCheckedException {
-    if (!HiveMetastoreUtil.validateName(dbName)){
+    if (!HiveMetastoreUtil.validateObjectName(dbName)){
       throw new HiveStageCheckedException(Errors.HIVE_METADATA_03, HIVE_DB_NAME, dbName);
     }
     if (tableName.isEmpty()) {
       throw new HiveStageCheckedException(Errors.HIVE_METADATA_02, tableEL);
-    } else if (!HiveMetastoreUtil.validateName(tableName)){
+    } else if (!HiveMetastoreUtil.validateObjectName(tableName)){
       throw new HiveStageCheckedException(Errors.HIVE_METADATA_03, HIVE_TABLE_NAME, tableName);
     }
   }
@@ -631,19 +662,16 @@ public class HiveMetadataProcessor extends RecordProcessor {
   /**
    * Using partition name and value that were obtained from record, compare them
    * with cached partition.
-   * @param partitionValMap List of partition name and value found in Record
+   * @param partitionValues Partition representation
    * @param pCache  Cache that has existing partitions
    * @return Diff of partitions if new partition is detected. Otherwise null.
    * @throws StageException
    */
   private Map<PartitionInfoCacheSupport.PartitionValues, String> detectNewPartition(
-      LinkedHashMap<String, String> partitionValMap,
+      PartitionInfoCacheSupport.PartitionValues partitionValues,
       PartitionInfoCacheSupport.PartitionInfo pCache,
       String location
   ) throws StageException{
-    // Start evaluating partition value
-    PartitionInfoCacheSupport.PartitionValues partitionValues =
-        new PartitionInfoCacheSupport.PartitionValues(partitionValMap);
     Map<PartitionInfoCacheSupport.PartitionValues, String> partitionInfoDiff = new HashMap<>();
     partitionInfoDiff.put(partitionValues, location);
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,18 +21,18 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DSource;
+import com.streamsets.pipeline.api.base.configurablestage.DSource;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 
 @StageDef(
-    version = 2,
+    version = 9,
     label = "Oracle CDC Client",
     description = "Origin that an read change events from an Oracle Database",
     icon = "rdbms.png",
     recordsByRef = true,
     producesEvents = true,
     resetOffset = true,
-    onlineHelpRefUrl = "index.html#Origins/OracleCDC.html#task_ehh_mjj_tw",
+    onlineHelpRefUrl ="index.html?contextID=task_ehh_mjj_tw",
     upgrader = OracleCDCSourceUpgrader.class
 )
 @GenerateResourceBundle

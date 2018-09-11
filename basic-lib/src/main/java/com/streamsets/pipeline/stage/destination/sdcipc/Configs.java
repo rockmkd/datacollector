@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,8 @@ package com.streamsets.pipeline.stage.destination.sdcipc;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.math.IntMath;
 import com.streamsets.pipeline.api.ConfigDefBean;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.impl.Utils;
@@ -29,7 +30,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -63,14 +63,13 @@ public class Configs {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "SDC RPC ID",
       description = "User-defined ID. Must match the SDC RPC ID used in the SDC RPC origin of the destination pipeline.",
       displayPosition = 20,
-      elDefs = VaultEL.class,
       group = "RPC"
   )
-  public String appId;
+  public CredentialValue appId;
 
   @ConfigDef(
       required = true,
@@ -286,20 +285,15 @@ public class Configs {
     return (HttpURLConnection) url.openConnection();
   }
 
-  static final HostnameVerifier ACCEPT_ALL_HOSTNAME_VERIFIER = new HostnameVerifier() {
-    @Override
-    public boolean verify(String s, SSLSession sslSession) {
-      return true;
-    }
-  };
+  static final HostnameVerifier ACCEPT_ALL_HOSTNAME_VERIFIER = (s, sslSession) -> true;
 
   @VisibleForTesting
-  public HttpURLConnection createConnection(String hostPort) throws IOException {
+  public HttpURLConnection createConnection(String hostPort) throws IOException, StageException {
     return createConnection(hostPort, Constants.IPC_PATH);
   }
 
-    @VisibleForTesting
-  public HttpURLConnection createConnection(String hostPort, String path) throws IOException {
+  @VisibleForTesting
+  public HttpURLConnection createConnection(String hostPort, String path) throws IOException, StageException {
     String scheme = (tlsConfigBean.isEnabled()) ? "https://" : "http://";
     URL url = new URL(scheme + hostPort.trim()  + path);
     HttpURLConnection conn = createConnection(url);
@@ -312,7 +306,7 @@ public class Configs {
         sslConn.setHostnameVerifier(ACCEPT_ALL_HOSTNAME_VERIFIER);
       }
     }
-    conn.setRequestProperty(Constants.X_SDC_APPLICATION_ID_HEADER, appId);
+    conn.setRequestProperty(Constants.X_SDC_APPLICATION_ID_HEADER, appId.get());
     return conn;
   }
 

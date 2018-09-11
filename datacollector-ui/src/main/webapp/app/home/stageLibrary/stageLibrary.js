@@ -44,13 +44,20 @@ angular
        *
        */
       onStageFilterGroupChange: function() {
-        var stageNameList = [],
-          regex = new RegExp($scope.searchInput, 'i');
+        var stageNameList = [];
+        var regex = new RegExp($scope.searchInput, 'i');
+        var isMicroservicePipeline = $scope.isMicroservicePipeline;
         $scope.filteredStageLibraries = [];
         angular.forEach($scope.stageLibraries, function(stageLibrary) {
           if (libraryFilter(stageLibrary) && !_.contains(stageNameList, stageLibrary.name) &&
             regex.test(stageLibrary.label) && !stageLibrary.errorStage && !stageLibrary.statsAggregatorStage &&
-            stageLibrary.library !== 'streamsets-datacollector-stats-lib') {
+            stageLibrary.hideStage.length === 0 &&
+            stageLibrary.library !== 'streamsets-datacollector-stats-lib' &&
+            stageLibrary.name.indexOf('_fragment_') === -1 &&
+            ($scope.executionMode !== 'EDGE' || stageLibrary.executionModes.indexOf($scope.executionMode) !== -1) &&
+            (!isMicroservicePipeline || stageLibrary.type !== pipelineConstant.SOURCE_STAGE_TYPE ||
+              stageLibrary.sendsResponse)
+          ) {
             stageNameList.push(stageLibrary.name);
             $scope.filteredStageLibraries.push(stageLibrary);
           }
@@ -101,31 +108,29 @@ angular
     };
 
     var updateStageGroups = function() {
-      var stageGroups = [],
-        libraryList = _.chain($scope.stageLibraries)
-          .filter(function(stageLibrary) {
-            return stageLibrary.library !== 'streamsets-datacollector-stats-lib';
-          })
-          .sortBy('libraryLabel')
-          .pluck("library")
-          .unique()
-          .value(),
-        libraryLabelList = _.chain($scope.stageLibraries)
-          .filter(function(stageLibrary) {
-            return stageLibrary.library !== 'streamsets-datacollector-stats-lib';
-          })
-          .sortBy('libraryLabel')
-          .pluck("libraryLabel")
-          .unique()
-          .value();
+      var stageGroups = [];
+      var labels = {};
+
+      var libraryList = _.chain($scope.stageLibraries)
+        .filter(function (stageLibrary) {
+          return stageLibrary.library !== 'streamsets-datacollector-stats-lib';
+        })
+        .sortBy('libraryLabel')
+        .pluck("library")
+        .unique()
+        .value();
+
+      angular.forEach($scope.stageLibraries, function(stageLibrary) {
+        labels[stageLibrary.library] = stageLibrary.libraryLabel;
+      });
 
       stageGroups = stageGroups.concat(typeGroups);
 
-      angular.forEach(libraryList, function(library, index) {
+      angular.forEach(libraryList, function(library) {
         stageGroups.push({
           group: 'Library',
           name: library,
-          label: libraryLabelList[index]
+          label: labels[library]
         });
       });
 

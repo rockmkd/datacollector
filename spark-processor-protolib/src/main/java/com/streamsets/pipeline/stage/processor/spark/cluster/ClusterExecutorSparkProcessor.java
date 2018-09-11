@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,17 +59,13 @@ public class ClusterExecutorSparkProcessor extends SingleLaneProcessor {
 
   public Iterator<Record> getBatch() {
     try {
-      if (IS_DEBUG_ENABLED) {
-        LOG.debug("Trying to read batch at " + System.currentTimeMillis());
-      }
+      LOG.debug("Trying to read batch at {}", System.currentTimeMillis());
       batchReceived.acquire();
     } catch (InterruptedException ex) { // NOSONAR
       LOG.warn("Interrupted while waiting for batch to be received", ex);
       return null;
     }
-    if (IS_DEBUG_ENABLED) {
-      LOG.debug("Returning received batch");
-    }
+    LOG.debug("Returning received batch");
     synchronized (this) {
       if (batch == null) {
         return Collections.emptyIterator();

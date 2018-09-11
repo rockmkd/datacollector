@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -89,20 +89,15 @@ public class KafkaValidationUtil09 extends BaseKafkaValidationUtil implements Sd
       valid = false;
     } else {
       List<PartitionInfo> partitionInfos;
+      // Use KafkaConsumer to check if topic exists.
+      // Using producer causes unintentionally creating a topic if not exist.
+      KafkaConsumer<String, String> kafkaConsumer = null;
       try {
-        if (producer) {
-          KafkaProducer<String, String> kafkaProducer = createProducerTopicMetadataClient(
-              metadataBrokerList,
-              kafkaClientConfigs
-          );
-          partitionInfos = kafkaProducer.partitionsFor(topic);
-        } else {
-          KafkaConsumer<String, String> kafkaConsumer = createTopicMetadataClient(
+          kafkaConsumer = createTopicMetadataClient(
               metadataBrokerList,
               kafkaClientConfigs
           );
           partitionInfos = kafkaConsumer.partitionsFor(topic);
-        }
         if (null == partitionInfos || partitionInfos.isEmpty()) {
           issues.add(
               context.createConfigIssue(
@@ -119,9 +114,22 @@ public class KafkaValidationUtil09 extends BaseKafkaValidationUtil implements Sd
         LOG.error(KafkaErrors.KAFKA_68.getMessage(), topic, metadataBrokerList, e.toString(), e);
         issues.add(context.createConfigIssue(groupName, configName, KafkaErrors.KAFKA_68, topic, metadataBrokerList, e.toString()));
         valid = false;
+      } finally {
+        if (kafkaConsumer != null) {
+          kafkaConsumer.close();
+        }
       }
     }
     return valid;
+  }
+
+  @Override
+  public void createTopicIfNotExists(String topic, Map<String, Object> kafkaClientConfigs, String metadataBrokerList) throws StageException {
+    KafkaProducer<String, String> kafkaProducer = createProducerTopicMetadataClient(
+        metadataBrokerList,
+        kafkaClientConfigs
+    );
+    kafkaProducer.partitionsFor(topic);
   }
 
   private KafkaConsumer<String, String> createTopicMetadataClient(

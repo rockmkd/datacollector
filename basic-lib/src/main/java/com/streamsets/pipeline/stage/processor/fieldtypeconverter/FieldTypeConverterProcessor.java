@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,9 +20,12 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.api.base.SingleLaneRecordProcessor;
+import com.streamsets.pipeline.api.el.ELEval;
+import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.config.DecimalScaleRoundingStrategy;
-import com.streamsets.pipeline.lib.util.FieldRegexUtil;
+import com.streamsets.pipeline.lib.util.FieldPathExpressionUtil;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,9 +34,14 @@ import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.LinkedList;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
@@ -42,6 +50,8 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
   private final ConvertBy convertBy;
   private final List<FieldTypeConverterConfig> fieldTypeConverterConfigs;
   private final List<WholeTypeConverterConfig> wholeTypeConverterConfigs;
+  private ELEval fieldPathEval;
+  private ELVars fieldPathVars;
 
   public FieldTypeConverterProcessor(
       ConvertBy convertBy,
@@ -52,6 +62,33 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
     this.fieldTypeConverterConfigs = fieldTypeConverterConfigs;
     this.wholeTypeConverterConfigs = wholeTypeConverterConfigs;
   }
+
+  @Override
+  public List<ConfigIssue> init() {
+    List<ConfigIssue> issues = super.init();
+    fieldTypeConverterConfigs.forEach(config -> validate(config).ifPresent(issues::add));
+    wholeTypeConverterConfigs.forEach(config -> validate(config).ifPresent(issues::add));
+
+    fieldPathEval = getContext().createELEval("fields");
+    fieldPathVars = getContext().createELVars();
+
+    return issues;
+  }
+
+  private Optional<ConfigIssue> validate(BaseConverterConfig config) {
+    if (config.targetType == Field.Type.ZONED_DATETIME) {
+      ZonedDateTime now = ZonedDateTime.now();
+      try {
+        ZonedDateTime.parse(now.format(config.getFormatter()), config.getFormatter());
+      } catch (DateTimeParseException ex) {
+        return Optional.of(
+            getContext().createConfigIssue(
+                "TYPE_CONVERSION", "fieldTypeConverterConfigs", Errors.CONVERTER_03));
+      }
+    }
+    return Optional.empty();
+  }
+
 
   @Override
   protected void process(Record record, SingleLaneBatchMaker batchMaker) throws StageException {
@@ -98,13 +135,25 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
   }
 
   private void processByField(Record record, SingleLaneBatchMaker batchMaker) throws StageException {
-    Set<String> fieldPaths = record.getEscapedFieldPaths();
+    final Set<String> fieldPaths = record.getEscapedFieldPaths();
     for(FieldTypeConverterConfig fieldTypeConverterConfig : fieldTypeConverterConfigs) {
       for(String fieldToConvert : fieldTypeConverterConfig.fields) {
-        for(String matchingField : FieldRegexUtil.getMatchingFieldPaths(fieldToConvert, fieldPaths)) {
+        final List<String> matchingFieldPaths = new LinkedList<>(FieldPathExpressionUtil.evaluateMatchingFieldPaths(
+            fieldToConvert,
+            fieldPathEval,
+            fieldPathVars,
+            record,
+            fieldPaths
+        ));
+        if (matchingFieldPaths.isEmpty()) {
+          // FieldPathExpressionUtil.evaluateMatchingFieldPaths does NOT return the supplied param in its result
+          // regardless, like FieldRegexUtil#getMatchingFieldPaths did, so we add manually here
+          matchingFieldPaths.add(fieldToConvert);
+        }
+        for (String matchingField : matchingFieldPaths) {
           Field field = record.get(matchingField);
           if(field == null) {
-            LOG.warn("Record does not have field {}. Ignoring conversion.", matchingField);
+            LOG.trace("Record does not have field {}. Ignoring conversion.", matchingField);
           } else {
             record.set(matchingField, convertField(matchingField, field, fieldTypeConverterConfig));
           }
@@ -124,7 +173,14 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
           if (converterConfig.targetType.isOneOf(Field.Type.DATE, Field.Type.DATETIME, Field.Type.TIME)) {
             dateMask = converterConfig.getDateMask();
           }
-          return convertStringToTargetType(field, converterConfig.targetType, converterConfig.getLocale(), dateMask, converterConfig.scale, converterConfig.decimalScaleRoundingStrategy);
+          return convertStringToTargetType(field,
+              converterConfig.targetType,
+              converterConfig.getLocale(),
+              dateMask,
+              converterConfig.scale,
+              converterConfig.decimalScaleRoundingStrategy,
+              converterConfig.getFormatter()
+          );
         } catch (ParseException | IllegalArgumentException e) {
           throw new OnRecordErrorException(Errors.CONVERTER_00,
               matchingField,
@@ -161,6 +217,13 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
       }
     }
 
+    if (field.getType() == Field.Type.ZONED_DATETIME) {
+      if (!converterConfig.targetType.isOneOf(Field.Type.STRING, Field.Type.ZONED_DATETIME)) {
+        throw new OnRecordErrorException(Errors.CONVERTER_04, converterConfig.targetType);
+      }
+      return Field.create(converterConfig.getFormatter().format(field.getValueAsZonedDateTime()));
+    }
+
     if(field.getType() == Field.Type.BYTE_ARRAY && converterConfig.targetType == Field.Type.STRING) {
       try {
         return Field.create(converterConfig.targetType, new String(field.getValueAsByteArray(), converterConfig.encoding));
@@ -192,6 +255,10 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
       }
     }
 
+    if(field.getType().isOneOf(Field.Type.BOOLEAN) && converterConfig.targetType.isOneOf(Field.Type.INTEGER, Field.Type.SHORT, Field.Type.LONG)) {
+      return Field.create(converterConfig.targetType, field.getValueAsBoolean() ? 1 : 0);
+    }
+
     // Use the built in type conversion provided by TypeSupport
     try {
       // Use the built in type conversion provided by TypeSupport
@@ -216,9 +283,9 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
       Locale dataLocale,
       String dateMask,
       int scale,
-      DecimalScaleRoundingStrategy decimalScaleRoundingStrategy
-  )
-    throws ParseException {
+      DecimalScaleRoundingStrategy decimalScaleRoundingStrategy,
+      DateTimeFormatter dateTimeFormatter
+  ) throws ParseException {
     String stringValue = field.getValueAsString();
     switch(targetType) {
       case BOOLEAN:
@@ -238,10 +305,15 @@ public class FieldTypeConverterProcessor extends SingleLaneRecordProcessor {
       case TIME:
         java.text.DateFormat timeFormat = new SimpleDateFormat(dateMask, Locale.ENGLISH);
         return Field.createTime(timeFormat.parse(stringValue));
+      case ZONED_DATETIME:
+        return Field.createZonedDateTime(ZonedDateTime.parse(stringValue, dateTimeFormatter));
       case DECIMAL:
         Number decimal = NumberFormat.getInstance(dataLocale).parse(stringValue);
         BigDecimal bigDecimal = adjustScaleIfNeededForDecimalConversion(new BigDecimal(decimal.toString()), scale, decimalScaleRoundingStrategy);
-        return Field.create(bigDecimal);
+        Field decimalField = Field.create(Field.Type.DECIMAL, bigDecimal);
+        decimalField.setAttribute(HeaderAttributeConstants.ATTR_PRECISION, String.valueOf(bigDecimal.precision()));
+        decimalField.setAttribute(HeaderAttributeConstants.ATTR_SCALE, String.valueOf(bigDecimal.scale()));
+        return decimalField;
       case DOUBLE:
         return Field.create(NumberFormat.getInstance(dataLocale).parse(stringValue).doubleValue());
       case FLOAT:

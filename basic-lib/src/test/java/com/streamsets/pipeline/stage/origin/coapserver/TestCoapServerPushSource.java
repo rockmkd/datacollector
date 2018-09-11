@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,13 +38,13 @@ public class TestCoapServerPushSource {
   @Test
   public void testSource() throws Exception {
     CoapServerConfigs coapServerConfigs = new CoapServerConfigs();
-    coapServerConfigs.resourceName = "sdc";
+    coapServerConfigs.resourceName = () -> "sdc";
     coapServerConfigs.port = NetworkUtils.getRandomPort();
     coapServerConfigs.maxConcurrentRequests = 1;
     CoapServerPushSource source =
         new CoapServerPushSource(coapServerConfigs, DataFormat.TEXT, new DataParserFormatConfig());
     final PushSourceRunner runner =
-        new PushSourceRunner.Builder(CoapServerPushSource.class, source).addOutputLane("a").build();
+        new PushSourceRunner.Builder(CoapServerDPushSource.class, source).addOutputLane("a").build();
     runner.runInit();
     try {
       final List<Record> records = new ArrayList<>();
@@ -57,7 +57,7 @@ public class TestCoapServerPushSource {
         }
       });
 
-      URI coapURI = new URI("coap://localhost:" + coapServerConfigs.port + "/" + coapServerConfigs.resourceName);
+      URI coapURI = new URI("coap://localhost:" + coapServerConfigs.port + "/" + coapServerConfigs.resourceName.get());
       CoapClient client = new CoapClient(coapURI);
       CoapResponse response = client.post("Hello", MediaTypeRegistry.TEXT_PLAIN);
       Assert.assertNotNull(response);

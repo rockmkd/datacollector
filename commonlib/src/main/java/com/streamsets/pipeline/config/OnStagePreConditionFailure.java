@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ import com.streamsets.pipeline.api.Label;
 
 @GenerateResourceBundle
 public enum OnStagePreConditionFailure implements Label {
-  CONTINUE("Continue"),
+  CONTINUE("Include without Processing"),
   TO_ERROR("Send to Error"),
 
   ;

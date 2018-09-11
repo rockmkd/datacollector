@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,14 +17,15 @@ package com.streamsets.pipeline.stage.origin.websocketserver;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.lib.http.HttpConfigs;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
+import com.streamsets.pipeline.lib.websocket.Groups;
 
 public class WebSocketConfigs extends HttpConfigs {
 
   public WebSocketConfigs() {
-    super(Groups.WEB_SOCKET.name(), "config.");
+    super(Groups.WEB_SOCKET.name(), "webSocketConfigs.");
   }
 
   @ConfigDefBean(groups = "TLS")
@@ -58,14 +59,13 @@ public class WebSocketConfigs extends HttpConfigs {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Application ID",
       description = "Only WebSocket requests presenting this token will be accepted.",
       displayPosition = 20,
-      elDefs = VaultEL.class,
       group = "WEB_SOCKET"
   )
-  public String appId;
+  public CredentialValue appId = () -> "";
 
   @ConfigDef(
       required = true,
@@ -113,7 +113,7 @@ public class WebSocketConfigs extends HttpConfigs {
   }
 
   @Override
-  public String getAppId() {
+  public CredentialValue getAppId() {
     return appId;
   }
 

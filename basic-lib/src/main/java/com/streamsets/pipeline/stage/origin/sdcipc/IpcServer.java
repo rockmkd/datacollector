@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,8 +93,8 @@ public class IpcServer {
       final TlsConfigBean tlsConfig = configs.getTlsConfigBean();
 
       sslContextFactory.setKeyStore(tlsConfig.getKeyStore());
-      sslContextFactory.setKeyStorePassword(tlsConfig.keyStorePassword);
-      sslContextFactory.setKeyManagerPassword(tlsConfig.keyStorePassword);
+      sslContextFactory.setKeyStorePassword(tlsConfig.keyStorePassword.get());
+      sslContextFactory.setKeyManagerPassword(tlsConfig.keyStorePassword.get());
       sslContextFactory.setSslContext(tlsConfig.getSslContext());
       sslContextFactory.setIncludeProtocols(tlsConfig.getFinalProtocols());
       sslContextFactory.setIncludeCipherSuites(tlsConfig.getFinalCipherSuites());
@@ -159,11 +159,14 @@ public class IpcServer {
             Thread.sleep(50);
           }
           if (servlet.isInPost()) {
+            // release the queue before forcing a shutdown
+            cancelBatch();
             LOG.warn("Servlet not completing POST after 30secs, forcing a shutdown");
           }
         } catch (InterruptedException ex) {
           Thread.currentThread().interrupt();
         }
+
         httpServer.stop();
       } catch (Exception ex) {
         LOG.warn("Error while shutting down: {}", ex.toString(), ex);

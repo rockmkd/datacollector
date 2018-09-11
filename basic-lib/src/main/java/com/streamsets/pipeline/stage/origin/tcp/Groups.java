@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@ public enum Groups implements Label {
   SYSLOG("Syslog"),
   DATA_FORMAT("Data Format"),
   TLS("TLS"),
+  NETFLOW_V9("NetFlow 9"),
   ;
 
   private final String label;

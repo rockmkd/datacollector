@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.pipeline.stage.processor.identity;
 
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageDef;
@@ -27,7 +28,15 @@ import com.streamsets.pipeline.api.base.SingleLaneRecordProcessor;
     label = "Dev Identity",
     description = "It echoes every record it receives without changing, other than stage header information",
     icon="dev.png",
-    onlineHelpRefUrl = "index.html#Pipeline_Design/DevStages.html"
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EMR_BATCH,
+        ExecutionMode.EDGE
+    },
+    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
 )
 public class IdentityProcessor extends SingleLaneRecordProcessor {
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,20 +21,37 @@ import com.streamsets.datacollector.stagelibrary.ClassLoaderReleaser;
 import com.streamsets.pipeline.api.ProtoSource;
 import com.streamsets.pipeline.api.Stage;
 
+import java.util.Collections;
+import java.util.List;
+
 public class StageBean {
   private final StageDefinition definition;
   private final StageConfiguration conf;
   private final StageConfigBean systemConfigs;
   private final Stage stage;
   private final ClassLoaderReleaser classLoaderReleaser;
+  private final List<ServiceBean> services;
+  private final List<InterceptorBean> preInterceptors;
+  private final List<InterceptorBean> postInterceptors;
 
-  public StageBean(StageDefinition definition, StageConfiguration conf, StageConfigBean systemConfigs, Stage stage,
-      ClassLoaderReleaser classLoaderReleaser) {
+  public StageBean(
+    StageDefinition definition,
+    StageConfiguration conf,
+    StageConfigBean systemConfigs,
+    Stage stage,
+    ClassLoaderReleaser classLoaderReleaser,
+    List<ServiceBean> services,
+    List<InterceptorBean> preInterceptors,
+    List<InterceptorBean> postInterceptors
+  ) {
     this.definition = definition;
     this.conf = conf;
     this.systemConfigs = systemConfigs;
     this.stage = stage;
     this.classLoaderReleaser = classLoaderReleaser;
+    this.services = Collections.unmodifiableList(services);
+    this.preInterceptors = Collections.unmodifiableList(preInterceptors);
+    this.postInterceptors = Collections.unmodifiableList(postInterceptors);
   }
 
   public StageDefinition getDefinition() {
@@ -53,8 +70,30 @@ public class StageBean {
     return stage;
   }
 
+  public List<ServiceBean> getServices() {
+    return services;
+  }
+
+  public List<InterceptorBean> getPreInterceptors() {
+    return preInterceptors;
+  }
+
+  public List<InterceptorBean> getPostInterceptors() {
+    return postInterceptors;
+  }
+
+  public ServiceBean getService(Class service) {
+    for(ServiceBean serviceBean : services) {
+      if(serviceBean.getDefinition().getProvides() == service) {
+        return serviceBean;
+      }
+    }
+    return null;
+  }
+
   public void releaseClassLoader() {
     classLoaderReleaser.releaseStageClassLoader(stage.getClass().getClassLoader());
+    services.forEach(ServiceBean::releaseClassLoader);
   }
 
   public boolean isSource() {

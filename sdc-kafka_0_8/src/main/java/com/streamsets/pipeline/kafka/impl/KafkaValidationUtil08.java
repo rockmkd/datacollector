@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -156,6 +156,11 @@ public class KafkaValidationUtil08 extends BaseKafkaValidationUtil implements Sd
       }
     }
     return valid;
+  }
+
+  @Override
+  public void createTopicIfNotExists(String topic, Map<String, Object> kafkaClientConfigs, String metadataBrokerList) throws StageException {
+    // no-op
   }
 
   private static TopicMetadata getTopicMetadata(

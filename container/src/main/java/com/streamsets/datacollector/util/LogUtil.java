@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +16,13 @@
 package com.streamsets.datacollector.util;
 
 import com.streamsets.datacollector.execution.runner.common.Constants;
+import com.streamsets.pipeline.lib.log.LogConstants;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.RollingFileAppender;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 
@@ -65,6 +67,10 @@ public class LogUtil {
   public static void resetRollingFileAppender(String pipeline, String rev, String suffix) {
     String loggerName = getLoggerName(pipeline, rev, suffix);
     Logger logger =Logger.getLogger(loggerName);
+    Appender logAppender = logger.getAppender(loggerName);
+    if (logAppender != null) {
+      logAppender.close();
+    }
     logger.removeAppender(loggerName);
   }
 
@@ -90,5 +96,9 @@ public class LogUtil {
     appender.setName(loggerName);
 
     return appender;
+  }
+
+  public static void injectPipelineInMDC(String pipelineTitle, String pipelineId) {
+    MDC.put(LogConstants.ENTITY, pipelineTitle + "/" + pipelineId);
   }
 }

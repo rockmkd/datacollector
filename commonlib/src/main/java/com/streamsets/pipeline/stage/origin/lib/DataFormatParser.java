@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,19 +17,22 @@ package com.streamsets.pipeline.stage.origin.lib;
 
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
-import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.ToErrorContext;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.config.DatagramMode;
 import com.streamsets.pipeline.config.OriginAvroSchemaSource;
 import com.streamsets.pipeline.lib.parser.DataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.parser.DataParserFactory;
 import com.streamsets.pipeline.lib.parser.DataParserFactoryBuilder;
 import com.streamsets.pipeline.lib.parser.RecoverableDataParserException;
+import com.streamsets.pipeline.lib.parser.excel.WorkbookParserConstants;
 import com.streamsets.pipeline.lib.parser.log.LogDataFormatValidator;
 import com.streamsets.pipeline.lib.parser.log.RegExConfig;
+import com.streamsets.pipeline.lib.parser.net.netflow.NetflowDataParserFactory;
 import com.streamsets.pipeline.lib.parser.text.TextDataParserFactory;
 import com.streamsets.pipeline.lib.parser.xml.XmlDataParserFactory;
 import com.streamsets.pipeline.lib.util.DelimitedDataConstants;
@@ -79,15 +82,20 @@ public class DataFormatParser {
     this.dataFormat = dataFormat;
   }
 
-  public List<Stage.ConfigIssue> init(Source.Context context) {
+  public List<Stage.ConfigIssue> init(Stage.Context context) {
+    return init(context, "");
+  }
+
+  public List<Stage.ConfigIssue> init(Stage.Context context, String configPrefix) {
     List<Stage.ConfigIssue> issues = new ArrayList<>();
+    final String prefix = configPrefix + DATA_FORMAT_CONFIG_PREFIX;
     switch (dataFormat) {
       case JSON:
         if (dataFormatConfig.jsonMaxObjectLen < 1) {
           issues.add(
               context.createConfigIssue(
                   DataFormat.JSON.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "maxJsonObjectLen",
+                  prefix + "maxJsonObjectLen",
                   ParserErrors.PARSER_04
               )
           );
@@ -98,7 +106,7 @@ public class DataFormatParser {
           issues.add(
               context.createConfigIssue(
                   DataFormat.TEXT.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "maxLogLineLength",
+                  prefix + "maxLogLineLength",
                   ParserErrors.PARSER_04
               )
           );
@@ -109,7 +117,7 @@ public class DataFormatParser {
           issues.add(
               context.createConfigIssue(
                   DataFormat.DELIMITED.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "csvMaxObjectLen",
+                  prefix + "csvMaxObjectLen",
                   ParserErrors.PARSER_04
               )
           );
@@ -120,7 +128,7 @@ public class DataFormatParser {
           issues.add(
               context.createConfigIssue(
                   parentName,
-                  "messageConfig.produceSingleRecordPerMessage",
+                  configPrefix + "messageConfig.produceSingleRecordPerMessage",
                   ParserErrors.PARSER_06
               )
           );
@@ -129,7 +137,7 @@ public class DataFormatParser {
           issues.add(
               context.createConfigIssue(
                   DataFormatGroups.DATA_FORMAT.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "maxXmlObjectLen",
+                  prefix + "maxXmlObjectLen",
                   ParserErrors.PARSER_04
               )
           );
@@ -139,7 +147,7 @@ public class DataFormatParser {
           if (StringUtils.isNotBlank(invalidXPathError)) {
             issues.add(context.createConfigIssue(
                 DataFormatGroups.DATA_FORMAT.name(),
-                DATA_FORMAT_CONFIG_PREFIX + "xmlRecordElement",
+                prefix + "xmlRecordElement",
                 ParserErrors.PARSER_02,
                 dataFormatConfig.xmlRecordElement,
                 invalidXPathError
@@ -150,7 +158,7 @@ public class DataFormatParser {
             if (!nsPrefixes.isEmpty()) {
               issues.add(context.createConfigIssue(
                   DataFormatGroups.DATA_FORMAT.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "xPathNamespaceContext",
+                  prefix + "xPathNamespaceContext",
                   ParserErrors.PARSER_09,
                   StringUtils.join(nsPrefixes, ", ")
               ));
@@ -176,14 +184,14 @@ public class DataFormatParser {
             DataFormat.LOG.name(),
             getFieldPathToGroupMap(dataFormatConfig.fieldPathsToGroupName)
         );
-        logDataFormatValidator.validateLogFormatConfig(context, DATA_FORMAT_CONFIG_PREFIX, issues);
+        logDataFormatValidator.validateLogFormatConfig(context, prefix, issues);
         break;
       case AVRO:
         if(dataFormatConfig.avroSchemaSource == OriginAvroSchemaSource.INLINE && isEmpty(dataFormatConfig.avroSchema)) {
           issues.add(
               context.createConfigIssue(
                   DataFormat.AVRO.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "avroSchema",
+                  prefix + "avroSchema",
                   ParserErrors.PARSER_07,
                   dataFormatConfig.avroSchema
               )
@@ -195,7 +203,7 @@ public class DataFormatParser {
           issues.add(
             context.createConfigIssue(
               DataFormatGroups.DATA_FORMAT.name(),
-              DATA_FORMAT_CONFIG_PREFIX + "protoDescriptorFile",
+                prefix + "protoDescriptorFile",
               DataFormatErrors.DATA_FORMAT_07
             )
           );
@@ -205,7 +213,7 @@ public class DataFormatParser {
             issues.add(
               context.createConfigIssue(
                 DataFormatGroups.DATA_FORMAT.name(),
-                DATA_FORMAT_CONFIG_PREFIX + "protoDescriptorFile",
+                  prefix + "protoDescriptorFile",
                 DataFormatErrors.DATA_FORMAT_09,
                 file.getAbsolutePath()
               )
@@ -215,7 +223,7 @@ public class DataFormatParser {
             issues.add(
               context.createConfigIssue(
                 DataFormatGroups.DATA_FORMAT.name(),
-                DATA_FORMAT_CONFIG_PREFIX + "messageType",
+                  prefix + "messageType",
                 DataFormatErrors.DATA_FORMAT_08
               )
             );
@@ -227,7 +235,7 @@ public class DataFormatParser {
           issues.add(
               context.createConfigIssue(
                   DataFormat.XML.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "maxWholeFileObjectLen",
+                  prefix + "maxWholeFileObjectLen",
                   ParserErrors.PARSER_04
               )
           );
@@ -238,17 +246,49 @@ public class DataFormatParser {
           issues.add(
               context.createConfigIssue(
                   DataFormatGroups.DATA_FORMAT.name(),
-                  DATA_FORMAT_CONFIG_PREFIX + "binaryMaxObjectLen",
+                  prefix + "binaryMaxObjectLen",
                   ParserErrors.PARSER_04
               )
           );
         }
         break;
+      case DATAGRAM:
+        if (dataFormatConfig.datagramMode == DatagramMode.COLLECTD) {
+          dataFormatConfig.checkCollectdParserConfigs(context, prefix, issues);
+        } else if (dataFormatConfig.datagramMode == DatagramMode.NETFLOW) {
+          NetflowDataParserFactory.validateConfigs(
+              context,
+              issues,
+              DataFormatGroups.DATA_FORMAT.name(),
+              prefix,
+              dataFormatConfig.maxTemplateCacheSizeDatagram,
+              dataFormatConfig.templateCacheTimeoutMsDatagram,
+              "maxTemplateCacheSizeDatagram",
+              "templateCacheTimeoutMsDatagram"
+          );
+        }
+        break;
+      case NETFLOW:
+        NetflowDataParserFactory.validateConfigs(
+            context,
+            issues,
+            DataFormatGroups.DATA_FORMAT.name(),
+            prefix,
+            dataFormatConfig.maxTemplateCacheSize,
+            dataFormatConfig.templateCacheTimeoutMs
+        );
+        break;
+      case SYSLOG:
+        // nothing to validate
+        break;
+      case EXCEL:
+        // nothing to validate
+        break;
       default:
         issues.add(
             context.createConfigIssue(
                 parentName,
-                "dataFormat",
+                configPrefix +"dataFormat",
                 ParserErrors.PARSER_05,
                 dataFormat
             )
@@ -340,6 +380,24 @@ public class DataFormatParser {
       case BINARY:
         builder.setMaxDataLen(dataFormatConfig.binaryMaxObjectLen);
         break;
+      case DATAGRAM:
+        dataFormatConfig.buildDatagramParser(builder);
+        break;
+      case SYSLOG:
+        builder.setMaxDataLen(-1);
+        break;
+      case NETFLOW:
+        builder
+          .setMaxDataLen(-1)
+          .setConfig(NetflowDataParserFactory.OUTPUT_VALUES_MODE_KEY, dataFormatConfig.netflowOutputValuesMode)
+          .setConfig(NetflowDataParserFactory.MAX_TEMPLATE_CACHE_SIZE_KEY, dataFormatConfig.maxTemplateCacheSize)
+          .setConfig(NetflowDataParserFactory.TEMPLATE_CACHE_TIMEOUT_MS_KEY, dataFormatConfig.templateCacheTimeoutMs);
+        break;
+      case EXCEL:
+        builder
+            .setMaxDataLen(-1)
+            .setConfig(WorkbookParserConstants.HEADER, dataFormatConfig.excelHeader);
+        break;
       default:
         throw new IllegalStateException(Utils.format("Unknown data format: {}", dataFormat));
     }
@@ -351,7 +409,7 @@ public class DataFormatParser {
     return issues;
   }
 
-  public List<Record> parse(Source.Context context, String messageId, byte[] payload) throws StageException {
+  public <CT extends Stage.Context & ToErrorContext> List<Record> parse(CT context, String messageId, byte[] payload) throws StageException {
     List<Record> records = new ArrayList<>();
     try (DataParser parser = parserFactory.getParser(messageId, payload)) {
       Record record = null;
@@ -386,7 +444,7 @@ public class DataFormatParser {
     return records;
   }
 
-  private void handleException(Source.Context context, String messageId, Exception ex, Record record)
+  private <CT extends Stage.Context & ToErrorContext> void handleException(CT context, String messageId, Exception ex, Record record)
     throws StageException {
     switch (context.getOnErrorRecord()) {
       case DISCARD:

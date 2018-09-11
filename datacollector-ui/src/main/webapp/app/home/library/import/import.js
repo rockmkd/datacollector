@@ -74,30 +74,32 @@ angular
                 jsonConfigObj.title = pipelineInfo.title;
 
                 api.pipelineAgent.savePipelineConfig(pipelineInfo.pipelineId, jsonConfigObj).
-                  then(function(res) {
-                    if (jsonRulesObj && jsonRulesObj.uuid) {
-                      api.pipelineAgent.getPipelineRules(pipelineInfo.pipelineId).
-                        then(function(res) {
-                          var rulesObj = res.data;
-                          rulesObj.metricsRuleDefinitions = jsonRulesObj.metricsRuleDefinitions;
-                          rulesObj.dataRuleDefinitions = jsonRulesObj.dataRuleDefinitions;
-                          rulesObj.driftRuleDefinitions = jsonRulesObj.driftRuleDefinitions;
-                          rulesObj.emailIds = jsonRulesObj.emailIds;
-                          rulesObj.configuration = jsonRulesObj.configuration;
+                then(function(res) {
+                  if (jsonRulesObj && jsonRulesObj.uuid) {
+                    api.pipelineAgent.getPipelineRules(pipelineInfo.pipelineId).
+                    then(function(res) {
+                      var rulesObj = res.data;
+                      rulesObj.schemaVersion = jsonRulesObj.schemaVersion;
+                      rulesObj.version = jsonRulesObj.version;
+                      rulesObj.metricsRuleDefinitions = jsonRulesObj.metricsRuleDefinitions;
+                      rulesObj.dataRuleDefinitions = jsonRulesObj.dataRuleDefinitions;
+                      rulesObj.driftRuleDefinitions = jsonRulesObj.driftRuleDefinitions;
+                      rulesObj.emailIds = jsonRulesObj.emailIds;
+                      rulesObj.configuration = jsonRulesObj.configuration;
 
-                          api.pipelineAgent.savePipelineRules(pipelineInfo.pipelineId, rulesObj).
-                            then(function() {
-                              $modalInstance.close();
-                            });
+                      api.pipelineAgent.savePipelineRules(pipelineInfo.pipelineId, rulesObj).
+                      then(function() {
+                        $modalInstance.close();
+                      });
 
-                        });
+                    });
 
-                    } else {
-                      $modalInstance.close();
-                    }
-                  },function(res) {
-                    $scope.common.errors = [res.data];
-                  });
+                  } else {
+                    $modalInstance.close();
+                  }
+                },function(res) {
+                  $scope.common.errors = [res.data];
+                });
               } else { // If no pipeline exist or create pipeline option selected
                 var newPipelineObject,
                   label,
@@ -124,25 +126,29 @@ angular
                     newPipelineObject.version = jsonConfigObj.version;
                     newPipelineObject.schemaVersion = jsonConfigObj.schemaVersion;
                     newPipelineObject.metadata = jsonConfigObj.metadata;
+                    newPipelineObject.startEventStages = jsonConfigObj.startEventStages;
+                    newPipelineObject.stopEventStages = jsonConfigObj.stopEventStages;
                     return api.pipelineAgent.savePipelineConfig(name, newPipelineObject);
                   })
                   .then(function(res) {
                     if (jsonRulesObj && jsonRulesObj.uuid) {
                       api.pipelineAgent.getPipelineRules(name).
-                        then(function(res) {
-                          var rulesObj = res.data;
-                          rulesObj.metricsRuleDefinitions = jsonRulesObj.metricsRuleDefinitions;
-                          rulesObj.dataRuleDefinitions = jsonRulesObj.dataRuleDefinitions;
-                          rulesObj.driftRuleDefinitions = jsonRulesObj.driftRuleDefinitions;
-                          rulesObj.emailIds = jsonRulesObj.emailIds;
-                          rulesObj.configuration = jsonRulesObj.configuration;
+                      then(function(res) {
+                        var rulesObj = res.data;
+                        rulesObj.schemaVersion = jsonRulesObj.schemaVersion;
+                        rulesObj.version = jsonRulesObj.version;
+                        rulesObj.metricsRuleDefinitions = jsonRulesObj.metricsRuleDefinitions;
+                        rulesObj.dataRuleDefinitions = jsonRulesObj.dataRuleDefinitions;
+                        rulesObj.driftRuleDefinitions = jsonRulesObj.driftRuleDefinitions;
+                        rulesObj.emailIds = jsonRulesObj.emailIds;
+                        rulesObj.configuration = jsonRulesObj.configuration;
 
-                          api.pipelineAgent.savePipelineRules(name, rulesObj).
-                            then(function() {
-                              $modalInstance.close(newPipelineObject);
-                            });
-
+                        api.pipelineAgent.savePipelineRules(name, rulesObj).
+                        then(function() {
+                          $modalInstance.close(newPipelineObject);
                         });
+
+                      });
 
                     } else {
                       $modalInstance.close(newPipelineObject);
@@ -183,13 +189,10 @@ angular
       }
     });
 
-
-
     $scope.$watch('uploadFile', function (newValue) {
       if (newValue && newValue.name && !$scope.newConfig.title) {
         $scope.newConfig.title = newValue.name.replace('.json', '');
       }
     });
-
 
   });

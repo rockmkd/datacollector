@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.runner;
 
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
 
@@ -30,20 +31,27 @@ public class StageOutput {
   private final List<Record> eventRecords;
 
   @SuppressWarnings("unchecked")
-  public StageOutput(String instanceName, Map<String, List<Record>> output, ErrorSink errorSink, EventSink eventSink) {
-    this(instanceName,
-      (Map) output,
-      (List) errorSink.getErrorRecords(instanceName),
-      errorSink.getStageErrors().get(instanceName),
-      eventSink.getStageEvents(instanceName)
+  public StageOutput(
+      String instanceName,
+      Map<String, List<Record>> output,
+      ErrorSink errorSink,
+      EventSink eventSink
+  ) throws StageException {
+    this(
+        instanceName,
+        output,
+        errorSink.getErrorRecords(instanceName),
+        errorSink.getStageErrors().get(instanceName),
+        eventSink.getStageEvents(instanceName)
     );
   }
 
-  public StageOutput(String instanceName,
-                     Map<String, List<Record>> output,
-                     List<Record> errorRecords,
-                     List<ErrorMessage> stageErrors,
-                     List<Record> eventRecords
+  public StageOutput(
+      String instanceName,
+      Map<String, List<Record>> output,
+      List<Record> errorRecords,
+      List<ErrorMessage> stageErrors,
+      List<Record> eventRecords
   ) {
     this.instanceName = instanceName;
     this.output = output;

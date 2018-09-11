@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +33,7 @@ import com.streamsets.datacollector.main.SlavePipelineTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.store.impl.SlavePipelineStoreTask;
 import com.streamsets.datacollector.task.TaskWrapper;
+import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.PipelineException;
 import dagger.ObjectGraph;
 import org.apache.commons.io.FileUtils;
@@ -71,6 +72,7 @@ public class TestPipelineManagerModule {
     ObjectGraph objectGraph = ObjectGraph.create(MainStandalonePipelineManagerModule.class);
     TaskWrapper taskWrapper = objectGraph.get(TaskWrapper.class);
     Assert.assertTrue(taskWrapper.getTask() instanceof PipelineTask);
+    Assert.assertNotNull(objectGraph.get(Configuration.class));
 
     //Get an instance of manager
     taskWrapper.init();
@@ -80,7 +82,7 @@ public class TestPipelineManagerModule {
     Assert.assertTrue(pipelineManager instanceof StandaloneAndClusterPipelineManager);
 
     PipelineStoreTask pipelineStoreTask = pipelineTask.getPipelineStoreTask();
-    PipelineConfiguration pc = pipelineStoreTask.create("user", "p1", "p1", "description", false);
+    PipelineConfiguration pc = pipelineStoreTask.create("user", "p1", "p1", "description", false, false);
     //Create previewer
     Previewer previewer = pipelineManager.createPreviewer("user", pc.getInfo().getPipelineId(), "1");
     assertEquals(previewer, pipelineManager.getPreviewer(previewer.getId()));
@@ -91,10 +93,10 @@ public class TestPipelineManagerModule {
 
     //create Runner
     Runner runner = pipelineManager.getRunner(pc.getInfo().getPipelineId(), "0");
-    Assert.assertTrue(runner instanceof AsyncRunner);
+    Assert.assertNotNull(runner.getRunner(AsyncRunner.class));
 
-    runner = ((AsyncRunner)runner).getRunner();
-    Assert.assertTrue(runner instanceof StandaloneRunner);
+    runner = runner.getRunner(StandaloneRunner.class);
+    Assert.assertNotNull(runner);
 
     Assert.assertEquals(PipelineStatus.EDITED, runner.getState().getStatus());
     Assert.assertEquals(pc.getInfo().getPipelineId(), runner.getName());
@@ -122,7 +124,7 @@ public class TestPipelineManagerModule {
     Assert.assertTrue(pipelineStoreTask instanceof SlavePipelineStoreTask);
 
     try {
-      pipelineStoreTask.create("user", "p1", "p1", "description", false);
+      pipelineStoreTask.create("user", "p1", "p1", "description", false, false);
       Assert.fail("Expected UnsupportedOperationException");
     } catch (UnsupportedOperationException e) {
 

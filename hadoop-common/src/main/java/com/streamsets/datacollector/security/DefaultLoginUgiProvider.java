@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,9 @@
  */
 package com.streamsets.datacollector.security;
 
+import com.streamsets.datacollector.stage.HadoopConfigurationUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.authentication.util.KerberosName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,26 +34,23 @@ public class DefaultLoginUgiProvider extends LoginUgiProvider {
   public UserGroupInformation getLoginUgi(Configuration hdfsConfiguration) throws IOException {
     AccessControlContext accessContext = AccessController.getContext();
     Subject subject = Subject.getSubject(accessContext);
-    // As per SDC-2917 doing this avoids deadlock
     UserGroupInformation loginUgi;
-    synchronized (SecurityUtil.getSubjectDomainLock(accessContext)) {
-      // call some method to force load static block in KerberosName
-      KerberosName.hasRulesBeenSet();
-      UserGroupInformation.setConfiguration(hdfsConfiguration);
-      if (UserGroupInformation.isSecurityEnabled()) {
-        loginUgi = UserGroupInformation.getUGIFromSubject(subject);
-      } else {
-        UserGroupInformation.loginUserFromSubject(subject);
-        loginUgi = UserGroupInformation.getLoginUser();
-      }
-      if (LOG.isDebugEnabled()) {
-        LOG.debug(
-            "Subject = {}, Principals = {}, Login UGI = {}",
-            subject,
-            subject == null ? "null" : subject.getPrincipals(),
-            loginUgi
-        );
-      }
+    //HADOOP-13805
+    HadoopConfigurationUtils.configureHadoopTreatSubjectExternal(hdfsConfiguration);
+    UserGroupInformation.setConfiguration(hdfsConfiguration);
+    if (UserGroupInformation.isSecurityEnabled()) {
+      loginUgi = UserGroupInformation.getUGIFromSubject(subject);
+    } else {
+      UserGroupInformation.loginUserFromSubject(subject);
+      loginUgi = UserGroupInformation.getLoginUser();
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug(
+          "Subject = {}, Principals = {}, Login UGI = {}",
+          subject,
+          subject == null ? "null" : subject.getPrincipals(),
+          loginUgi
+      );
     }
     return loginUgi;
   }

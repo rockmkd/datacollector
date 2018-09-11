@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.execution.manager.standalone.dagger;
 
+import com.streamsets.datacollector.blobstore.BlobStoreModule;
 import com.streamsets.datacollector.bundles.SupportBundleModule;
 import com.streamsets.datacollector.execution.executor.ExecutorModule;
 import com.streamsets.datacollector.execution.manager.standalone.StandaloneAndClusterPipelineManager;
@@ -26,6 +27,7 @@ import com.streamsets.datacollector.lineage.LineageModule;
 import com.streamsets.datacollector.store.CacheAclStoreModule;
 import com.streamsets.datacollector.store.CachePipelineStoreModule;
 
+import com.streamsets.datacollector.usagestats.StatsCollectorModule;
 import dagger.Module;
 
 /**
@@ -43,7 +45,9 @@ import dagger.Module;
     StandaloneAndClusterRunnerProviderModule.class,
     CacheSnapshotStoreModule.class,
     SupportBundleModule.class,
-    LineageModule.class
+    BlobStoreModule.class,
+    LineageModule.class,
+    StatsCollectorModule.class
 })
 public class StandalonePipelineManagerModule {
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.lib.salesforce.ForceTargetConfigBean;
 
 @StageDef(
@@ -30,7 +30,7 @@ import com.streamsets.pipeline.lib.salesforce.ForceTargetConfigBean;
     description = "Writes data to Salesforce",
     icon = "salesforce.png",
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Destinations/Salesforce.html#task_ncv_153_rx"
+    onlineHelpRefUrl ="index.html?contextID=task_ncv_153_rx"
 )
 
 @ConfigGroups(value = Groups.class)

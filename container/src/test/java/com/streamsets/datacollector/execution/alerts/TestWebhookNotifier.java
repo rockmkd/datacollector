@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,6 +39,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -52,7 +53,7 @@ public class TestWebhookNotifier {
   @Before
   public void setUp() throws Exception {
     int port =  getFreePort();
-    server = new Server(port);
+    server = new Server(InetSocketAddress.createUnresolved("localhost", port));
     server.setHandler(new AbstractHandler() {
       @Override
       public void handle(
@@ -108,7 +109,8 @@ public class TestWebhookNotifier {
         "x",
         "0",
         pipelineConfigBean,
-        runtimeInfo
+        runtimeInfo,
+        null
     );
 
     PipelineState runningState = new PipelineStateImpl("x", "x", "0", PipelineStatus.RUNNING, "Running",

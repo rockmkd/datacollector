@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import com.streamsets.datacollector.config.ConfigDefinition;
 import com.streamsets.datacollector.config.ModelDefinition;
 import com.streamsets.datacollector.config.ModelType;
+import com.streamsets.datacollector.credential.CredentialEL;
 import com.streamsets.datacollector.el.ElConstantDefinition;
 import com.streamsets.datacollector.el.ElFunctionDefinition;
 import com.streamsets.pipeline.api.Dependency;
@@ -33,6 +34,7 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.lib.el.VaultEL;
 import org.apache.commons.lang3.StringUtils;
 
 import java.lang.reflect.Field;
@@ -453,7 +455,11 @@ public abstract class ConfigDefinitionExtractor {
         int displayPosition = annotation.displayPosition();
         List<ElFunctionDefinition> elFunctionDefinitions = getELFunctions(annotation, model, contextMsg);
         List<ElConstantDefinition> elConstantDefinitions = getELConstants(annotation, model ,contextMsg);
-        List<Class> elDefs = new ImmutableList.Builder().add(annotation.elDefs()).add(ELDefinitionExtractor.DEFAULT_EL_DEFS).build();
+        ImmutableList.Builder<Class> builder = new ImmutableList.Builder().add(annotation.elDefs()).add(ConcreteELDefinitionExtractor.DEFAULT_EL_DEFS);
+        if (annotation.type() == ConfigDef.Type.CREDENTIAL) {
+          builder.add(CredentialEL.class);
+        }
+        List<Class> elDefs = builder.build();
         long min = annotation.min();
         long max = annotation.max();
         String mode = (annotation.mode() != null) ? getMimeString(annotation.mode()) : null;
@@ -549,8 +555,13 @@ public abstract class ConfigDefinitionExtractor {
     }
   }
 
-  private static final Set<ConfigDef.Type> TYPES_SUPPORTING_ELS = ImmutableSet.of(
-      ConfigDef.Type.LIST, ConfigDef.Type.MAP, ConfigDef.Type.NUMBER, ConfigDef.Type.STRING, ConfigDef.Type.TEXT);
+  private static final Set<ConfigDef.Type> TYPES_SUPPORTING_ELS = ImmutableSet.of(ConfigDef.Type.LIST,
+      ConfigDef.Type.MAP,
+      ConfigDef.Type.NUMBER,
+      ConfigDef.Type.STRING,
+      ConfigDef.Type.TEXT,
+      ConfigDef.Type.CREDENTIAL
+  );
 
   private static final Set<ModelType> MODELS_SUPPORTING_ELS = ImmutableSet.of(ModelType.PREDICATE);
 
@@ -558,7 +569,15 @@ public abstract class ConfigDefinitionExtractor {
     List<ErrorMessage> errors;
     if (TYPES_SUPPORTING_ELS.contains(annotation.type()) ||
         (annotation.type() == ConfigDef.Type.MODEL && MODELS_SUPPORTING_ELS.contains(model.getModelType()))) {
-      errors = ELDefinitionExtractor.get().validateFunctions(annotation.elDefs(), contextMsg);
+      errors = ConcreteELDefinitionExtractor.get().validateFunctions(annotation.elDefs(), contextMsg);
+      if (errors.isEmpty() && annotation.evaluation() == ConfigDef.Evaluation.EXPLICIT) {
+        List<ElFunctionDefinition> elFunctionDefinitions = getELFunctions(annotation, model, contextMsg);
+        for (ElFunctionDefinition def : elFunctionDefinitions) {
+          if (def.isImplicitOnly()) {
+            errors.add(new ErrorMessage(DefinitionError.DEF_166, contextMsg, def.getName()));
+          }
+        }
+      }
     } else {
       errors = new ArrayList<>();
     }
@@ -569,7 +588,15 @@ public abstract class ConfigDefinitionExtractor {
     List<ElFunctionDefinition> functions = Collections.emptyList();
     if (TYPES_SUPPORTING_ELS.contains(annotation.type()) ||
         (annotation.type() == ConfigDef.Type.MODEL && MODELS_SUPPORTING_ELS.contains(model.getModelType()))) {
-      functions = ELDefinitionExtractor.get().extractFunctions(annotation.elDefs(), contextMsg);
+      List<Class> elClasses = ImmutableList.copyOf(annotation.elDefs());
+      if (annotation.type() == ConfigDef.Type.CREDENTIAL) {
+        elClasses = ImmutableList.<Class>builder()
+          .addAll(elClasses)
+          .add(CredentialEL.class)
+          .add(VaultEL.class)
+          .build();
+      }
+      functions = ConcreteELDefinitionExtractor.get().extractFunctions(elClasses.toArray(new Class[elClasses.size()]), contextMsg);
     }
     return functions;
   }
@@ -578,7 +605,7 @@ public abstract class ConfigDefinitionExtractor {
     List<ErrorMessage> errors;
     if (TYPES_SUPPORTING_ELS.contains(annotation.type()) ||
         (annotation.type() == ConfigDef.Type.MODEL && MODELS_SUPPORTING_ELS.contains(model.getModelType()))) {
-      errors = ELDefinitionExtractor.get().validateConstants(annotation.elDefs(), contextMsg);
+      errors = ConcreteELDefinitionExtractor.get().validateConstants(annotation.elDefs(), contextMsg);
     } else {
       errors = new ArrayList<>();
     }
@@ -589,7 +616,7 @@ public abstract class ConfigDefinitionExtractor {
     List<ElConstantDefinition> functions = Collections.emptyList();
     if (TYPES_SUPPORTING_ELS.contains(annotation.type()) ||
         (annotation.type() == ConfigDef.Type.MODEL && MODELS_SUPPORTING_ELS.contains(model.getModelType()))) {
-      functions = ELDefinitionExtractor.get().extractConstants(annotation.elDefs(), contextMsg);
+      functions = ConcreteELDefinitionExtractor.get().extractConstants(annotation.elDefs(), contextMsg);
     }
     return functions;
   }

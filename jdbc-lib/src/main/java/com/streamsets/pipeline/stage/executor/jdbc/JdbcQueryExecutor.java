@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,7 +64,7 @@ public class JdbcQueryExecutor extends BaseExecutor {
         Record record = it.next();
         RecordEL.setRecordInContext(variables, record);
         String query = eval.eval(variables, config.query, String.class);
-        LOG.info("Executing query: {}", query);
+        LOG.debug("Executing query: {}", query);
 
         try (Statement stmt = connection.createStatement()) {
           stmt.execute(query);

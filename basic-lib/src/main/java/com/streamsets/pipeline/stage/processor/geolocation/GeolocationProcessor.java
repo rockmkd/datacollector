@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -360,9 +360,9 @@ public class  GeolocationProcessor extends SingleLaneRecordProcessor {
           if (cause instanceof UnknownHostException || cause instanceof AddressNotFoundException) {
             switch (missingAddressAction) {
               case TO_ERROR:
-                errorRecordHandler.onError(new OnRecordErrorException(record, Errors.GEOIP_02, field.getValue(), cause.getMessage()));
-                LOG.debug(Utils.format(Errors.GEOIP_02.getMessage(), field.getValue(), cause.getMessage()), cause);
-                break;
+                LOG.debug(Utils.format(Errors.GEOIP_02.getMessage(), field.getValue(), config.inputFieldName, cause.getMessage()), cause);
+                errorRecordHandler.onError(new OnRecordErrorException(record, Errors.GEOIP_02, field.getValue(), config.inputFieldName, cause.getMessage()));
+                return;
               case REPLACE_WITH_NULLS:
                 record.set(config.outputFieldName, Field.create(config.targetType.fieldType, null));
                 break;

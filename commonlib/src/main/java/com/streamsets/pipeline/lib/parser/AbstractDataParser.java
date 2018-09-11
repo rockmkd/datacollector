@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.pipeline.lib.parser;
 
 public abstract class AbstractDataParser implements DataParser {
+  // TODO: Seems that Context would be better here?
 
   protected boolean truncated;
 

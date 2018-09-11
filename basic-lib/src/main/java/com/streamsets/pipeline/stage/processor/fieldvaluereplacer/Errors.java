@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +27,7 @@ public enum Errors implements ErrorCode {
   VALUE_REPLACER_04("Literal value required for < = > operands"),
   VALUE_REPLACER_05("Replacement value required"),
   VALUE_REPLACER_06("Error in evaluating condition {}. Reason : {}"),
+  VALUE_REPLACER_07("Error in evaluating field expression {}. Reason : {}"),
   ;
 
   private final String msg;

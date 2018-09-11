@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,6 @@ package com.streamsets.pipeline.stage.util.tls;
 import com.google.common.base.Strings;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.config.upgrade.UpgraderUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 

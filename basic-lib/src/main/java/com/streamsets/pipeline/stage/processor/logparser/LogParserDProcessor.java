@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,9 +23,9 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.config.LogMode;
 import com.streamsets.pipeline.config.LogModeChooserValues;
-import com.streamsets.pipeline.configurablestage.DProcessor;
 import com.streamsets.pipeline.lib.parser.log.RegExConfig;
 
 import java.util.List;
@@ -35,7 +35,7 @@ import java.util.List;
     label="Log Parser",
     description = "Parses a string field which contains a Log line",
     icon="logparser.png",
-    onlineHelpRefUrl = "index.html#Processors/LogParser.html#task_jm1_b4w_fs"
+    onlineHelpRefUrl ="index.html?contextID=task_jm1_b4w_fs"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

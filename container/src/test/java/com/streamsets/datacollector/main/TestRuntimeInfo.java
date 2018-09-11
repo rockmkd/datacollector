@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,7 +58,7 @@ public class TestRuntimeInfo {
     System.getProperties().remove(RuntimeModule.SDC_PROPERTY_PREFIX + RuntimeInfo.DATA_DIR);
     System.getProperties().remove(RuntimeModule.SDC_PROPERTY_PREFIX + RuntimeInfo.STATIC_WEB_DIR);
     System.getProperties().remove(RuntimeModule.SDC_PROPERTY_PREFIX + RuntimeInfo.RESOURCES_DIR);
-    System.getProperties().remove(RuntimeModule.DATA_COLLECTOR_BASE_HTTP_URL);
+    System.getProperties().remove(RuntimeInfo.DATA_COLLECTOR_BASE_HTTP_URL);
   }
 
   @Test
@@ -114,9 +114,10 @@ public class TestRuntimeInfo {
     Assert.assertTrue(dir.mkdirs());
     System.setProperty(RuntimeModule.SDC_PROPERTY_PREFIX + RuntimeInfo.CONFIG_DIR, dir.getAbsolutePath());
     Properties props = new Properties();
-    props.setProperty(RuntimeModule.DATA_COLLECTOR_BASE_HTTP_URL, "HTTP");
+    props.setProperty(RuntimeInfo.DATA_COLLECTOR_BASE_HTTP_URL, "HTTP");
     props.setProperty(RemoteSSOService.SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG, "AUTH_TOKEN");
     props.setProperty(RemoteSSOService.DPM_ENABLED, "true");
+    props.setProperty(RemoteSSOService.DPM_DEPLOYMENT_ID, "foo");
     Writer writer = new FileWriter(new File(dir, "sdc.properties"));
     props.store(writer, "");
     writer.close();
@@ -126,6 +127,7 @@ public class TestRuntimeInfo {
     Assert.assertEquals("HTTP", info.getBaseHttpUrl());
     Assert.assertEquals("AUTH_TOKEN", info.getAppAuthToken());
     Assert.assertTrue(info.isDPMEnabled());
+    Assert.assertEquals("foo", info.getDeploymentId());
   }
 
   @Test
@@ -134,7 +136,7 @@ public class TestRuntimeInfo {
     Assert.assertTrue(dir.mkdirs());
     System.setProperty(RuntimeModule.SDC_PROPERTY_PREFIX + RuntimeInfo.CONFIG_DIR, dir.getAbsolutePath());
     Properties props = new Properties();
-    props.setProperty(RuntimeModule.DATA_COLLECTOR_BASE_HTTP_URL, "HTTP");
+    props.setProperty(RuntimeInfo.DATA_COLLECTOR_BASE_HTTP_URL, "HTTP");
     props.setProperty(ClusterModeConstants.CLUSTER_PIPELINE_REMOTE, "true");
     props.setProperty(RemoteSSOService.SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG, "AUTH_TOKEN");
     props.setProperty(RemoteSSOService.DPM_ENABLED, "true");
@@ -154,6 +156,19 @@ public class TestRuntimeInfo {
     Assert.assertEquals("ID", info.getId());
     Assert.assertTrue(info.isClusterSlave());
     Assert.assertTrue(info.isDPMEnabled());
+  }
+
+  @Test
+  public void testTrailingSlashRemovedFromHttpURL() throws Exception {
+    RuntimeInfo runtimeInfo = new StandaloneRuntimeInfo(null, null, null);
+    runtimeInfo.setBaseHttpUrl("http://localhost:18630");
+    Assert.assertEquals("http://localhost:18630", runtimeInfo.getBaseHttpUrl());
+    // add a leading forward slash
+    runtimeInfo.setBaseHttpUrl("http://localhost:18630/");
+    Assert.assertEquals("http://localhost:18630", runtimeInfo.getBaseHttpUrl());
+    // add two leading forward slash
+    runtimeInfo.setBaseHttpUrl("http://localhost:18630//");
+    Assert.assertEquals("http://localhost:18630", runtimeInfo.getBaseHttpUrl());
   }
 
   @Test

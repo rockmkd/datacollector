@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,5 +61,8 @@ public interface SdcKafkaValidationUtil {
   ) throws StageException;
 
   public String getVersion();
+
+  public void createTopicIfNotExists(String topic, Map<String, Object> kafkaClientConfigs, String metadataBrokerList)
+      throws StageException;
 
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +40,7 @@ public class TestHttpReceiverServlet {
     Stage.Context context =
         ContextInfoCreator.createSourceContext("n", false, OnRecordError.TO_ERROR, ImmutableList.of("a"));
     HttpReceiver receiver = Mockito.mock(HttpReceiverWithFragmenterWriter.class);
-    Mockito.when(receiver.getAppId()).thenReturn("id");
+    Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
     HttpReceiverServlet servlet = new HttpReceiverServlet(context, receiver, null);
 
     HttpServletRequest req = Mockito.mock(HttpServletRequest.class);
@@ -95,7 +95,7 @@ public class TestHttpReceiverServlet {
     Stage.Context context =
         ContextInfoCreator.createSourceContext("n", false, OnRecordError.TO_ERROR, ImmutableList.of("a"));
     HttpReceiver receiver = Mockito.mock(HttpReceiverWithFragmenterWriter.class);
-    Mockito.when(receiver.getAppId()).thenReturn("id");
+    Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
     HttpReceiverServlet servlet = new HttpReceiverServlet(context, receiver, null);
     servlet = Mockito.spy(servlet);
 
@@ -174,8 +174,8 @@ public class TestHttpReceiverServlet {
     Stage.Context context =
         ContextInfoCreator.createSourceContext("n", false, OnRecordError.TO_ERROR, ImmutableList.of("a"));
     HttpReceiver receiver = Mockito.mock(HttpReceiverWithFragmenterWriter.class);
-    Mockito.when(receiver.getAppId()).thenReturn("id");
-    Mockito.when(receiver.process(Mockito.any(), Mockito.any())).thenReturn(true);
+    Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
+    Mockito.when(receiver.process(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(true);
     BlockingQueue<Exception> errorQueue = new ArrayBlockingQueue<Exception>(1);
     HttpReceiverServlet servlet = new HttpReceiverServlet(context, receiver, errorQueue);
     servlet = Mockito.spy(servlet);
@@ -205,7 +205,7 @@ public class TestHttpReceiverServlet {
     Mockito.doReturn(true).when(servlet).validatePostRequest(Mockito.eq(req), Mockito.eq(res));
     servlet.doPost(req, res);
     Mockito.verify(req, Mockito.times(1)).getInputStream();
-    Mockito.verify(receiver, Mockito.times(1)).process(Mockito.eq(req), Mockito.eq(is));
+    Mockito.verify(receiver, Mockito.times(1)).process(Mockito.eq(req), Mockito.eq(is), Mockito.any());
     Mockito.verify(res, Mockito.times(1)).setStatus(Mockito.eq(HttpServletResponse.SC_OK));
 
     // valid post request with compression
@@ -242,7 +242,7 @@ public class TestHttpReceiverServlet {
     servlet.doPost(req, res);
     Mockito.verify(req, Mockito.times(1)).getInputStream();
     ArgumentCaptor<InputStream> isCaptor = ArgumentCaptor.forClass(InputStream.class);
-    Mockito.verify(receiver, Mockito.times(1)).process(Mockito.eq(req), isCaptor.capture());
+    Mockito.verify(receiver, Mockito.times(1)).process(Mockito.eq(req), isCaptor.capture(), Mockito.any());
 
     // we are failing here becuase the stream does not have a valid snappy payload,
     // we use this to test also the exception path

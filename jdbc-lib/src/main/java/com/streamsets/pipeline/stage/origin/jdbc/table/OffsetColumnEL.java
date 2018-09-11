@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,8 @@ import com.streamsets.pipeline.api.ElParam;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableContext;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableRuntimeContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,9 +35,9 @@ public class OffsetColumnEL {
     return (TableContext) ELEval.getVariablesInScope().getContextVariable(TABLE_CONTEXT_VAR);
   }
 
-  public static void setTableInContext(ELVars elVars, TableContext tableInContext) {
+  public static void setTableInContext(ELVars elVars, TableRuntimeContext tableRuntimeInContext) {
     Utils.checkNotNull(elVars, "elVars");
-    elVars.addContextVariable(TABLE_CONTEXT_VAR, tableInContext);
+    elVars.addContextVariable(TABLE_CONTEXT_VAR, tableRuntimeInContext.getSourceTableContext());
   }
 
   @ElFunction(

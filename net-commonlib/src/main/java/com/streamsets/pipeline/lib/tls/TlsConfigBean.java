@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +18,9 @@ package com.streamsets.pipeline.lib.tls;
 import com.google.common.base.Strings;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,17 +109,16 @@ public class TlsConfigBean {
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       description = "The password to the keystore file, if applicable.  Using a password is highly recommended for "
           + "security reasons.",
       label = "Keystore Password",
       displayPosition = DISPLAY_POSITION_OFFSET + 70,
-      elDefs = VaultEL.class,
       group = "#0",
       dependsOn = "tlsEnabled",
       triggeredByValue = "true"
   )
-  public String keyStorePassword;
+  public CredentialValue keyStorePassword = () -> "";
 
   @ConfigDef(
       required = true,
@@ -162,17 +162,16 @@ public class TlsConfigBean {
 
   @ConfigDef(
       required = false,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       description = "The password to the truststore file, if applicable.  Using a password is highly recommended for "
           + "security reasons.",
       label = "Truststore Password",
       displayPosition = DISPLAY_POSITION_OFFSET + 170,
-      elDefs = VaultEL.class,
       group = "#0",
       dependsOn = "tlsEnabled",
       triggeredByValue = "true"
   )
-  public String trustStorePassword;
+  public CredentialValue trustStorePassword;
 
   @ConfigDef(
       required = true,
@@ -208,6 +207,7 @@ public class TlsConfigBean {
       description = "The transport protocols to enable for connections (ex: TLSv1.2, TLSv1.1, etc.).",
       displayPosition = DISPLAY_POSITION_OFFSET + 310,
       group = "#0",
+      defaultValue = "[]",
       dependsOn = "useDefaultProtocols",
       triggeredByValue = "false"
   )
@@ -234,6 +234,7 @@ public class TlsConfigBean {
       description = "The cipher suites for connections (ex: TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, etc.).",
       displayPosition = DISPLAY_POSITION_OFFSET + 360,
       group = "#0",
+      defaultValue = "[]",
       dependsOn = "useDefaultCiperSuites",
       triggeredByValue = "false"
   )
@@ -241,10 +242,11 @@ public class TlsConfigBean {
 
   public boolean pathRelativeToResourcesDir = true;
 
-  private SSLEngine sslEngine;
   private SSLContext sslContext;
   private KeyStore keyStore;
   private KeyStore trustStore;
+  private String[] finalCipherSuites;
+  private String[] finalProtocols;
 
   private Set<String> getSupportedValuesFromSpecified(
       Collection<String> supportedValues, Collection<String> specifiedValues, String type
@@ -297,7 +299,14 @@ public class TlsConfigBean {
   }
 
   public boolean isInitialized() {
-    return sslEngine != null;
+    return sslContext != null;
+  }
+
+  protected SSLEngine createBaseSslEngine() {
+    SSLEngine sslEngine = sslContext.createSSLEngine();
+    sslEngine.setUseClientMode(false);
+    sslEngine.setNeedClientAuth(false);
+    return sslEngine;
   }
 
   public boolean init(
@@ -336,6 +345,7 @@ public class TlsConfigBean {
           null
       );
     } catch (KeyManagementException | NoSuchAlgorithmException e) {
+      sslContext = null;
       issues.add(context.createConfigIssue(
           groupName,
           "trustStoreFilePath",
@@ -345,23 +355,19 @@ public class TlsConfigBean {
       ));
       return false;
     }
-
-    sslEngine = sslContext.createSSLEngine();
-    sslEngine.setUseClientMode(false);
-    sslEngine.setNeedClientAuth(false);
-
-    sslEngine.setEnabledProtocols(getFinalProtocols());
-
-    sslEngine.setEnabledCipherSuites(getFinalCipherSuites());
-
-    sslEngine.setEnableSessionCreation(true);
-    sslEngine.setUseClientMode(isClientMode());
-
+    SSLEngine sslEngine = createBaseSslEngine();
+    finalCipherSuites = determineFinalCipherSuites(sslEngine);
+    finalProtocols = determineFinalProtocols(sslEngine);
     return true;
   }
 
   @NotNull
   public String[] getFinalCipherSuites() {
+    return finalCipherSuites;
+  }
+
+  @NotNull
+  private String[] determineFinalCipherSuites(SSLEngine sslEngine) {
     Collection<String> filteredCipherSuites;
     if (useDefaultCiperSuites) {
       filteredCipherSuites = getSupportedValuesFromSpecified(
@@ -380,6 +386,11 @@ public class TlsConfigBean {
 
   @NotNull
   public String[] getFinalProtocols() {
+    return finalProtocols;
+  }
+
+  @NotNull
+  private String[] determineFinalProtocols(SSLEngine sslEngine) {
     Collection<String> filteredProtocols;
     if (useDefaultProtocols) {
       filteredProtocols = getSupportedValuesFromSpecified(
@@ -437,8 +448,8 @@ public class TlsConfigBean {
     }
 
     try {
-      kmf.init(keyStore, getPasswordChars(keyStorePassword));
-    } catch (KeyStoreException | NoSuchAlgorithmException | UnrecoverableKeyException e) {
+      kmf.init(keyStore, getPasswordChars(keyStorePassword.get()));
+    } catch (KeyStoreException | NoSuchAlgorithmException | UnrecoverableKeyException | StageException e) {
       issues.add(context.createConfigIssue(
           groupName,
           configPrefix + "keyStoreFilePath",
@@ -523,7 +534,14 @@ public class TlsConfigBean {
     return sslContext;
   }
 
-  public SSLEngine getSslEngine() {
+  public SSLEngine createSslEngine() {
+    SSLEngine sslEngine = createBaseSslEngine();
+    sslEngine.setEnabledProtocols(getFinalProtocols());
+
+    sslEngine.setEnabledCipherSuites(getFinalCipherSuites());
+
+    sslEngine.setEnableSessionCreation(true);
+    sslEngine.setUseClientMode(isClientMode());
     return sslEngine;
   }
 
@@ -533,7 +551,7 @@ public class TlsConfigBean {
       String configPrefix,
       List<Stage.ConfigIssue> issues,
       Path keyStorePath,
-      String password,
+      CredentialValue password,
       KeyStoreType type,
       String storeCategory
   ) {
@@ -564,8 +582,8 @@ public class TlsConfigBean {
     }
 
     try (final InputStream keyStoreIs = Files.newInputStream(keyStorePath)) {
-      ks.load(keyStoreIs, getPasswordChars(password));
-    } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
+      ks.load(keyStoreIs, getPasswordChars(password.get()));
+    } catch (IOException | NoSuchAlgorithmException | CertificateException | StageException e) {
       issues.add(context.createConfigIssue(
           groupName,
           configPrefix + storeCategory.toLowerCase() + "StoreFilePath",

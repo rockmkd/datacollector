@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,12 +19,15 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.pipeline.api.impl.Utils;
+import org.apache.commons.collections.CollectionUtils;
 
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PipelineConfigurationJson implements Serializable {
@@ -41,11 +44,15 @@ public class PipelineConfigurationJson implements Serializable {
     @JsonProperty("uuid") UUID uuid,
     @JsonProperty("configuration") List<ConfigConfigurationJson> configuration,
     @JsonProperty("uiInfo") Map<String, Object> uiInfo,
+    @JsonProperty("fragments") List<PipelineFragmentConfigurationJson> fragments,
     @JsonProperty("stages") List<StageConfigurationJson> stages,
     @JsonProperty("errorStage") StageConfigurationJson errorStage,
     @JsonProperty("info") PipelineInfoJson pipelineInfo,
     @JsonProperty("metadata") Map<String, Object> metadata,
-    @JsonProperty("statsAggregatorStage") StageConfigurationJson statsAggregatorStage
+    @JsonProperty("statsAggregatorStage") StageConfigurationJson statsAggregatorStage,
+    @JsonProperty("startEventStages") List<StageConfigurationJson> startEventStages,
+    @JsonProperty("stopEventStages") List<StageConfigurationJson> stopEventStages,
+    @JsonProperty("testOriginStage") StageConfigurationJson testOriginStage
   ) {
     version = (version == 0) ? 1 : version;
     this.pipelineConfiguration = new PipelineConfiguration(
@@ -57,9 +64,13 @@ public class PipelineConfigurationJson implements Serializable {
         description,
         BeanHelper.unwrapConfigConfiguration(configuration),
         uiInfo,
+        BeanHelper.unwrapPipelineFragementConfigurations(fragments),
         BeanHelper.unwrapStageConfigurations(stages),
         BeanHelper.unwrapStageConfiguration(errorStage),
-        BeanHelper.unwrapStageConfiguration(statsAggregatorStage)
+        BeanHelper.unwrapStageConfiguration(statsAggregatorStage),
+        BeanHelper.unwrapStageConfigurations(startEventStages),
+        BeanHelper.unwrapStageConfigurations(stopEventStages),
+        BeanHelper.unwrapStageConfiguration(testOriginStage)
     );
     this.pipelineConfiguration.setPipelineInfo(BeanHelper.unwrapPipelineInfo(pipelineInfo));
     this.pipelineConfiguration.setMetadata(metadata);
@@ -97,8 +108,26 @@ public class PipelineConfigurationJson implements Serializable {
     return BeanHelper.wrapPipelineInfo(pipelineConfiguration.getInfo());
   }
 
+  public List<PipelineFragmentConfigurationJson> getFragments() {
+    return BeanHelper.wrapPipelineFragmentConfigurations(pipelineConfiguration.getFragments());
+  }
+
   public List<StageConfigurationJson> getStages() {
-    return BeanHelper.wrapStageConfigurations(pipelineConfiguration.getStages());
+    if (CollectionUtils.isEmpty(pipelineConfiguration.getFragments())) {
+      return BeanHelper.wrapStageConfigurations(pipelineConfiguration.getStages());
+    } else {
+      // update original stages
+      List<StageConfiguration> originalStages = pipelineConfiguration.getOriginalStages()
+          .stream()
+          .map(stageConfiguration -> pipelineConfiguration.getStages()
+              .stream()
+              .filter(upgraded -> upgraded.getInstanceName().equals(stageConfiguration.getInstanceName()))
+              .findFirst()
+              .orElse(stageConfiguration)
+          )
+          .collect(Collectors.toList());
+      return BeanHelper.wrapStageConfigurations(originalStages);
+    }
   }
 
   public StageConfigurationJson getErrorStage() {
@@ -135,6 +164,18 @@ public class PipelineConfigurationJson implements Serializable {
 
   public Map<String, Object> getMetadata() {
     return pipelineConfiguration.getMetadata();
+  }
+
+  public List<StageConfigurationJson> getStartEventStages() {
+    return BeanHelper.wrapStageConfigurations(pipelineConfiguration.getStartEventStages());
+  }
+
+  public List<StageConfigurationJson> getStopEventStages() {
+    return BeanHelper.wrapStageConfigurations(pipelineConfiguration.getStopEventStages());
+  }
+
+  public StageConfigurationJson getTestOriginStage() {
+    return BeanHelper.wrapStageConfiguration(pipelineConfiguration.getTestOriginStage());
   }
 
   @JsonIgnore

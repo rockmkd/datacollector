@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,13 +50,26 @@ public class RecordHasherConfig {
       type = ConfigDef.Type.BOOLEAN,
       defaultValue = "false",
       label = "Use Field Separator",
-      description = "Separate fields with null before hashing",
+      description = "Separator character to insert between fields before hashing",
       displayPosition = 25,
       dependsOn = "hashEntireRecord",
       triggeredByValue = "true",
       group = "RECORD_HASHING"
   )
   public boolean useSeparator;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.CHARACTER,
+      defaultValue = "\u0000",
+      dependsOn = "useSeparator",
+      triggeredByValue = "true",
+      label = "Field Separator",
+      description = "Character to separate fields",
+      displayPosition = 28,
+      group = "RECORD_HASHING"
+  )
+  public Character separatorCharacter = '\u0000';
 
   @ConfigDef(
       required = true,

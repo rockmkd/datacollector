@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,7 @@ import java.util.Iterator;
     description = "It echoes root field from records as a body of an event. For development purpose only.",
     icon="dev.png",
     producesEvents = true,
-    onlineHelpRefUrl = "index.html#Pipeline_Design/DevStages.html"
+    onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
 )
 public class ToEventTarget extends BaseTarget {
   @Override

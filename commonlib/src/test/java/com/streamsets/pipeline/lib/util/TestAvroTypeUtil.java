@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,6 +44,23 @@ import java.util.Map;
 
 public class TestAvroTypeUtil {
 
+  private static void makeBadType(
+      Field badField,
+      Record record,
+      Schema avroSchema) throws Exception {
+    try {
+      record.set(badField);
+      Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<String, Object>());
+      Assert.fail("Incorrect type should throw DataGeneratorException");
+    } catch (DataGeneratorException ex) {
+      Assert.assertEquals(
+          "Received expected DataGeneratorException error",
+          true,
+          ex.getErrorCode().getCode().equals(Errors.AVRO_GENERATOR_05.name())
+      );
+    }
+  }
+
   @Test
   public void testCreateBooleanField() throws Exception {
     String schema = "{\"name\": \"name\", \"type\": \"boolean\"}";
@@ -72,6 +89,9 @@ public class TestAvroTypeUtil {
     Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<String, Object>());
     Assert.assertTrue(avroObject instanceof Double);
     Assert.assertTrue(345823746923.863423 == (Double) avroObject);
+
+    //Check invalid type - String to Double
+    makeBadType(Field.create("notDouble"), record, avroSchema);
   }
 
   @Test
@@ -87,6 +107,9 @@ public class TestAvroTypeUtil {
     Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<String, Object>());
     Assert.assertTrue(avroObject instanceof Integer);
     Assert.assertTrue(34582 == (Integer) avroObject);
+
+    //Check invalid type - String to Integer
+    makeBadType(Field.create("notInteger"), record, avroSchema);
   }
 
   @Test
@@ -102,6 +125,9 @@ public class TestAvroTypeUtil {
     Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<String, Object>());
     Assert.assertTrue(avroObject instanceof Long);
     Assert.assertTrue(3458236L == (Long) avroObject);
+
+    //Check invalid type - String to Long
+    makeBadType(Field.create("notLong"), record, avroSchema);
   }
 
   @Test
@@ -208,11 +234,16 @@ public class TestAvroTypeUtil {
     Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, BigDecimal.valueOf(1.5));
     Assert.assertEquals(Field.Type.DECIMAL, field.getType());
     Assert.assertEquals(BigDecimal.valueOf(1.5), field.getValueAsDecimal());
+    Assert.assertEquals("decimal", field.getAttribute(AvroTypeUtil.FIELD_ATTRIBUTE_TYPE));
 
     record.set(field);
     Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<String, Object>());
     Assert.assertTrue(avroObject instanceof ByteBuffer);
     Assert.assertArrayEquals(new byte[] {0x0F}, ((ByteBuffer)avroObject).array());
+
+
+    //Check invalid type - String to Logical Decimal
+    makeBadType(Field.create("notDecimal"), record, avroSchema);
   }
 
   @Test
@@ -229,8 +260,11 @@ public class TestAvroTypeUtil {
     Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, avroObject);
     Assert.assertEquals(Field.Type.DECIMAL, field.getType());
     Assert.assertEquals(expectedValue, field.getValueAsDecimal());
-    Assert.assertEquals("2", field.getAttribute(AvroTypeUtil.PRECISION));
-    Assert.assertEquals("1", field.getAttribute(AvroTypeUtil.SCALE));
+    Assert.assertEquals("2", field.getAttribute(AvroTypeUtil.LOGICAL_TYPE_ATTR_PRECISION));
+    Assert.assertEquals("1", field.getAttribute(AvroTypeUtil.LOGICAL_TYPE_ATTR_SCALE));
+
+    //Check invalid type - String to Logical Decimal
+    makeBadType(Field.create("notDecimal"), record, avroSchema);
   }
 
   @Test
@@ -240,12 +274,44 @@ public class TestAvroTypeUtil {
     Record record = RecordCreator.create();
     Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, new Date(116, 0, 1));
     Assert.assertEquals(Field.Type.DATE, field.getType());
+    Assert.assertEquals("date", field.getAttribute(AvroTypeUtil.FIELD_ATTRIBUTE_TYPE));
     Assert.assertEquals(new Date(116, 0, 1), field.getValueAsDate());
 
     record.set(field);
     Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<String, Object>());
     Assert.assertTrue(avroObject instanceof Integer);
     Assert.assertEquals(16801, (int)avroObject);
+
+    //Check invalid type - String to Date
+    makeBadType(Field.create("notDate"), record, avroSchema);
+  }
+
+  @Test
+  public void testCreateUnionWithNull() throws Exception {
+    String schema = "[\"null\", \"string\"]";
+    Schema avroSchema = new Schema.Parser().parse(schema);
+    Record record = RecordCreator.create();
+    Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, null);
+    Assert.assertEquals(Field.Type.STRING, field.getType());
+    Assert.assertEquals(null, field.getValue());
+
+    record.set(field);
+    Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, Collections.emptyMap());
+    Assert.assertNull(avroObject);
+  }
+
+  @Test
+  public void testCreateUnionWithNullAndLogicalType() throws Exception {
+    String schema = "[\"null\", {\"name\": \"name\", \"type\": \"int\", \"logicalType\": \"date\"}]";
+    Schema avroSchema = new Schema.Parser().parse(schema);
+    Record record = RecordCreator.create();
+    Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, null);
+    Assert.assertEquals(Field.Type.DATE, field.getType());
+    Assert.assertEquals(null, field.getValue());
+
+    record.set(field);
+    Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, Collections.emptyMap());
+    Assert.assertNull(avroObject);
   }
 
   @Test
@@ -262,6 +328,80 @@ public class TestAvroTypeUtil {
     Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, avroObject);
     Assert.assertEquals(Field.Type.DATE, field.getType());
     Assert.assertEquals(expectedDate, field.getValueAsDate());
+  }
+
+  @Test
+  public void testCreateTimeMillisField() throws Exception {
+    String schema = "{\"name\": \"name\", \"type\": \"int\", \"logicalType\": \"time-millis\"}";
+    Schema avroSchema = new Schema.Parser().parse(schema);
+    Record record = RecordCreator.create();
+    Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, 1000);
+    Assert.assertEquals(Field.Type.TIME, field.getType());
+    Assert.assertEquals("time-millis", field.getAttribute(AvroTypeUtil.FIELD_ATTRIBUTE_TYPE));
+    Assert.assertEquals(new Date(1000L), field.getValueAsDate());
+
+    record.set(field);
+    Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<>());
+    Assert.assertTrue(avroObject instanceof Integer);
+    Assert.assertEquals(1000, (int)avroObject);
+
+    //Check invalid type - String to Logical Milliseconds
+    makeBadType(Field.create("notMilliseconds"), record, avroSchema);
+  }
+
+  @Test
+  public void testCreateTimeMicrosField() throws Exception {
+    String schema = "{\"name\": \"name\", \"type\": \"long\", \"logicalType\": \"time-micros\"}";
+    Schema avroSchema = new Schema.Parser().parse(schema);
+    Record record = RecordCreator.create();
+    Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, 1000);
+    Assert.assertEquals(Field.Type.LONG, field.getType());
+    Assert.assertEquals("time-micros", field.getAttribute(AvroTypeUtil.FIELD_ATTRIBUTE_TYPE));
+    Assert.assertEquals(1000L, field.getValueAsLong());
+
+    record.set(field);
+    Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<>());
+    Assert.assertTrue(avroObject instanceof Long);
+    Assert.assertEquals(1000, (long)avroObject);
+
+    //Check invalid type - String to Logical Microseconds
+    makeBadType(Field.create("notMicroseconds"), record, avroSchema);
+  }
+
+  @Test
+  public void testCreateTimestampMillisField() throws Exception {
+    String schema = "{\"name\": \"name\", \"type\": \"long\", \"logicalType\": \"timestamp-millis\"}";
+    Date date = new Date(116, 0, 1, 3, 30, 5);
+    Schema avroSchema = new Schema.Parser().parse(schema);
+    Record record = RecordCreator.create();
+    Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, date);
+    Assert.assertEquals(Field.Type.DATETIME, field.getType());
+    Assert.assertEquals("timestamp-millis", field.getAttribute(AvroTypeUtil.FIELD_ATTRIBUTE_TYPE));
+    Assert.assertEquals(date, field.getValueAsDate());
+
+    record.set(field);
+    Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<>());
+    Assert.assertTrue(avroObject instanceof Long);
+    Assert.assertEquals(date.getTime(), (long)avroObject);
+
+    //Check invalid type - String to Logical Timestamp
+    makeBadType(Field.create("notTimestamp"), record, avroSchema);
+  }
+
+  @Test
+  public void testCreateTimestampMicrosField() throws Exception {
+    String schema = "{\"name\": \"name\", \"type\": \"long\", \"logicalType\": \"timestamp-micros\"}";
+    Schema avroSchema = new Schema.Parser().parse(schema);
+    Record record = RecordCreator.create();
+    Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, 1000L);
+    Assert.assertEquals(Field.Type.LONG, field.getType());
+    Assert.assertEquals("timestamp-micros", field.getAttribute(AvroTypeUtil.FIELD_ATTRIBUTE_TYPE));
+    Assert.assertEquals(1000L, field.getValueAsLong());
+
+    record.set(field);
+    Object avroObject = AvroTypeUtil.sdcRecordToAvro(record, avroSchema, new HashMap<>());
+    Assert.assertTrue(avroObject instanceof Long);
+    Assert.assertEquals(1000L, (long)avroObject);
   }
 
   @Test
@@ -285,6 +425,9 @@ public class TestAvroTypeUtil {
     List<String> listString = (List<String>) avroObject;
     Assert.assertEquals("Hari", listString.get(0));
     Assert.assertEquals("Kiran", listString.get(1));
+
+    //Check invalid type - String to List
+    makeBadType(Field.create("notList"), record, avroSchema);
   }
 
   @Test
@@ -316,6 +459,9 @@ public class TestAvroTypeUtil {
     Assert.assertEquals(1, (int) map.get("Hari"));
     Assert.assertTrue(map.containsKey("Kiran"));
     Assert.assertEquals(2, (int) map.get("Kiran"));
+
+    //Check invalid type - String to Map
+    makeBadType(Field.create("notMicroseconds"), record, avroSchema);
   }
 
   @Test
@@ -345,7 +491,7 @@ public class TestAvroTypeUtil {
 
     Record record = RecordCreator.create();
     Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, genericRecord);
-    Assert.assertEquals(Field.Type.MAP, field.getType());
+    Assert.assertEquals(Field.Type.LIST_MAP, field.getType());
     Map<String, Field> map = field.getValueAsMap();
     Assert.assertTrue(map.containsKey("name"));
     Assert.assertEquals("hari", map.get("name").getValueAsString());
@@ -439,7 +585,7 @@ public class TestAvroTypeUtil {
 
     Record record = RecordCreator.create();
     Field field = AvroTypeUtil.avroToSdcField(record, avroSchema, genericRecord);
-    Assert.assertEquals(Field.Type.MAP, field.getType());
+    Assert.assertEquals(Field.Type.LIST_MAP, field.getType());
     Map<String, Field> map = field.getValueAsMap();
     Assert.assertTrue(map.containsKey("name"));
     Assert.assertEquals("hari", map.get("name").getValueAsString());
@@ -575,7 +721,7 @@ public class TestAvroTypeUtil {
     Assert.assertEquals(2, valueAsList.size());
 
     Field field = valueAsList.get(1);
-    Assert.assertEquals(Field.Type.MAP, field.getType());
+    Assert.assertEquals(Field.Type.LIST_MAP, field.getType());
     Map<String, Field> map = field.getValueAsMap();
     Assert.assertTrue(map.containsKey("name"));
     Assert.assertEquals("kiran", map.get("name").getValueAsString());
@@ -605,7 +751,7 @@ public class TestAvroTypeUtil {
 
 
     field = valueAsList.get(0);
-    Assert.assertEquals(Field.Type.MAP, field.getType());
+    Assert.assertEquals(Field.Type.LIST_MAP, field.getType());
     map = field.getValueAsMap();
     Assert.assertTrue(map.containsKey("name"));
     Assert.assertEquals("hari", map.get("name").getValueAsString());
@@ -740,7 +886,7 @@ public class TestAvroTypeUtil {
     Assert.assertTrue(valueAsMap.containsKey("Hari"));
     Field field = valueAsMap.get("Hari");
 
-    Assert.assertEquals(Field.Type.MAP, field.getType());
+    Assert.assertEquals(Field.Type.LIST_MAP, field.getType());
     Map<String, Field> map = field.getValueAsMap();
     Assert.assertTrue(map.containsKey("name"));
     Assert.assertEquals("hari", map.get("name").getValueAsString());
@@ -771,7 +917,7 @@ public class TestAvroTypeUtil {
     Assert.assertTrue(valueAsMap.containsKey("Kiran"));
     field = valueAsMap.get("Kiran");
 
-    Assert.assertEquals(Field.Type.MAP, field.getType());
+    Assert.assertEquals(Field.Type.LIST_MAP, field.getType());
     map = field.getValueAsMap();
     Assert.assertTrue(map.containsKey("name"));
     Assert.assertEquals("kiran", map.get("name").getValueAsString());

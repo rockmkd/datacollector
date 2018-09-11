@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.store.impl;
 
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.config.PipelineFragmentConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.execution.StateEventListener;
 import com.streamsets.datacollector.store.PipelineInfo;
@@ -41,7 +42,8 @@ public class SlavePipelineStoreTask  implements PipelineStoreTask {
       String pipelineId,
       String pipelineTitle,
       String description,
-      boolean isRemote
+      boolean isRemote,
+      boolean draft
   ) throws PipelineStoreException {
     throw new UnsupportedOperationException();
   }
@@ -88,9 +90,14 @@ public class SlavePipelineStoreTask  implements PipelineStoreTask {
   }
 
   @Override
-  public RuleDefinitions storeRules(String pipelineName, String tag, RuleDefinitions ruleDefinitions)
+  public RuleDefinitions storeRules(
+      String pipelineName,
+      String tag,
+      RuleDefinitions ruleDefinitions,
+      boolean draft
+  )
     throws PipelineException {
-    return pipelineStore.storeRules(pipelineName, tag, ruleDefinitions);
+    return pipelineStore.storeRules(pipelineName, tag, ruleDefinitions, draft);
   }
 
   @Override
@@ -151,6 +158,17 @@ public class SlavePipelineStoreTask  implements PipelineStoreTask {
   @Override
   public boolean isRemotePipeline(String name, String rev) throws PipelineStoreException {
     return false;
+  }
+
+  @Override
+  public PipelineFragmentConfiguration createPipelineFragment(
+      String user,
+      String pipelineId,
+      String pipelineTitle,
+      String description,
+      boolean draft
+  ) throws PipelineException {
+    return pipelineStore.createPipelineFragment(user, pipelineId, pipelineTitle, description, draft);
   }
 
 }

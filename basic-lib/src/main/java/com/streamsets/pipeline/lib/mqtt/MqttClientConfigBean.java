@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@ package com.streamsets.pipeline.lib.mqtt;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.lib.el.VaultEL;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,27 +111,25 @@ public class MqttClientConfigBean {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Username",
       displayPosition = 71,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "useAuth",
       triggeredByValue = { "true" }
   )
-  public String username;
+  public CredentialValue username;
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
+      type = ConfigDef.Type.CREDENTIAL,
       label = "Password",
       displayPosition = 72,
-      elDefs = VaultEL.class,
       group = "CREDENTIALS",
       dependsOn = "useAuth",
       triggeredByValue = { "true" }
   )
-  public String password;
+  public CredentialValue password;
 
   @ConfigDefBean(groups = "TLS")
   public TlsConfigBean tlsConfig = new TlsConfigBean();

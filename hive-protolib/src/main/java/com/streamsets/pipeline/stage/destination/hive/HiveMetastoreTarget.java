@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +16,16 @@
 package com.streamsets.pipeline.stage.destination.hive;
 
 import com.google.common.base.Joiner;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.streamsets.pipeline.api.Batch;
+import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseTarget;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.api.impl.Utils;
-import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.lib.hive.Errors;
@@ -46,6 +49,10 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class HiveMetastoreTarget extends BaseTarget {
   private static final Logger LOG = LoggerFactory.getLogger(HiveMetastoreTarget.class.getCanonicalName());
@@ -53,18 +60,21 @@ public class HiveMetastoreTarget extends BaseTarget {
   private static final String STORED_AS_AVRO = "storedAsAvro";
   private static final String EXTERNAL = "External";
   private static final Joiner JOINER = Joiner.on(".");
+  private static final String KEY_LOCKS = "table-locks";
 
   private final HMSTargetConfigBean conf;
 
   private HiveQueryExecutor queryExecutor;
   private ErrorRecordHandler defaultErrorRecordHandler;
   private HMSCache hmsCache;
+  private LoadingCache<String, Lock> tableLocks;
 
   public HiveMetastoreTarget(HMSTargetConfigBean conf) {
     this.conf = conf;
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   protected List<ConfigIssue> init() {
     List<ConfigIssue> issues = super.init();
     defaultErrorRecordHandler = new DefaultErrorRecordHandler(getContext());
@@ -83,7 +93,7 @@ public class HiveMetastoreTarget extends BaseTarget {
                 )
             )
             .maxCacheSize(conf.hiveConfigBean.maxCacheSize)
-            .build(queryExecutor);
+            .build();
       } catch (StageException e) {
         issues.add(getContext().createConfigIssue(
             Groups.HIVE.name(),
@@ -91,6 +101,23 @@ public class HiveMetastoreTarget extends BaseTarget {
             Errors.HIVE_01,
             e.getMessage()
         ));
+      }
+
+      // Table locks is a cache shared with all runners that contains locks for all tables. Locks inside will expire
+      // in 15 minutes -- idea is that if a thread holds a lock for more then 15 minutes, then we have bigger issues to
+      // worry about than that two threads could be altering two tables.
+      Map<String, Object> runnerSharedMap = getContext().getStageRunnerSharedMap();
+      synchronized (runnerSharedMap) {
+        tableLocks = (LoadingCache<String, Lock>) runnerSharedMap.computeIfAbsent(KEY_LOCKS,
+          key -> CacheBuilder.newBuilder()
+            .expireAfterAccess(15, TimeUnit.MINUTES)
+            .build(new CacheLoader<String, Lock>() {
+              @Override
+              public Lock load(String key) throws Exception {
+                return new ReentrantLock();
+              }
+            })
+        );
       }
     }
     return issues;
@@ -101,6 +128,7 @@ public class HiveMetastoreTarget extends BaseTarget {
     Iterator<Record> recordIterator = batch.getRecords();
     while (recordIterator.hasNext()) {
       Record metadataRecord = recordIterator.next();
+      Lock tableLock = null;
       try {
         HiveMetastoreUtil.validateMetadataRecordForRecordTypeAndVersion(metadataRecord);
         String tableName = HiveMetastoreUtil.getTableName(metadataRecord);
@@ -108,10 +136,21 @@ public class HiveMetastoreTarget extends BaseTarget {
         String qualifiedTableName = HiveMetastoreUtil.getQualifiedTableName(databaseName, tableName);
         String location = HiveMetastoreUtil.getLocation(metadataRecord);
 
+        // Get resolved headers (for output Event)
+        Map<String, String> resolvedHeaders = new LinkedHashMap<>();
+        if(!conf.isHeadersEmpty()) {
+          resolvedHeaders = conf.getResolvedHeaders(getContext(), metadataRecord);
+        }
+
+        // Get exclusive lock for this table
+        tableLock = tableLocks.get(qualifiedTableName);
+        tableLock.lock();
+
         TBLPropertiesInfoCacheSupport.TBLPropertiesInfo tblPropertiesInfo = HiveMetastoreUtil.getCacheInfo(
             hmsCache,
             HMSCacheType.TBLPROPERTIES_INFO,
-            qualifiedTableName
+            qualifiedTableName,
+            queryExecutor
         );
 
         // get dataFormat from metadataRecord
@@ -150,14 +189,22 @@ public class HiveMetastoreTarget extends BaseTarget {
               tableName,
               queryExecutor,
               tblPropertiesInfo,
-              hmpDataFormat
+              hmpDataFormat,
+              resolvedHeaders
           );
         } else {
-          handlePartitionAddition(metadataRecord, qualifiedTableName, location, queryExecutor);
+          handlePartitionAddition(metadataRecord, qualifiedTableName, location, queryExecutor, resolvedHeaders);
         }
       } catch (HiveStageCheckedException e) {
         LOG.error("Error processing record: {}", e);
         defaultErrorRecordHandler.onError(new OnRecordErrorException(metadataRecord, e.getErrorCode(), e.getParams()));
+      } catch (ExecutionException e) {
+        LOG.error("Can't retrieve lock for table: {}", e);
+        defaultErrorRecordHandler.onError(new OnRecordErrorException(metadataRecord, Errors.HIVE_01, e.toString()));
+      } finally {
+        if(tableLock != null) {
+          tableLock.unlock();
+        }
       }
     }
   }
@@ -175,7 +222,8 @@ public class HiveMetastoreTarget extends BaseTarget {
       String tableName,
       HiveQueryExecutor hiveQueryExecutor,
       TBLPropertiesInfoCacheSupport.TBLPropertiesInfo tblPropertiesInfo,
-      HMPDataFormat dataFormat
+      HMPDataFormat dataFormat,
+      Map<String, String> headers
   ) throws StageException {
     //Schema Change
     String qualifiedTableName = HiveMetastoreUtil.getQualifiedTableName(databaseName, tableName);
@@ -183,7 +231,8 @@ public class HiveMetastoreTarget extends BaseTarget {
     TypeInfoCacheSupport.TypeInfo cachedColumnTypeInfo = HiveMetastoreUtil.getCacheInfo(
         hmsCache,
         cacheType,
-        qualifiedTableName
+        qualifiedTableName,
+        hiveQueryExecutor
     );
     LinkedHashMap<String, HiveTypeInfo> newColumnTypeInfo = HiveMetastoreUtil.getColumnNameType(metadataRecord);
     LinkedHashMap<String, HiveTypeInfo> partitionTypeInfo = HiveMetastoreUtil.getPartitionNameType(metadataRecord);
@@ -203,7 +252,8 @@ public class HiveMetastoreTarget extends BaseTarget {
           location,
           databaseName,
           tableName,
-          qualifiedTableName
+          qualifiedTableName,
+          headers
         );
       }
       //Create Table
@@ -225,11 +275,17 @@ public class HiveMetastoreTarget extends BaseTarget {
       );
 
       // Generate new table event
-      HiveMetastoreEvents.NEW_TABLE.create(getContext())
+      EventRecord event = HiveMetastoreEvents.NEW_TABLE.create(getContext())
         .with("table", qualifiedTableName)
         .withStringMap("columns", Collections.<String, Object>unmodifiableMap(newColumnTypeInfo))
         .withStringMap("partitions", Collections.<String, Object>unmodifiableMap(partitionTypeInfo))
-        .createAndSend();
+        .create();
+      if (!conf.isHeadersEmpty()) {
+        for ( Map.Entry<String, String> entry : headers.entrySet()) {
+          event.getHeader().setAttribute(entry.getKey(), entry.getValue());
+        }
+      }
+      getContext().toEvent(event);
 
     } else {
       //Diff to get new columns.
@@ -245,7 +301,8 @@ public class HiveMetastoreTarget extends BaseTarget {
             location,
             databaseName,
             tableName,
-            qualifiedTableName
+            qualifiedTableName,
+            headers
           );
         }
 
@@ -257,10 +314,16 @@ public class HiveMetastoreTarget extends BaseTarget {
         }
         cachedColumnTypeInfo.updateState(columnDiff);
 
-        HiveMetastoreEvents.NEW_COLUMNS.create(getContext())
+        EventRecord event = HiveMetastoreEvents.NEW_COLUMNS.create(getContext())
           .with("table", qualifiedTableName)
           .withStringMap("columns", Collections.<String, Object>unmodifiableMap(columnDiff))
-          .createAndSend();
+          .create();
+        if (!conf.isHeadersEmpty()) {
+          for ( Map.Entry<String, String> entry : headers.entrySet()) {
+            event.getHeader().setAttribute(entry.getKey(), entry.getValue());
+          }
+        }
+        getContext().toEvent(event);
       }
     }
   }
@@ -271,7 +334,8 @@ public class HiveMetastoreTarget extends BaseTarget {
     String location,
     String databaseName,
     String tableName,
-    String qualifiedTableName
+    String qualifiedTableName,
+    Map<String, String> headers
   ) throws StageException {
     String schemaPath = HiveMetastoreUtil.serializeSchemaToHDFS(
       conf.getHDFSUgi(),
@@ -282,11 +346,17 @@ public class HiveMetastoreTarget extends BaseTarget {
       tableName,
       avroSchema
     );
-    HiveMetastoreEvents.AVRO_SCHEMA_STORED.create(getContext())
+    EventRecord event = HiveMetastoreEvents.AVRO_SCHEMA_STORED.create(getContext())
       .with("table", qualifiedTableName)
       .with("avro_schema", avroSchema)
       .with("schema_location", schemaPath)
-      .createAndSend();
+      .create();
+    if (!conf.isHeadersEmpty()) {
+      for ( Map.Entry<String, String> entry : headers.entrySet()) {
+        event.getHeader().setAttribute(entry.getKey(), entry.getValue());
+      }
+    }
+    getContext().toEvent(event);
     return schemaPath;
   }
 
@@ -294,12 +364,14 @@ public class HiveMetastoreTarget extends BaseTarget {
       Record metadataRecord,
       String qualifiedTableName,
       String location,
-      HiveQueryExecutor hiveQueryExecutor
+      HiveQueryExecutor hiveQueryExecutor,
+      Map<String, String> headers
   ) throws StageException {
     //Partition Addition
     TypeInfoCacheSupport.TypeInfo cachedTypeInfo = hmsCache.getOrLoad(
         HMSCacheType.TYPE_INFO,
-        qualifiedTableName
+        qualifiedTableName,
+        hiveQueryExecutor
     );
 
     if (cachedTypeInfo == null) {
@@ -312,7 +384,8 @@ public class HiveMetastoreTarget extends BaseTarget {
     PartitionInfoCacheSupport.PartitionInfo cachedPartitionInfo = HiveMetastoreUtil.getCacheInfo(
         hmsCache,
         hmsCacheType,
-        qualifiedTableName
+        qualifiedTableName,
+        hiveQueryExecutor
     );
     LinkedHashMap<String, String> partitionValMap = HiveMetastoreUtil.getPartitionNameValue(metadataRecord);
     PartitionInfoCacheSupport.PartitionValues partitionValues =
@@ -341,10 +414,16 @@ public class HiveMetastoreTarget extends BaseTarget {
         );
       }
 
-      HiveMetastoreEvents.NEW_PARTITION.create(getContext())
+      EventRecord event = HiveMetastoreEvents.NEW_PARTITION.create(getContext())
         .with("table", qualifiedTableName)
         .withStringMap("partition", Collections.<String, Object>unmodifiableMap(partitionValMap))
-        .createAndSend();
+        .create();
+      if (!conf.isHeadersEmpty()) {
+        for ( Map.Entry<String, String> entry : headers.entrySet()) {
+          event.getHeader().setAttribute(entry.getKey(), entry.getValue());
+        }
+      }
+      getContext().toEvent(event);
     }
   }
 }

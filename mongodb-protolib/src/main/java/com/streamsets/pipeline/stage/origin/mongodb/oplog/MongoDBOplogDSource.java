@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,8 @@ import com.streamsets.pipeline.stage.origin.mongodb.MongoDBDSource;
     icon="mongodb.png",
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/MongoDBOplog.html#task_qj5_drw_4y",
+    onlineHelpRefUrl ="index.html?contextID=task_qj5_drw_4y",
+    upgrader = MongoDBOplogSourceUpgrader.class,
     resetOffset = true
 )
 @GenerateResourceBundle

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,7 @@ import com.streamsets.pipeline.stage.destination.lib.DataGeneratorFormatConfig;
  * Bean specifying the configuration for an CoapClientTarget instance.
  */
 public class CoapClientTargetConfig {
-  @ConfigDefBean(groups = {"COAP"})
+  @ConfigDefBean(groups = {"DATA_FORMAT"})
   public DataGeneratorFormatConfig dataGeneratorFormatConfig;
 
   @ConfigDef(

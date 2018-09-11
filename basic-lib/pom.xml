@@ -23,11 +23,11 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>2.7.0.0-SNAPSHOT</version>
+    <version>3.5.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-basic-lib</artifactId>
-  <version>2.7.0.0-SNAPSHOT</version>
+  <version>3.5.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Basic Lib</description>
   <name>StreamSets Data Collector Basic Lib</name>
   <packaging>jar</packaging>
@@ -39,13 +39,13 @@
     <geoip2.version>2.1.0</geoip2.version>
     <guava.version>20.0</guava.version>
     <h2.version>1.4.187</h2.version>
-    <jersey.version>2.23.1</jersey.version>
     <joda.version>2.8</joda.version>
-    <milo.version>0.1.3</milo.version>
+    <milo.version>0.1.5</milo.version>
     <xerces.version>2.11.0</xerces.version>
     <jetty.version>9.4.2.v20170220</jetty.version>
     <paho.version>1.0.2</paho.version>
     <snappy.version>0.4</snappy.version>
+    <syslog.version>1.1.3</syslog.version>
   </properties>
 
   <dependencies>
@@ -85,6 +85,11 @@
     <dependency>
       <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-commonlib</artifactId>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-scripting-protolib</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -133,20 +138,49 @@
     <dependency>
       <groupId>org.glassfish.jersey.core</groupId>
       <artifactId>jersey-client</artifactId>
-      <version>${jersey.version}</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.glassfish.jersey.connectors</groupId>
       <artifactId>jersey-grizzly-connector</artifactId>
-      <version>${jersey.version}</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.glassfish.jersey.security</groupId>
       <artifactId>oauth1-client</artifactId>
-      <version>${jersey.version}</version>
       <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.jaxrs</groupId>
+      <artifactId>jackson-jaxrs-json-provider</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+      <version>${avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro-maven-plugin</artifactId>
+      <version>${avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro-compiler</artifactId>
+      <version>${avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro-ipc</artifactId>
+      <version>${avro.version}</version>
+      <exclusions>
+      <exclusion>
+        <groupId>org.mortbay.jetty</groupId>
+        <artifactId>servlet-api</artifactId>
+      </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>
@@ -238,6 +272,13 @@
 
     <dependency>
       <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-dir-spooler-protolib</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-hdfs-protolib</artifactId>
       <version>${project.version}</version>
       <scope>compile</scope>
@@ -294,11 +335,23 @@
       <version>3.5</version>
     </dependency>
 
+    <dependency>
+      <groupId>com.cloudbees</groupId>
+      <artifactId>syslog-java-client</artifactId>
+      <version>${syslog.version}</version>
+    </dependency>
+
     <!-- Test Dependencies -->
     <dependency>
       <groupId>org.eclipse.milo</groupId>
       <artifactId>sdk-server</artifactId>
       <version>${milo.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.javassist</groupId>
+          <artifactId>javassist</artifactId>
+        </exclusion>
+      </exclusions>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -333,13 +386,11 @@
      <dependency>
       <groupId>org.glassfish.jersey.test-framework.providers</groupId>
       <artifactId>jersey-test-framework-provider-grizzly2</artifactId>
-      <version>${jersey.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.glassfish.jersey.media</groupId>
       <artifactId>jersey-media-json-jackson</artifactId>
-      <version>${jersey.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -350,7 +401,32 @@
     </dependency>
     <dependency>
       <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-scripting-protolib</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-guavasupport</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-commonlib</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-stagesupport</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-dir-spooler-protolib</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
@@ -419,6 +495,28 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
+      </plugin>
+
+      <!-- Avro schema code generation -->
+      <plugin>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro-maven-plugin</artifactId>
+        <version>${avro.version}</version>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>idl-protocol</goal>
+            </goals>
+            <configuration>
+              <sourceDirectory>${project.basedir}/src/main/resources/com/streamsets/pipeline/stage/origin/tcp/flumeavroipc</sourceDirectory>
+              <fieldVisibility>PRIVATE</fieldVisibility>
+              <includes>
+                <include>*.avdl</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

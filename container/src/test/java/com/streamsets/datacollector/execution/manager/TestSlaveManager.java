@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 package com.streamsets.datacollector.execution.manager;
 
 import com.codahale.metrics.MetricRegistry;
+import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.execution.PipelineStateStore;
@@ -135,9 +136,22 @@ public class TestSlaveManager {
 
     @Provides
     @Singleton
+    public CredentialStoresTask provideCredentialsTask() {
+      return Mockito.mock(CredentialStoresTask.class);
+    }
+
+    @Provides
+    @Singleton
     @Named("runnerExecutor")
     public SafeScheduledExecutorService provideRunnerExecutor() {
       return new SafeScheduledExecutorService(10, "runner");
+    }
+
+    @Provides
+    @Singleton
+    @Named("runnerStopExecutor")
+    public SafeScheduledExecutorService provideRunnerStopExecutor() {
+      return new SafeScheduledExecutorService(10, "runnerStop");
     }
 
     @Provides

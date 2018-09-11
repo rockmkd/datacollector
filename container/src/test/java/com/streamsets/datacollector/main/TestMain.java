@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +80,7 @@ public class TestMain {
   public static class TMain extends DataCollectorMain {
 
     public TMain() {
-      super(TPipelineAgentModule.class);
+      super(TPipelineAgentModule.class, null);
     }
 
     @Override

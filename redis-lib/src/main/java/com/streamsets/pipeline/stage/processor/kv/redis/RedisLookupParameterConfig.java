@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,6 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.lib.el.RecordEL;
-import com.streamsets.pipeline.lib.el.StringEL;
 import com.streamsets.pipeline.lib.redis.DataType;
 import com.streamsets.pipeline.lib.redis.DataTypeChooserValues;
 
@@ -29,7 +28,7 @@ public class RedisLookupParameterConfig {
       type = ConfigDef.Type.STRING,
       label = "Key Expression",
       description = "An EL expression defining the key to use for a lookup.",
-      elDefs = {StringEL.class, RecordEL.class},
+      elDefs = {RecordEL.class},
       evaluation = ConfigDef.Evaluation.EXPLICIT,
       displayPosition = 10,
       group = "#0"

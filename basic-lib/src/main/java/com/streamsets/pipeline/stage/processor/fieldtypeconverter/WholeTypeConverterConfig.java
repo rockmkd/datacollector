@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,8 @@ public class WholeTypeConverterConfig extends BaseConverterConfig {
       defaultValue="INTEGER",
       label = "Source type",
       description = "Converts all fields of given type",
-      displayPosition = 10
+      displayPosition = 10,
+      group = "TYPE_CONVERSION"
   )
   @ValueChooserModel(PrimitiveFieldTypeChooserValues.class)
   public Field.Type sourceType;

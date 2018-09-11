@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@ package com.streamsets.pipeline.lib.jdbc;
 
 import com.streamsets.pipeline.api.ErrorCode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
-import com.streamsets.pipeline.stage.processor.jdbclookup.JdbcLookupLoader;
+import com.streamsets.pipeline.stage.processor.jdbclookup.JdbcLookupProcessor;
 
 @GenerateResourceBundle
 public enum JdbcErrors implements ErrorCode {
@@ -43,7 +43,7 @@ public enum JdbcErrors implements ErrorCode {
   JDBC_20("Could not parse the table name template expression: {}"),
   JDBC_21("Could not evaluate the table name template expression: {}"),
   JDBC_22("The record had no fields that matched the columns in the destination table."),
-  JDBC_23("The field '{}' of type '{}' doesn't match the destination column's type."),
+  JDBC_23("Can't coerce '{}' of type '{}' to column '{}'"),
   JDBC_24("No results from insert"),
   JDBC_25("No column mapping for column '{}'"),
   JDBC_26("Invalid table name template expression '{}': {}"),
@@ -65,7 +65,7 @@ public enum JdbcErrors implements ErrorCode {
   JDBC_41("Error while getting DB version"),
   JDBC_42("Error while getting initial SCN. Please verify the privileges for the user"),
   JDBC_43("Could not parse redo log statement: {}"),
-  JDBC_44("Error while getting changes from Oracle due to error: {}"),
+  JDBC_44("Error while getting changes due to error: {}"),
   JDBC_45("Redo logs are not available for the specified start date. " +
       "Provide a more recent start date"),
   JDBC_46("Redo logs are not available for the specified initial SCN. " +
@@ -78,8 +78,9 @@ public enum JdbcErrors implements ErrorCode {
   JDBC_52("Error starting LogMiner"),
   JDBC_53("Since the default value of '{}' is not empty, its data type cannot be '" + DataType.USE_COLUMN_TYPE.getLabel() + "'."),
   JDBC_54("Column: '{}' does not exist in table: '{}'. This is likely due to a DDL being performed on this table"),
-  JDBC_55("The default value of '{}' must be in the format '" + JdbcLookupLoader.DATE_FORMAT + "': {}"),
-  JDBC_56("The default value of '{}' must be in the format '" + JdbcLookupLoader.DATETIME_FORMAT + "': {}"),
+  JDBC_55("The default value of '{}' must be in the format '" + JdbcLookupProcessor.DATE_FORMAT + "': {}"),
+  JDBC_56("The default value of '{}' must be in the format '" + JdbcLookupProcessor.DATETIME_FORMAT + "': {}"),
+  JDBC_57("Unsupported Multi-Row Operation to SQL Server"),
 
   JDBC_60("Cannot Serialize Offset: {}"),
   JDBC_61("Cannot Deserialize Offset: {}"),
@@ -102,6 +103,44 @@ public enum JdbcErrors implements ErrorCode {
 
   JDBC_80("Invalid transaction window. Must be a valid long or EL"),
   JDBC_81("LogMiner Session Window must be longer than Maximum Transaction Length"),
+  JDBC_82("Cannot buffer data in memory for a pipeline previously started without buffering"),
+  JDBC_83("Cannot switch from in-memory buffering to reading committed data only"),
+  JDBC_84("Transaction Id: '{}' started at: '{}' which is before the current transaction window being processed. " +
+      "The transaction was longer than transaction window"),
+  JDBC_85("Following fields have unsupported field types: '{}' in table '{}'"),
+  JDBC_86("Redo log files for the current session window are no longer available"),
+  JDBC_87("Interrupted while waiting to read data"),
+  JDBC_88("'{}' is not a valid decimal number"),
+
+  JDBC_100("Could not enable partitioning for table {}: {}"),
+  JDBC_101("Invalid partition size for table {}: {}"),
+  JDBC_102("Invalid max number of partitions ({}) for table {}; this must be negative (for default behavior) or" +
+      " greater than 1 to ensure progress"),
+  JDBC_200("Tables are not change tracking enabled: {}"),
+  JDBC_201("Invalid Change Tracking Current Version: {}"),
+  JDBC_202("Error while getting min valid version: {}"),
+  JDBC_203("Error while fetch tables from metadata: {}"),
+  JDBC_204("Hex '{}' cannot be converted into a byte array"),
+
+  JDBC_300("Record {} has unsupported root type {}"),
+  JDBC_301("Error: {}"),
+  JDBC_302("Unsupported Type: {}"),
+  JDBC_303("Type Mismatch for column '{}', Expected: {}, Actual: {}"),
+  JDBC_304("Can't calculate {} for field '{}' - attribute '{}' is '{}'"),
+  JDBC_305("Invalid value {} for {} in field {}, minimum: {}, maximum: {}"),
+  JDBC_306("Invalid value {} for scale in field {}, should be less than or equal to precision's value: {}"),
+  JDBC_307("Invalid decimal value {} in field {}: {} {} is more then expected {} "),
+  JDBC_308("Information {} missing or invalid in the metadata record: {}"),
+  JDBC_309("No schema writer for connection string '{}'"),
+
+  JDBC_401("Record '{}' has null or empty field '{}'"),
+  JDBC_402("Columns '{}' are not present in {}"),
+  JDBC_403("Could not parse SQL statement: {}"),
+  JDBC_404("No tables were found matching to configured schema and table patterns"), // Perfect error code!
+  JDBC_405("Error while generating records: {}"),
+  JDBC_406("Timeout on stopping replication slot: {}"), //Postgres
+  JDBC_407("Error querying replication slot: {}"), //Postgres
+  JDBC_408("Invalid parameter value: {}") //Postgres
 
   ;
 

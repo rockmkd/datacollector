@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,14 +15,13 @@
  */
 package com.streamsets.pipeline.stage.destination.hive;
 
-import com.streamsets.datacollector.stage.HadoopConfigurationSynchronizedTarget;
 import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 import java.util.List;
 import java.util.Map;
@@ -33,7 +32,7 @@ import java.util.Map;
     description = "Writes data to Hive tables using the streaming API. Requires ORC storage format.",
     icon = "hive.png",
     privateClassLoader = true,
-    onlineHelpRefUrl = "index.html#Destinations/Hive.html#task_cx3_lhh_ht"
+    onlineHelpRefUrl ="index.html?contextID=task_cx3_lhh_ht"
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
@@ -140,7 +139,7 @@ public class HiveDTarget extends DTarget {
 
   @Override
   protected Target createTarget() {
-    return new HadoopConfigurationSynchronizedTarget(new HiveTarget(
+    return new HiveTarget(
         hiveUrl,
         schema,
         table,
@@ -150,6 +149,6 @@ public class HiveDTarget extends DTarget {
         txnBatchSize,
         bufferLimitKb,
         additionalHiveProperties
-    ));
+    );
   }
 }

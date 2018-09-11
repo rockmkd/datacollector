@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +21,13 @@ import com.streamsets.datacollector.runner.ErrorSink;
 import com.streamsets.datacollector.runner.EventSink;
 import com.streamsets.datacollector.runner.Pipe;
 import com.streamsets.datacollector.runner.PipeBatch;
+import com.streamsets.datacollector.runner.ProcessedSink;
+import com.streamsets.datacollector.runner.SourceResponseSink;
 import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.StagePipe;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.interceptor.Interceptor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,13 +39,17 @@ public class StagePreviewPipeBatch implements PipeBatch {
   private final List<StageOutput> stageOutputSnapshot;
   private final ErrorSink errorSink;
   private final EventSink eventSink;
+  private final ProcessedSink processedSink;
+  private final SourceResponseSink sourceResponseSink;
 
   public StagePreviewPipeBatch(String instanceName, List<Record> inputRecords) {
     this.instanceName = instanceName;
     this.inputRecords = inputRecords;
     stageOutputSnapshot = new ArrayList<>();
-    this.errorSink = new ErrorSink();
-    this.eventSink = new EventSink();
+    errorSink = new ErrorSink();
+    eventSink = new EventSink();
+    processedSink = new ProcessedSink();
+    sourceResponseSink = new SourceResponseSink();
   }
 
   @Override
@@ -74,7 +82,7 @@ public class StagePreviewPipeBatch implements PipeBatch {
   }
 
   @Override
-  public void completeStage(BatchMakerImpl batchMaker) {
+  public void completeStage(BatchMakerImpl batchMaker) throws StageException {
     stageOutputSnapshot.add(new StageOutput(instanceName, batchMaker.getStageOutputSnapshot(), errorSink, eventSink));
   }
 
@@ -109,6 +117,16 @@ public class StagePreviewPipeBatch implements PipeBatch {
   }
 
   @Override
+  public ProcessedSink getProcessedSink() {
+    return processedSink;
+  }
+
+  @Override
+  public SourceResponseSink getSourceResponseSink() {
+    return sourceResponseSink;
+  }
+
+  @Override
   public void moveLane(String inputLane, String outputLane) {
     throw new UnsupportedOperationException("moveLane()");
   }
@@ -116,11 +134,6 @@ public class StagePreviewPipeBatch implements PipeBatch {
   @Override
   public void moveLaneCopying(String inputLane, List<String> outputLanes) {
     throw new UnsupportedOperationException("moveLaneCopying()");
-  }
-
-  @Override
-  public void combineLanes(List<String> lanes, String to) {
-    throw new UnsupportedOperationException("combineLanes()");
   }
 
   @Override
@@ -141,5 +154,10 @@ public class StagePreviewPipeBatch implements PipeBatch {
   @Override
   public int getErrorMessages() {
     return 0;
+  }
+
+  @Override
+  public List<StageOutput> createFailureSnapshot() {
+    throw new UnsupportedOperationException("createFailureSnapshot()");
   }
 }

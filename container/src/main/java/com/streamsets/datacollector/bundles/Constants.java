@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,6 +47,9 @@ public final class Constants {
   public static final String UPLOAD_BUFFER_SIZE = "bundle.upload.buffer_size";
   public static final int DEFAULT_UPLOAD_BUFFER_SIZE = 5 * 1024 * 1024; // 5MB, amazon lower limit
 
+  public static final String UPLOAD_ON_ERROR = "bundle.upload.on_error";
+  public static final boolean DEFAULT_UPLOAD_ON_ERROR = false;
+
   // Log Generator
 
   /**
@@ -67,5 +70,5 @@ public final class Constants {
    * Redaction regular expression for pipeline configuration keys
    */
   public static final String PIPELINE_REDACT_REGEXP = "bundle.pipeline.redact_regexp";
-  public static final String DEFAULT_PIPELINE_REDACT_REGEXP = ".*[Pp]assword.*";
+  public static final String DEFAULT_PIPELINE_REDACT_REGEXP = "(.*[Pp]assword.*|.*AccessKey.*)";
 }

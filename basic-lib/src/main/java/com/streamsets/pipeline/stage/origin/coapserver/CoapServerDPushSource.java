@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,8 @@ import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DPushSource;
 import com.streamsets.pipeline.config.DataFormat;
-import com.streamsets.pipeline.configurablestage.DPushSource;
 import com.streamsets.pipeline.lib.coap.Groups;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 
@@ -34,9 +34,9 @@ import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
     label = "CoAP Server",
     description = "Listens for requests on a CoAP endpoint",
     icon="coap_multithreaded.png",
-    execution = ExecutionMode.STANDALONE,
+    execution = {ExecutionMode.STANDALONE},
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/CoAPServer.html#task_hsb_l3n_sz"
+    onlineHelpRefUrl ="index.html?contextID=task_hsb_l3n_sz"
 )
 @ConfigGroups(Groups.class)
 @HideConfigs(value = {

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -96,8 +96,8 @@ public class TestSalesforceLookupProcessor {
   private ForceLookupConfigBean createConfigBean() {
     ForceLookupConfigBean conf = new ForceLookupConfigBean();
 
-    conf.username = username;
-    conf.password = password;
+    conf.username = () -> username;
+    conf.password = () -> password;
     conf.authEndpoint = authEndpoint;
     conf.apiVersion = apiVersion;
 

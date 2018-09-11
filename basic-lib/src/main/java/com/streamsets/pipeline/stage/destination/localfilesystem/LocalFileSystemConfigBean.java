@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ import com.streamsets.pipeline.config.DataFormat;
 import com.streamsets.pipeline.stage.destination.hdfs.HdfsFileType;
 import com.streamsets.pipeline.stage.destination.hdfs.HdfsTargetConfigBean;
 
-import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 
 public class LocalFileSystemConfigBean extends HdfsTargetConfigBean {
@@ -30,12 +30,12 @@ public class LocalFileSystemConfigBean extends HdfsTargetConfigBean {
     hdfsUri = "file:///";
     // as the config is hidden, it is not set, we need to initialize it by hand.
     hdfsUser = "";
-    hdfsConfigs = new HashMap<>();
+    hdfsConfigs = new LinkedList<>();
     fileType = HdfsFileType.TEXT;
   }
 
   @Override
-  protected String getTargetConfigBeanPrefix() {
+  protected String getConfigBeanPrefix() {
     return "configs.";
   }
 

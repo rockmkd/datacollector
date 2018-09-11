@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.streamsets.datacollector.util;
 import com.codahale.metrics.MetricRegistry;
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.DataRuleDefinition;
 import com.streamsets.datacollector.config.DriftRuleDefinition;
 import com.streamsets.datacollector.config.MetricsRuleDefinition;
@@ -25,6 +26,7 @@ import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.config.ThresholdType;
 import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
+import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.email.EmailSender;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.PipelineStateStore;
@@ -49,6 +51,8 @@ import com.streamsets.datacollector.execution.snapshot.file.FileSnapshotStore;
 import com.streamsets.datacollector.execution.store.CachePipelineStateStore;
 import com.streamsets.datacollector.execution.store.FilePipelineStateStore;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
+import com.streamsets.datacollector.main.BuildInfo;
+import com.streamsets.datacollector.main.DataCollectorBuildInfo;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.main.RuntimeModule;
 import com.streamsets.datacollector.main.StandaloneRuntimeInfo;
@@ -65,6 +69,7 @@ import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.store.impl.FileAclStoreTask;
 import com.streamsets.datacollector.store.impl.FilePipelineStoreTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.Config;
@@ -291,6 +296,33 @@ public class TestUtil {
     }
   }
 
+  @Module(library = true)
+  public static class TestCredentialStoreModule {
+
+    public TestCredentialStoreModule() {
+    }
+
+    @Provides @Singleton
+    public CredentialStoresTask provideCredentialTask() {
+      return Mockito.mock(CredentialStoresTask.class);
+    }
+  }
+
+  /*************** BlobStore ***************/
+  @Module(
+    injects = {
+      BlobStoreTask.class
+    },
+    library = true
+  )
+  public static class TestBlobStoreModule {
+    @Provides
+    @Singleton
+    public BlobStoreTask provideBlobStoreTask() {
+      return Mockito.mock(BlobStoreTask.class);
+    }
+  }
+
   /*************** Lineage ***************/
   @Module(
     injects = {
@@ -311,7 +343,8 @@ public class TestUtil {
   @Module(
       injects = {PipelineStoreTask.class, Configuration.class},
       library = true,
-      includes = {TestRuntimeModule.class, TestStageLibraryModule.class,  TestPipelineStateStoreModule.class }
+      includes = {TestRuntimeModule.class, TestStageLibraryModule.class,  TestCredentialStoreModule
+          .class, TestPipelineStateStoreModule.class }
   )
   public static class TestPipelineStoreModuleNew {
 
@@ -328,7 +361,7 @@ public class TestUtil {
         //The if check is needed because the tests restart the pipeline manager. In that case the check prevents
         //us from trying to create the same pipeline again
         if(!pipelineStoreTask.hasPipeline("invalid")) {
-          pipelineStoreTask.create(USER, "invalid", "label" ,"invalid its empty", false);
+          pipelineStoreTask.create(USER, "invalid", "label" ,"invalid its empty", false, false);
           PipelineConfiguration pipelineConf = pipelineStoreTask.load("invalid", PIPELINE_REV);
           PipelineConfiguration mockPipelineConf = MockStages.createPipelineConfigurationSourceTarget();
           pipelineConf.setErrorStage(mockPipelineConf.getErrorStage());
@@ -337,7 +370,7 @@ public class TestUtil {
         }
 
         if (!pipelineStoreTask.hasPipeline(MY_PIPELINE)) {
-          pipelineStoreTask.create(USER, MY_PIPELINE, "label" ,"description", false);
+          pipelineStoreTask.create(USER, MY_PIPELINE, "label" ,"description", false, false);
           PipelineConfiguration pipelineConf = pipelineStoreTask.load(MY_PIPELINE, ZERO_REV);
           PipelineConfiguration mockPipelineConf = MockStages.createPipelineConfigurationSourceTarget();
           pipelineConf.setStages(mockPipelineConf.getStages());
@@ -365,11 +398,11 @@ public class TestUtil {
                 UUID.randomUUID(),
                 Collections.emptyList()
             );
-          pipelineStoreTask.storeRules(MY_PIPELINE, ZERO_REV, ruleDefinitions);
+          pipelineStoreTask.storeRules(MY_PIPELINE, ZERO_REV, ruleDefinitions, false);
         }
 
         if(!pipelineStoreTask.hasPipeline(MY_SECOND_PIPELINE)) {
-          pipelineStoreTask.create("user2", MY_SECOND_PIPELINE, "label" ,"description2", false);
+          pipelineStoreTask.create("user2", MY_SECOND_PIPELINE, "label" ,"description2", false, false);
           PipelineConfiguration pipelineConf = pipelineStoreTask.load(MY_SECOND_PIPELINE, ZERO_REV);
           PipelineConfiguration mockPipelineConf = MockStages.createPipelineConfigurationSourceProcessorTarget();
           pipelineConf.setStages(mockPipelineConf.getStages());
@@ -383,7 +416,7 @@ public class TestUtil {
 
         if(!pipelineStoreTask.hasPipeline(HIGHER_VERSION_PIPELINE)) {
           PipelineConfiguration pipelineConfiguration = pipelineStoreTask.create("user2", HIGHER_VERSION_PIPELINE,
-              "label" ,"description2", false);
+              "label" ,"description2", false, false);
           PipelineConfiguration mockPipelineConf = MockStages.createPipelineConfigurationSourceProcessorTargetHigherVersion();
           mockPipelineConf.getConfiguration().add(new Config("executionMode",
             ExecutionMode.STANDALONE.name()));
@@ -393,7 +426,7 @@ public class TestUtil {
         }
 
         if(!pipelineStoreTask.hasPipeline(PIPELINE_WITH_EMAIL)) {
-          pipelineStoreTask.create("user2", PIPELINE_WITH_EMAIL, "label" ,"description2", false);
+          pipelineStoreTask.create("user2", PIPELINE_WITH_EMAIL, "label" ,"description2", false, false);
           PipelineConfiguration pipelineConf = pipelineStoreTask.load(PIPELINE_WITH_EMAIL, ZERO_REV);
           PipelineConfiguration mockPipelineConf = MockStages.createPipelineConfigurationSourceProcessorTarget();
           pipelineConf.setStages(mockPipelineConf.getStages());
@@ -487,6 +520,11 @@ public class TestUtil {
     }
 
     @Provides @Singleton
+    public BuildInfo provideBuildInfo() {
+      return new DataCollectorBuildInfo();
+    }
+
+    @Provides @Singleton
     public RuntimeInfo provideRuntimeInfo() {
       RuntimeInfo info = new StandaloneRuntimeInfo(RuntimeModule.SDC_PROPERTY_PREFIX, new MetricRegistry(),
         Arrays.asList(getClass().getClassLoader()));
@@ -516,13 +554,21 @@ public class TestUtil {
     @Provides @Named("runnerExecutor") @Singleton
     public SafeScheduledExecutorService provideRunnerExecutor() {
       return new SafeScheduledExecutorService(10, "runner");
+    }
 
+    @Provides @Named("runnerStopExecutor") @Singleton
+    public SafeScheduledExecutorService provideRunnerStopExecutor() {
+      return new SafeScheduledExecutorService(10, "runnerStop");
     }
 
     @Provides @Named("managerExecutor") @Singleton
     public SafeScheduledExecutorService provideManagerExecutor() {
       return new SafeScheduledExecutorService(10, "manager");
+    }
 
+    @Provides @Named("supportBundleExecutor") @Singleton
+    public SafeScheduledExecutorService providSupportBundleExecutor() {
+      return new SafeScheduledExecutorService(1, "supportBundleExecutor");
     }
   }
 
@@ -547,7 +593,9 @@ public class TestUtil {
       TestRuntimeModule.class,
       TestPipelineStoreModuleNew.class,
       TestSnapshotStoreModule.class,
-      TestLineageModule.class
+      TestBlobStoreModule.class,
+      TestLineageModule.class,
+      TestExecutorModule.class
     })
   public static class TestPipelineProviderModule {
 
@@ -638,7 +686,7 @@ public class TestUtil {
                                                                     MetricRegistry metrics, SnapshotStore snapshotStore,
                                                                     ThreadHealthReporter threadHealthReporter,
                                                                     SourceOffsetTracker sourceOffsetTracker) {
-      return new com.streamsets.datacollector.execution.runner.common.ProductionPipelineRunner(name, rev, configuration, runtimeInfo, metrics, snapshotStore,
+      return new com.streamsets.datacollector.execution.runner.common.ProductionPipelineRunner(name, rev, null, configuration, runtimeInfo, metrics, snapshotStore,
         threadHealthReporter);
     }
 
@@ -655,6 +703,7 @@ public class TestUtil {
         stageLib,
         (ProductionPipelineRunner)runner,
         observer,
+        Mockito.mock(BlobStoreTask.class),
         Mockito.mock(LineagePublisherTask.class)
       );
     }
@@ -677,8 +726,11 @@ public class TestUtil {
     }
 
     @Provides
-    public Runner provideRunner(@Named("runnerExecutor") SafeScheduledExecutorService runnerExecutor) {
-      return new AsyncRunner(new StandaloneRunner(name, rev, objectGraph), runnerExecutor);
+    public Runner provideRunner(
+      @Named("runnerExecutor") SafeScheduledExecutorService runnerExecutor,
+      @Named("runnerStopExecutor") SafeScheduledExecutorService runnerStopExecutor
+    ) {
+      return new AsyncRunner(new StandaloneRunner(name, rev, objectGraph), runnerExecutor, runnerStopExecutor);
     }
   }
 
@@ -708,6 +760,7 @@ public class TestUtil {
       TestExecutorModule.class,
       TestSnapshotStoreModule.class,
       TestAclStoreModule.class,
+      TestBlobStoreModule.class,
       TestLineageModule.class
     }
   )
@@ -736,8 +789,16 @@ public class TestUtil {
       return (name, rev, objectGraph, executionMode) -> {
         ObjectGraph plus = objectGraph.plus(new TestPipelineProviderModule(name, rev));
         TestRunnerModule testRunnerModule = new TestRunnerModule(name, rev, plus);
-        return testRunnerModule.provideRunner(new SafeScheduledExecutorService(1, "runnerExecutor"));
+        return testRunnerModule.provideRunner(
+            new SafeScheduledExecutorService(1, "runnerExecutor"),
+            new SafeScheduledExecutorService(1, "runnerStopExecutor")
+        );
       };
+    }
+
+    @Provides @Singleton
+    public StatsCollector provideStatsCollector() {
+      return Mockito.mock(StatsCollector.class);
     }
 
   }

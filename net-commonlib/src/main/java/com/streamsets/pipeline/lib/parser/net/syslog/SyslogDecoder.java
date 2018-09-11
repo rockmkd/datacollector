@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,7 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
@@ -45,7 +46,7 @@ public class SyslogDecoder extends ByteToMessageDecoder {
 
   private static final Pattern TWO_SPACES = Pattern.compile("  ");
   private static final DateTimeFormatter rfc3164Format =
-      DateTimeFormatter.ofPattern("MMM d HH:mm:ss");
+      DateTimeFormatter.ofPattern("MMM d HH:mm:ss", Locale.US);
 
   public static final String RFC5424_TS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss";
   private static final int RFC3164_LEN = 15;
@@ -62,7 +63,7 @@ public class SyslogDecoder extends ByteToMessageDecoder {
   public SyslogDecoder(Charset charset, Clock clock) {
     this.charset = charset;
     this.clock = clock;
-    timestampCache = buildTimestampCache(DateTimeFormatter.ofPattern(RFC5424_TS_PATTERN));
+    timestampCache = buildTimestampCache(DateTimeFormatter.ofPattern(RFC5424_TS_PATTERN, Locale.US));
   }
 
   public static LoadingCache<String, Long> buildTimestampCache(DateTimeFormatter timeParser) {
@@ -393,15 +394,14 @@ public class SyslogDecoder extends ByteToMessageDecoder {
     } catch (DateTimeParseException e) {
       throw new OnRecordErrorException(Errors.SYSLOG_10, ts, e);
     }
-    // try to deal with boundary cases, i.e. new year's eve.
-    // rfc3164 dates are really dumb.
-    // NB: cannot handle replaying of old logs or going back to the future
+    // The RFC3164 is a bit weird date format - it contains day and month, but no year. So we have to somehow guess
+    // the year. The current logic is to provide a sliding window - going 11 months to the past and 1 month to the
+    // future. If the message is outside of this window, it will have incorrectly guessed year. We go 11 months to the
+    // past as we're expecting that more messages will be from the past (syslog usually contains historical data).
     LocalDateTime fixed = date;
-    // flume clock is ahead or there is some latency, and the year rolled
     if (fixed.isAfter(now) && fixed.minusMonths(1).isAfter(now)) {
       fixed = date.withYear(year - 1);
-      // flume clock is behind and the year rolled
-    } else if (fixed.isBefore(now) && fixed.plusMonths(1).isBefore(now)) {
+    } else if (fixed.isBefore(now) && fixed.plusMonths(11).isBefore(now)) {
       fixed = date.withYear(year + 1);
     }
     date = fixed;

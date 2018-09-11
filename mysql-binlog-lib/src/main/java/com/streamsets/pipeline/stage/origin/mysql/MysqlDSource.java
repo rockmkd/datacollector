@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,14 +18,15 @@ package com.streamsets.pipeline.stage.origin.mysql;
 import com.streamsets.pipeline.api.*;
 
 @StageDef(
-    version = 1,
+    version = 2,
     label = "MySQL Binary Log",
     description = "Reads MySQL binary log from MySQL server.",
     icon = "mysql.png",
     execution = ExecutionMode.STANDALONE,
     resetOffset = true,
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/MySQLBinaryLog.html#task_qbt_kyh_xx"
+    upgrader = MySqlSourceUpgrader.class,
+    onlineHelpRefUrl = "index.html?contextID=task_qbt_kyh_xx"
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle

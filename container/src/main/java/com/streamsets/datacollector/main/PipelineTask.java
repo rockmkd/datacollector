@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,9 @@
 package com.streamsets.datacollector.main;
 
 import com.google.common.collect.ImmutableList;
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.bundles.SupportBundleManager;
+import com.streamsets.datacollector.credential.CredentialStoresTask;
 import com.streamsets.datacollector.event.handler.EventHandlerTask;
 import com.streamsets.datacollector.execution.Manager;
 import com.streamsets.datacollector.http.DataCollectorWebServerTask;
@@ -25,6 +27,7 @@ import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.task.CompositeTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 
 import javax.inject.Inject;
 
@@ -33,9 +36,11 @@ public class PipelineTask extends CompositeTask {
   private final Manager manager;
   private final PipelineStoreTask pipelineStoreTask;
   private final StageLibraryTask stageLibraryTask;
+  private final BlobStoreTask blobStoreTask;
   private final WebServerTask webServerTask;
   private final LineagePublisherTask lineagePublisherTask;
   private final SupportBundleManager supportBundleManager;
+  private final CredentialStoresTask credentialStoresTask;
 
   @Inject
   public PipelineTask(
@@ -45,18 +50,34 @@ public class PipelineTask extends CompositeTask {
     DataCollectorWebServerTask webServerTask,
     EventHandlerTask eventHandlerTask,
     LineagePublisherTask lineagePublisherTask,
-    SupportBundleManager supportBundleManager
+    SupportBundleManager supportBundleManager,
+    BlobStoreTask blobStoreTask,
+    CredentialStoresTask credentialStoresTask,
+    StatsCollector statsCollectorTask
   ) {
     super(
       "pipelineNode",
-      ImmutableList.of(library, lineagePublisherTask, store, webServerTask , manager, eventHandlerTask, supportBundleManager),
+        ImmutableList.of(
+            library,
+            lineagePublisherTask,
+            credentialStoresTask,
+            blobStoreTask,
+            store,
+            webServerTask,
+            manager,
+            eventHandlerTask,
+            supportBundleManager,
+            statsCollectorTask
+        ),
       true);
     this.webServerTask = webServerTask;
     this.stageLibraryTask = library;
     this.pipelineStoreTask = store;
+    this.blobStoreTask = blobStoreTask;
     this.manager = manager;
     this.lineagePublisherTask = lineagePublisherTask;
     this.supportBundleManager = supportBundleManager;
+    this.credentialStoresTask = credentialStoresTask;
   }
 
   public Manager getManager() {
@@ -77,4 +98,11 @@ public class PipelineTask extends CompositeTask {
   public SupportBundleManager getSupportBundleManager() {
     return supportBundleManager;
   }
+  public BlobStoreTask getBlobStoreTask() {
+    return blobStoreTask;
+  }
+  public CredentialStoresTask getCredentialStoresTask() {
+    return credentialStoresTask;
+  }
+
 }

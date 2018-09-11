@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.streamsets.pipeline.stage.origin.mongodb;
 import com.google.common.base.Joiner;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.lib.util.JsonUtil;
+import org.bson.types.Binary;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -63,6 +64,9 @@ public final class MongoDBSourceUtil {
     if (object instanceof ObjectId) {
       String objectId = object.toString();
       return JsonUtil.jsonToField(objectId);
+    } else if (object instanceof Binary) {
+      byte[] data = ((Binary) object).getData();
+      return JsonUtil.jsonToField(data);
     } else if (object instanceof BsonTimestamp) {
       int time = ((BsonTimestamp) object).getTime();
       Date date = new Date(time * 1000L);

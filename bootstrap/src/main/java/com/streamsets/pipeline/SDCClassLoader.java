@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,6 @@ public class SDCClassLoader extends BlackListURLClassLoader {
   private static final String[] PACKAGES_BLACKLIST_FOR_STAGE_LIBRARIES = {
       "com.streamsets.pipeline.api.",
       "com.streamsets.pipeline.container.",
-      "com.codehale.metrics.",
       "org.slf4j.",
       "org.apache.log4j."
   };

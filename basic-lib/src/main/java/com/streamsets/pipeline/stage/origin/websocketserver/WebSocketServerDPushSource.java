@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,28 +24,32 @@ import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.PushSource;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.api.base.configurablestage.DPushSource;
 import com.streamsets.pipeline.config.DataFormat;
-import com.streamsets.pipeline.configurablestage.DPushSource;
+import com.streamsets.pipeline.lib.microservice.ResponseConfigBean;
+import com.streamsets.pipeline.lib.websocket.WebSocketOriginGroups;
 import com.streamsets.pipeline.stage.origin.lib.DataParserFormatConfig;
 
 @StageDef(
-    version = 10,
+    version = 11,
     label = "WebSocket Server",
     description = "Listens for requests on a WebSocket endpoint",
     icon="websockets_multithreaded.png",
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Origins/WebSocketServer.html#task_mzv_cvc_3z",
+    onlineHelpRefUrl ="index.html?contextID=task_mzv_cvc_3z",
+    sendsResponse = true,
     upgrader = WebSocketServerPushSourceUpgrader.class
 )
-@ConfigGroups(Groups.class)
+@ConfigGroups(WebSocketOriginGroups.class)
 @HideConfigs(value = {
     "dataFormatConfig.verifyChecksum",
     "dataFormatConfig.avroSchemaSource",
     "webSocketConfigs.tlsConfigBean.trustStoreFilePath",
     "webSocketConfigs.tlsConfigBean.trustStoreType",
     "webSocketConfigs.tlsConfigBean.trustStorePassword",
-    "webSocketConfigs.tlsConfigBean.trustStoreAlgorithm"
+    "webSocketConfigs.tlsConfigBean.trustStoreAlgorithm",
+    "responseConfig.dataGeneratorFormatConfig.jsonMode"
 })
 @GenerateResourceBundle
 public class WebSocketServerDPushSource extends DPushSource {
@@ -67,9 +71,12 @@ public class WebSocketServerDPushSource extends DPushSource {
   @ConfigDefBean(groups = "DATA_FORMAT")
   public DataParserFormatConfig dataFormatConfig = new DataParserFormatConfig();
 
+  @ConfigDefBean(groups = "WEB_SOCKET_RESPONSE")
+  public ResponseConfigBean responseConfig = new ResponseConfigBean();
+
   @Override
   protected PushSource createPushSource() {
-    return new WebSocketServerPushSource(webSocketConfigs, dataFormat, dataFormatConfig);
+    return new WebSocketServerPushSource(webSocketConfigs, dataFormat, dataFormatConfig, responseConfig);
   }
 
 }

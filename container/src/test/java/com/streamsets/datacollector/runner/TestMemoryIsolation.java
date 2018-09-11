@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,13 +20,11 @@ import com.google.common.collect.ImmutableList;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.creation.PipelineConfigBean;
-import com.streamsets.datacollector.lineage.LineagePublisherTask;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.memory.MemoryUsageCollector;
 import com.streamsets.datacollector.memory.TestMemoryUsageCollector;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineStoreTask;
-import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.pipeline.api.Batch;
 import com.streamsets.pipeline.api.BatchMaker;
 import com.streamsets.pipeline.api.Config;
@@ -44,6 +42,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -76,31 +75,36 @@ public class TestMemoryIsolation {
     pipelineConfigs.add(new Config("stopPipelineOnError", false));
     pipelineConfigs.add(new Config("executionMode", ExecutionMode.STANDALONE));
 
-    PipelineConfiguration pipelineConf = new PipelineConfiguration(PipelineStoreTask.SCHEMA_VERSION,
-      PipelineConfigBean.VERSION, "pipelineId", UUID.randomUUID(),"label",
-        null, pipelineConfigs, null, stageDefs, MockStages.getErrorStageConfig(), MockStages.getStatsAggregatorStageConfig());
-    Pipeline.Builder builder = new Pipeline.Builder(
-      lib,
-      new Configuration(),
-      "name",
-      "name",
-      "0",
-      MockStages.userContext(),
-      pipelineConf,
-      Mockito.mock(LineagePublisherTask.class)
+    PipelineConfiguration pipelineConf = new PipelineConfiguration(
+        PipelineStoreTask.SCHEMA_VERSION,
+        PipelineConfigBean.VERSION,
+        "pipelineId",
+        UUID.randomUUID(),
+        "label",
+        null,
+        pipelineConfigs,
+        null,
+        stageDefs,
+        MockStages.getErrorStageConfig(),
+        MockStages.getStatsAggregatorStageConfig(),
+        Collections.emptyList(),
+        Collections.emptyList()
     );
+    Pipeline.Builder builder = new MockPipelineBuilder()
+      .withStageLib(lib)
+      .withPipelineConf(pipelineConf)
+      .build();
 
     PipelineRunner runner = Mockito.mock(PipelineRunner.class);
-    MetricRegistry metrics = Mockito.mock(MetricRegistry.class);
-    Mockito.when(runner.getMetrics()).thenReturn(metrics);
+    Mockito.when(runner.getMetrics()).thenReturn(new MetricRegistry());
     Mockito.when(runner.getRuntimeInfo()).thenReturn(Mockito.mock(RuntimeInfo.class));
 
     Set<Stage> stages = new HashSet<>();
     Pipeline pipeline = builder.build(runner);
-    pipeline.init();
+    pipeline.init(false);
 
     // Working with just one runner
-    pipeline.getRunners().get(0).forEachNoException(pipe -> stages.add(pipe.getStage().getStage()));
+    pipeline.getRunners().get(0).forEach(pipe -> stages.add(pipe.getStage().getStage()));
 
     return stages;
   }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DSourceOffsetCommitter;
+import com.streamsets.pipeline.api.base.configurablestage.DSourceOffsetCommitter;
 import com.streamsets.pipeline.lib.httpsource.RawHttpConfigs;
 import com.streamsets.pipeline.stage.destination.kafka.KafkaTargetConfig;
 
@@ -33,7 +33,7 @@ import com.streamsets.pipeline.stage.destination.kafka.KafkaTargetConfig;
   execution = ExecutionMode.STANDALONE,
   description = "Receives data via HTTP and writes every HTTP request payload to Kafka",
   icon="httptokafka.png",
-  onlineHelpRefUrl = "index.html#Origins/HTTPtoKafka.html#task_vgx_nqd_dy",
+  onlineHelpRefUrl ="index.html?contextID=task_vgx_nqd_dy",
   upgrader = HttpToKafkaSourceUpgrader.class
 )
 @ConfigGroups(Groups.class)
@@ -82,6 +82,7 @@ import com.streamsets.pipeline.stage.destination.kafka.KafkaTargetConfig;
         "configs.tlsConfigBean.trustStoreAlgorithm"
     }
 )
+@Deprecated
 public class HttpToKafkaDSource extends DSourceOffsetCommitter {
 
   @ConfigDefBean

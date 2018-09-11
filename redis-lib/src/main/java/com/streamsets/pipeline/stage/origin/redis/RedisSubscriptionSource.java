@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -151,6 +151,15 @@ public class RedisSubscriptionSource extends BaseRedisSource {
           break;
         }
         Thread.sleep(1000);
+        i++;
+      }
+      if( i == conf.connectionTimeout) {
+        issues.add(getContext().createConfigIssue(Groups.REDIS.name(),
+            "uri",
+            Errors.REDIS_05,
+            conf.uri
+        ));
+
       }
     } catch (Exception e) {
       issues.add(getContext().createConfigIssue(Groups.REDIS.name(),

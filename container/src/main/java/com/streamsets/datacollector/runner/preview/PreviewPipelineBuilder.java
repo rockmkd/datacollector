@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.runner.preview;
 
+import com.streamsets.datacollector.blobstore.BlobStoreTask;
 import com.streamsets.datacollector.config.PipelineConfiguration;
 import com.streamsets.datacollector.config.StageConfiguration;
 import com.streamsets.datacollector.lineage.LineagePublisherTask;
@@ -28,7 +29,6 @@ import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.ValidationUtil;
 import com.streamsets.datacollector.validation.Issues;
 import com.streamsets.datacollector.validation.PipelineConfigurationValidator;
-import com.streamsets.pipeline.api.StageException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,11 +42,18 @@ public class PreviewPipelineBuilder {
 
   @SuppressWarnings("unchecked")
   private StageConfiguration createPlugStage(List<String> lanes) {
-    StageConfiguration stageConf = new StageConfiguration(PreviewStageLibraryTask.NAME + UUID.randomUUID().toString(),
-                                                          PreviewStageLibraryTask.LIBRARY, PreviewStageLibraryTask.NAME,
-                                                          PreviewStageLibraryTask.VERSION, Collections.EMPTY_LIST,
-                                                          Collections.EMPTY_MAP, lanes, Collections.EMPTY_LIST,
-                                                          Collections.EMPTY_LIST);
+    StageConfiguration stageConf = new StageConfiguration(
+      PreviewStageLibraryTask.NAME + UUID.randomUUID().toString(),
+      PreviewStageLibraryTask.LIBRARY,
+      PreviewStageLibraryTask.NAME,
+      PreviewStageLibraryTask.VERSION,
+      Collections.emptyList(),
+      Collections.emptyMap(),
+      Collections.emptyList(),
+      lanes,
+      Collections.emptyList(),
+      Collections.emptyList()
+    );
     stageConf.setSystemGenerated();
     return stageConf;
   }
@@ -57,7 +64,9 @@ public class PreviewPipelineBuilder {
   private final String rev;
   private PipelineConfiguration pipelineConf;
   private final String endStageInstanceName;
+  private final BlobStoreTask blobStoreTask;
   private final LineagePublisherTask lineagePublisherTask;
+  private final boolean testOrigin;
 
   /**
    * Constructor
@@ -75,7 +84,9 @@ public class PreviewPipelineBuilder {
     String rev,
     PipelineConfiguration pipelineConf,
     String endStageInstanceName,
-    LineagePublisherTask lineagePublisherTask
+    BlobStoreTask blobStoreTask,
+    LineagePublisherTask lineagePublisherTask,
+    boolean testOrigin
   ) {
     this.stageLib = new PreviewStageLibraryTask(stageLib);
     this.configuration = configuration;
@@ -83,10 +94,21 @@ public class PreviewPipelineBuilder {
     this.rev = rev;
     this.pipelineConf = pipelineConf;
     this.endStageInstanceName = endStageInstanceName;
+    this.blobStoreTask = blobStoreTask;
     this.lineagePublisherTask = lineagePublisherTask;
+    this.testOrigin = testOrigin;
   }
 
-  public PreviewPipeline build(UserContext userContext, PipelineRunner runner) throws PipelineRuntimeException, StageException {
+  public PreviewPipeline build(UserContext userContext, PipelineRunner runner) throws PipelineRuntimeException {
+    if (testOrigin) {
+      // Replace origin with test origin
+      StageConfiguration origin = pipelineConf.getStages().remove(0);
+      StageConfiguration testOrigin = pipelineConf.getTestOriginStage();
+      testOrigin.setOutputLanes(origin.getOutputLanes());
+      testOrigin.setEventLanes(origin.getEventLanes());
+      pipelineConf.getStages().add(0, pipelineConf.getTestOriginStage());
+    }
+
     if(endStageInstanceName != null && endStageInstanceName.trim().length() > 0) {
       List<StageConfiguration> stages = new ArrayList<>();
       Set<String> allowedOutputLanes = new HashSet<>();
@@ -140,7 +162,10 @@ public class PreviewPipelineBuilder {
        rev,
        userContext,
        pipelineConf,
-       lineagePublisherTask
+       System.currentTimeMillis(),
+       blobStoreTask,
+       lineagePublisherTask,
+       Collections.emptyList()
      );
      Pipeline pipeline = builder.build(runner);
      if (pipeline != null) {

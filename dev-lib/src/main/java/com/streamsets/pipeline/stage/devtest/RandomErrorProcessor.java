@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,7 @@ import java.util.Random;
   description = "Generates error records and silently discards records as specified.",
   icon= "dev.png",
   upgrader = RandomErrorProcessorUpgrader.class,
-  onlineHelpRefUrl = "index.html#Pipeline_Design/DevStages.html"
+  onlineHelpRefUrl ="index.html#datacollector/UserGuide/Pipeline_Design/DevStages.html"
 )
 public class RandomErrorProcessor extends SingleLaneProcessor {
   private Random random;

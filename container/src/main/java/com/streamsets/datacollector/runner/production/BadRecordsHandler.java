@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +17,15 @@ package com.streamsets.datacollector.runner.production;
 
 import com.streamsets.datacollector.config.ErrorRecordPolicy;
 import com.streamsets.datacollector.main.RuntimeInfo;
-import com.streamsets.datacollector.record.HeaderImpl;
 import com.streamsets.datacollector.record.RecordImpl;
 import com.streamsets.datacollector.runner.BatchImpl;
 import com.streamsets.datacollector.runner.ErrorSink;
-import com.streamsets.datacollector.runner.PipelineRuntimeException;
+import com.streamsets.datacollector.runner.SourceResponseSink;
 import com.streamsets.datacollector.runner.StagePipe;
 import com.streamsets.datacollector.runner.StageRuntime;
 import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.api.Target;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +57,12 @@ public class BadRecordsHandler {
     return  errorStage.init();
   }
 
-  public void handle(String sourceEntity, String sourceOffset, ErrorSink errorSink) throws StageException {
+  public void handle(
+      String sourceEntity,
+      String sourceOffset,
+      ErrorSink errorSink,
+      SourceResponseSink sourceResponseSink
+  ) throws StageException {
     // Get error records from the error sink
     List<Record> badRecords = getBadRecords(errorSink);
 
@@ -70,12 +73,20 @@ public class BadRecordsHandler {
 
     synchronized (errorStage) {
       errorStage.execute(
-        sourceOffset,     // Source offset for this batch
-        -1,     // BatchSize is not used for target
-        new BatchImpl("errorStage", sourceEntity, sourceOffset, badRecords),
-        null,  // BatchMaker doesn't make sense for target
-        null,    // Error stage can't generate error records
-        null    // And also can't generate events
+          sourceOffset,
+          // Source offset for this batch
+          -1,
+          // BatchSize is not used for target
+          new BatchImpl("errorStage", sourceEntity, sourceOffset, badRecords),
+          null,
+          // BatchMaker doesn't make sense for target
+          null,
+          // Error stage can't generate error records
+          null,
+          // And also can't generate events
+          null,
+          // Doesn't yet suport user defined metrics
+          sourceResponseSink
       );
     }
   }

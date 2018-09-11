@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,9 @@ package com.streamsets.pipeline.stage.executor.s3.config;
 import com.streamsets.pipeline.api.Label;
 
 public enum TaskType implements Label {
-  CHANGE_EXISTING_OBJECT("Change Metadata on Existing Object"),
+  CREATE_NEW_OBJECT("Create New Object"),
+  COPY_OBJECT("Copy Object"),
+  CHANGE_EXISTING_OBJECT("Add Tags to Existing Object"),
   ;
 
   private String label;

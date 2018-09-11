@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,6 +40,8 @@ public enum Errors implements ErrorCode {
   REMOTE_14("Invalid GLOB file pattern '{}': {}"),
   REMOTE_15("URI: '{}' is invalid. Must begin with 'ftp://' or 'sftp://'"),
   REMOTE_16("Initial file '{}' is invalid: {}"),
+  REMOTE_17("Can't resolve credential: {}"),
+  REMOTE_18("Error accessing remote directory: {}"),
   ;
 
   private final String msg;

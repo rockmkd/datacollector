@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,8 +43,10 @@ public class MapRStreamsProducer09 extends BaseKafkaProducer09 {
 
   public MapRStreamsProducer09(
     Map<String, Object> kafkaProducerConfigs,
-    PartitionStrategy partitionStrategy
+    PartitionStrategy partitionStrategy,
+    boolean sendWriteResponse
   ) {
+    super(sendWriteResponse);
     this.kafkaProducerConfigs = kafkaProducerConfigs;
     this.partitionStrategy = partitionStrategy;
   }

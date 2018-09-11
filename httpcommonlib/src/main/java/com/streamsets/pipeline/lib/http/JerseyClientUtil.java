@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,6 @@ import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 import org.apache.commons.lang3.StringUtils;
-import org.glassfish.jersey.SslConfigurator;
 import org.glassfish.jersey.client.ClientProperties;
 import org.glassfish.jersey.client.RequestEntityProcessing;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
@@ -47,26 +46,33 @@ public class JerseyClientUtil {
 
   public static void configurePasswordAuth(
       AuthenticationType authType,
-      PasswordAuthConfigBean conf,
+      String username,
+      String password,
       ClientBuilder clientBuilder
   ) {
     if (authType == AuthenticationType.BASIC) {
-      clientBuilder.register(HttpAuthenticationFeature.basic(conf.username, conf.password));
+      clientBuilder.register(HttpAuthenticationFeature.basic(username, password));
     }
 
     if (authType == AuthenticationType.DIGEST) {
-      clientBuilder.register(HttpAuthenticationFeature.digest(conf.username, conf.password));
+      clientBuilder.register(HttpAuthenticationFeature.digest(username, password));
     }
 
     if (authType == AuthenticationType.UNIVERSAL) {
-      clientBuilder.register(HttpAuthenticationFeature.universal(conf.username, conf.password));
+      clientBuilder.register(HttpAuthenticationFeature.universal(username, password));
     }
   }
 
-  public static AccessToken configureOAuth1(OAuthConfigBean conf, ClientBuilder clientBuilder) {
-    ConsumerCredentials consumerCredentials = new ConsumerCredentials(conf.consumerKey, conf.consumerSecret);
+  public static AccessToken configureOAuth1(
+    String consumerKey,
+    String consumerSecret,
+    String token,
+    String tokenSecret,
+    ClientBuilder clientBuilder
+  ) {
+    ConsumerCredentials consumerCredentials = new ConsumerCredentials(consumerKey, consumerSecret);
 
-    AccessToken accessToken = new AccessToken(conf.token, conf.tokenSecret);
+    AccessToken accessToken = new AccessToken(token, tokenSecret);
     Feature feature = OAuth1ClientSupport.builder(consumerCredentials)
         .feature()
         .accessToken(accessToken)
@@ -85,20 +91,25 @@ public class JerseyClientUtil {
     }
   }
 
-  public static ClientBuilder configureProxy(HttpProxyConfigBean conf, ClientBuilder clientBuilder) {
-    if (!StringUtils.isEmpty(conf.uri)) {
-      clientBuilder.property(ClientProperties.PROXY_URI, conf.uri);
-      LOG.debug("Using Proxy: '{}'", conf.uri);
+  public static ClientBuilder configureProxy(
+    String uri,
+    String username,
+    String password,
+    ClientBuilder clientBuilder
+  ) {
+    if (!StringUtils.isEmpty(uri)) {
+      clientBuilder.property(ClientProperties.PROXY_URI, uri);
+      LOG.debug("Using Proxy: '{}'", uri);
     } else { // No proxy URI, then return
       return clientBuilder;
     }
-    if (!StringUtils.isEmpty(conf.username)) {
-      clientBuilder.property(ClientProperties.PROXY_USERNAME, conf.username);
-      LOG.debug("Using Proxy Username: '{}'", conf.username);
+    if (!StringUtils.isEmpty(username)) {
+      clientBuilder.property(ClientProperties.PROXY_USERNAME, username);
+      LOG.debug("Using Proxy Username: '{}'", username);
     }
-    if (!StringUtils.isEmpty(conf.password)) {
-      clientBuilder.property(ClientProperties.PROXY_PASSWORD, conf.password);
-      LOG.debug("Using Proxy Password: '{}'", conf.password);
+    if (!StringUtils.isEmpty(password)) {
+      clientBuilder.property(ClientProperties.PROXY_PASSWORD, password);
+      LOG.debug("Using Proxy Password: '{}'", password);
     }
 
     return clientBuilder;

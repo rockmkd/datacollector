@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
  */
 package com.streamsets.pipeline.stage.processor.http;
 
+import com.streamsets.pipeline.lib.el.TimeEL;
+import com.streamsets.pipeline.lib.el.TimeNowEL;
 import com.streamsets.pipeline.lib.el.VaultEL;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
@@ -105,7 +107,7 @@ public class HttpProcessorConfig {
       type = ConfigDef.Type.STRING,
       label = "Resource URL",
       description = "The HTTP resource URL",
-      elDefs = RecordEL.class,
+      elDefs = {RecordEL.class, TimeEL.class, TimeNowEL.class},
       evaluation = ConfigDef.Evaluation.EXPLICIT,
       displayPosition = 60,
       group = "HTTP"
@@ -188,9 +190,9 @@ public class HttpProcessorConfig {
   @ConfigDef(
       required = false,
       type = ConfigDef.Type.NUMBER,
-      label = "Rate Limit (requests/sec)",
+      label = "Rate Limit (ms)",
       defaultValue = "0",
-      description = "Maximum requests per second (0 for unlimited). Useful for rate-limited APIs.",
+      description = "Time between requests (in ms, 0 for unlimited). Useful for rate-limited APIs.",
       displayPosition = 160,
       group = "HTTP"
   )

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ public enum PipelineStatus {
   EDITED (false),          // pipeline job has been create/modified, didn't run since the creation/modification
 
   STARTING (true),         // pipeline job starting (initialization)
+  STARTING_ERROR(true),     // Pipeline failed while starting (but the destroy did not finished yet)
   START_ERROR (false),      // pipeline job failed while start (during initialization) or failed while submission in cluster mode
 
   RUNNING (true),          // pipeline job running
@@ -35,6 +36,9 @@ public enum PipelineStatus {
 
   STOPPING (true),         // pipeline job has been manually stopped (calling destroy on pipeline)
   STOPPED (false),          // pipeline job has been manually stopped (done)
+
+  STOPPING_ERROR(true),    // There was a problem when stopping pipeline
+  STOP_ERROR(false),       // Terminal state representing that pipeline failed to stop properly
 
   DISCONNECTING (true),    // SDC going down gracefully (calling destroy on pipeline for LOCAL, doing nothing for CLUSTER)
   DISCONNECTED (true),     // SDC going down gracefully (done)
@@ -54,6 +58,20 @@ public enum PipelineStatus {
 
   public boolean isActive() {
     return isActive;
+  }
+
+  public boolean isOneOf(PipelineStatus ...statuses) {
+    if(statuses == null) {
+      return false;
+    }
+
+    for(PipelineStatus s : statuses) {
+      if(this == s) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
 }

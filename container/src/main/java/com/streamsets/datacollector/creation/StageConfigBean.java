@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,6 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.ValueChooserModel;
 import com.streamsets.pipeline.lib.el.RecordEL;
-import com.streamsets.pipeline.lib.el.StringEL;
 
 import java.util.List;
 import java.util.Set;
@@ -72,7 +71,7 @@ public class StageConfigBean {
       displayPosition = 20,
       group = "",
       evaluation = ConfigDef.Evaluation.EXPLICIT,
-      elDefs = { RecordEL.class, StringEL.class, RuntimeEL.class }
+      elDefs = { RecordEL.class, RuntimeEL.class }
   )
   public List<String> stageRecordPreconditions;
 

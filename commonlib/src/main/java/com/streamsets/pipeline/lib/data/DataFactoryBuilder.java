@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,19 +15,20 @@
  */
 package com.streamsets.pipeline.lib.data;
 
-import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.ProtoConfigurableEntity;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.common.DataFormatConstants;
 import com.streamsets.pipeline.config.Compression;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class DataFactoryBuilder<B extends DataFactoryBuilder, DF extends DataFactory, F extends DataFormat<DF>> {
 
-  private final Stage.Context context;
+  private final ProtoConfigurableEntity.Context context;
   private final F format;
   private final Set<Class<? extends Enum>> expectedModes;
   private final Map<Class<? extends Enum>, Enum> modes;
@@ -40,7 +41,7 @@ public class DataFactoryBuilder<B extends DataFactoryBuilder, DF extends DataFac
   private String filePatternInArchive = DataFormatConstants.FILE_PATTERN_IN_ARCHIVE;
   private int stringBuilderPoolSize = DataFormatConstants.STRING_BUILDER_POOL_SIZE;
 
-  public DataFactoryBuilder(Stage.Context context, F format) {
+  public DataFactoryBuilder(ProtoConfigurableEntity.Context context, F format) {
     this.context = Utils.checkNotNull(context, "context");
     this.format = Utils.checkNotNull(format, "format");
     modes = new HashMap<>();
@@ -64,9 +65,19 @@ public class DataFactoryBuilder<B extends DataFactoryBuilder, DF extends DataFac
     Utils.checkNotNull(key, "key");
     Utils.checkArgument(configs.containsKey(key),
                         Utils.formatL("Format '{}', unsupported configuration '{}'", format, key));
-    Utils.checkArgument(value == null || configs.get(key).getClass().isAssignableFrom(value.getClass()),
-                        Utils.formatL("Format '{}', configuration '{}' must be of type '{}'", format, key,
-                                      configs.get(key).getClass().getSimpleName()));
+    if(value != null) {
+      if (List.class.isAssignableFrom(value.getClass())) {
+        Utils.checkArgument(
+          List.class.isAssignableFrom(configs.get(key).getClass()),
+          Utils.format("Supplied list for config {} when {} expected", key, configs.get(key).getClass().getSimpleName())
+        );
+      } else {
+        Utils.checkArgument(configs.get(key).getClass().isAssignableFrom(value.getClass()),
+          Utils.formatL("Format '{}', configuration '{}' must be of type '{}'", format, key,
+            configs.get(key).getClass().getSimpleName()));
+      }
+    }
+
     if (value == null) {
       value = configs.get(key);
     }

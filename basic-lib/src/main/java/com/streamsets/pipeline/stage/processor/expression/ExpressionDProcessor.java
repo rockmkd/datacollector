@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +17,13 @@ package com.streamsets.pipeline.stage.processor.expression;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigGroups;
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 
 import java.util.List;
 
@@ -31,7 +33,17 @@ import java.util.List;
     description="Performs calculations on a field-by-field basis",
     icon="expression.png",
     upgrader = ExpressionProcessorUpgrader.class,
-    onlineHelpRefUrl = "index.html#Processors/Expression.html#task_x2h_tv4_yq"
+    onlineHelpRefUrl ="index.html?contextID=task_x2h_tv4_yq",
+    flags = StageBehaviorFlags.PURE_FUNCTION,
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
+    }
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

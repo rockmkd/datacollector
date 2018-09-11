@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +17,10 @@ package com.streamsets.pipeline.stage.destination.datalake;
 
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
-import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
-import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @StageDef(
     version = 1,
@@ -30,13 +28,13 @@ import com.streamsets.pipeline.configurablestage.DTarget;
     description = "Writes data to Azure Data Lake Store",
     icon = "data-lake-store.png",
     producesEvents = true,
-    onlineHelpRefUrl = "index.html#Destinations/DataLakeStore.html#task_jfl_nf4_zx"
+    onlineHelpRefUrl ="index.html?contextID=task_jfl_nf4_zx"
 )
 
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
 public class DataLakeDTarget extends DTarget {
-  @ConfigDefBean(groups = {"DATALAKE"})
+  @ConfigDefBean(groups = {"DATALAKE", "DATA_FORMAT"})
   public DataLakeConfigBean dataLakeConfig;
 
   @Override

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +17,13 @@ package com.streamsets.pipeline.stage.destination.websocket;
 
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.ConfigGroups;
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
+import com.streamsets.pipeline.lib.websocket.Groups;
 
 @StageDef(
     version = 2,
@@ -29,7 +31,16 @@ import com.streamsets.pipeline.configurablestage.DTarget;
     description = "Uses a WebSocket client to write data",
     icon = "websockets.png",
     recordsByRef = true,
-    onlineHelpRefUrl = "index.html#Destinations/WebSocketClient.html#task_erb_pjn_lz",
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
+    },
+    onlineHelpRefUrl ="index.html?contextID=task_erb_pjn_lz",
     upgrader = WebSocketTargetUpgrader.class
 )
 @ConfigGroups(Groups.class)

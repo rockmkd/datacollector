@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 package com.streamsets.pipeline.stage.origin.omniture;
+
+import com.streamsets.pipeline.api.credential.CredentialValue;
 
 public class OmnitureConfig {
 
@@ -36,10 +38,10 @@ public class OmnitureConfig {
   long pollingInterval = 60000;
 
   // Username for Omniture APIs
-  String username;
+  CredentialValue username;
 
   // Shared secret for Omniture APIs
-  String sharedSecret;
+  CredentialValue sharedSecret;
 
   // JSON report description to define the request
   String reportDescription;
@@ -103,19 +105,19 @@ public class OmnitureConfig {
     this.pollingInterval = pollingInterval;
   }
 
-  public String getUsername() {
+  public CredentialValue getUsername() {
     return username;
   }
 
-  public void setUsername(String username) {
+  public void setUsername(CredentialValue username) {
     this.username = username;
   }
 
-  public String getSharedSecret() {
+  public CredentialValue getSharedSecret() {
     return sharedSecret;
   }
 
-  public void setSharedSecret(String sharedSecret) {
+  public void setSharedSecret(CredentialValue sharedSecret) {
     this.sharedSecret = sharedSecret;
   }
 

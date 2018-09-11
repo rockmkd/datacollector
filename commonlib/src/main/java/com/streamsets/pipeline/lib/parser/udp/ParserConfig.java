@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,6 +45,10 @@ public class ParserConfig {
 
   public Boolean getBoolean(ParserConfigKey key) {
     return (Boolean)configs.get(key);
+  }
+
+  public Object get(ParserConfigKey key) {
+    return configs.get(key);
   }
 
   public void putConfigs(Map<ParserConfigKey, String> other) {

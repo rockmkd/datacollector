@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.streamsets.datacollector.email;
 
 import com.streamsets.datacollector.util.Configuration;
 
+import javax.activation.DataHandler;
 import javax.inject.Inject;
 import javax.mail.Authenticator;
 import javax.mail.Message;
@@ -26,21 +27,26 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
-
+import javax.mail.internet.MimeMultipart;
+import javax.mail.util.ByteArrayDataSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 public class EmailSender {
-  public static final String MAIL_CONFIGS_PREFIX = "mail.";
-
-  public static final String EMAIL_SMTP_USER = "xmail.username";
-  public static final String EMAIL_SMTP_PASS = "xmail.password";
-  public static final String EMAIL_SMTP_FROM = "xmail.from.address";
+  private static final String MAIL_CONFIGS_PREFIX = "mail.";
+  private static final String MAIL_TRANSPORT_PROTOCOL = "mail.transport.protocol";
+  private static final String MAIL_TRANSPORT_PROTOCOL_DEFAULT = "smtp";
+  private static final String EMAIL_SMTP_USER = "xmail.username";
+  private static final String EMAIL_SMTP_PASS = "xmail.password";
+  private static final String EMAIL_SMTP_FROM = "xmail.from.address";
 
   private final Properties javaMailProps;
+  private final String protocol;
+  private final String host;
   private final String user;
   private final String password;
   private final String from;
@@ -50,11 +56,9 @@ public class EmailSender {
   @Inject
   public EmailSender(Configuration conf) {
     javaMailProps = createJavaMailSessionProperties(conf.getSubSetConfiguration(MAIL_CONFIGS_PREFIX));
-    String protocol = javaMailProps.getProperty("mail.transport.protocol", "smtp");
-    if (!protocol.equals("smtp") && !protocol.equals("smtps")) {
-
-    }
-    auth = Boolean.parseBoolean(javaMailProps.getProperty("mail." + protocol + ".auth"));
+    protocol = javaMailProps.getProperty(MAIL_TRANSPORT_PROTOCOL, MAIL_TRANSPORT_PROTOCOL_DEFAULT);
+    host = javaMailProps.getProperty(MAIL_CONFIGS_PREFIX + protocol + ".host");
+    auth = Boolean.parseBoolean(javaMailProps.getProperty(MAIL_CONFIGS_PREFIX + protocol + ".auth"));
     user = conf.get(EMAIL_SMTP_USER, "");
     password = conf.get(EMAIL_SMTP_PASS, "").trim();
     from = conf.get(EMAIL_SMTP_FROM, "sdc@localhost");
@@ -108,6 +112,10 @@ public class EmailSender {
   }
 
   public void send(List<String> addresses, String subject, String body) throws EmailException {
+    this.send(addresses, subject, body, null);
+  }
+
+  public void send(List<String> addresses, String subject, String body, List<Attachment> attachments) throws EmailException {
     try {
       session = (session == null) ? createSession() : session;
       Message message = new MimeMessage(session);
@@ -116,12 +124,33 @@ public class EmailSender {
       List<InternetAddress> toAddrs = toAddress(addresses);
       message.addRecipients(Message.RecipientType.TO, toAddrs.toArray(new InternetAddress[toAddrs.size()]));
       message.setSubject(subject);
-      message.setContent(body, "text/html; charset=UTF-8");
-      Transport.send(message);
+
+      if(attachments != null && !attachments.isEmpty()) {
+        MimeMultipart multipart = new MimeMultipart();
+        MimeBodyPart htmlBodyPart = new MimeBodyPart();
+        htmlBodyPart.setContent(body, "text/html; charset=UTF-8");
+        multipart.addBodyPart(htmlBodyPart);
+
+        for(Attachment attachment: attachments) {
+          MimeBodyPart attachmentBodyPart = new MimeBodyPart();
+          ByteArrayDataSource dataSource = new ByteArrayDataSource(attachment.getInputStream(), attachment.getContentType());
+          attachmentBodyPart.setDataHandler(new DataHandler(dataSource));
+          attachmentBodyPart.setFileName(attachment.getFilename());
+          multipart.addBodyPart(attachmentBodyPart);
+        }
+
+        message.setContent(multipart);
+      } else {
+        message.setContent(body, "text/html; charset=UTF-8");
+      }
+
+      Transport transport = session.getTransport(protocol);
+      transport.connect(host, user, password);
+      transport.sendMessage(message, message.getAllRecipients());
+      transport.close();
     } catch (Exception ex) {
       session = null;
       throw new EmailException(ex);
     }
   }
-
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,7 +43,6 @@ import java.util.Map;
 public class ProductionPipeline {
 
   private static final Logger LOG = LoggerFactory.getLogger(ProductionPipeline.class);
-  public static final String RUNTIME_PARAMETERS_ATTR = "RUNTIME_PARAMETERS";
   private final PipelineConfiguration pipelineConf;
   private final Pipeline pipeline;
   private final ProductionPipelineRunner pipelineRunner;
@@ -52,6 +51,7 @@ public class ProductionPipeline {
   private final String rev;
   private final boolean isExecutingInSlave;
   private final boolean shouldRetry;
+  private boolean executionFailed;
 
   public ProductionPipeline(String name, String rev, PipelineConfiguration pipelineConf,
                             Configuration conf, Pipeline pipeline, boolean shouldRetry) {
@@ -81,27 +81,30 @@ public class ProductionPipeline {
 
   public void run() throws StageException, PipelineRuntimeException {
     boolean finishing = false;
+    boolean errorWhileInitializing = false;
     boolean errorWhileRunning = false;
+    boolean errorWhileDestroying = false;
     boolean isRecoverable = true;
-    String runningErrorMsg = "";
+    executionFailed = false;
+    String runningErrorMsg = null;
     try {
       try {
         LOG.debug("Initializing");
         List<Issue> issues = null;
         try {
-          issues = getPipeline().init();
+          issues = getPipeline().init(true);
         } catch (Throwable e) {
           if (!wasStopped()) {
+            runningErrorMsg = e.toString();
             LOG.warn("Error while starting: {}", e.toString(), e);
-            stateChanged(PipelineStatus.START_ERROR, e.toString(), null);
+            errorWhileInitializing = true;
+            stateChanged(PipelineStatus.STARTING_ERROR, e.toString(), null);
           }
           throw new PipelineRuntimeException(ContainerError.CONTAINER_0702, e.toString(), e);
         }
         if (issues.isEmpty()) {
           try {
-            Map<String, Object> attributes = new HashMap<>();
-            attributes.put(RUNTIME_PARAMETERS_ATTR, pipeline.getRuntimeParameters());
-            stateChanged(PipelineStatus.RUNNING, null, attributes);
+            stateChanged(PipelineStatus.RUNNING, null, null);
             LOG.debug("Running");
             pipeline.run();
             if (!wasStopped()) {
@@ -125,7 +128,10 @@ public class ProductionPipeline {
             issues.get(0).getMessage());
           Map<String, Object> attributes = new HashMap<>();
           attributes.put("issues", new IssuesJson(new Issues(issues)));
-          stateChanged(PipelineStatus.START_ERROR, issues.get(0).getMessage(), attributes);
+          // We need to store the error in runningErrorMsg, so that it gets propagated to START_ERROR terminal state
+          runningErrorMsg = issues.get(0).getMessage();
+          stateChanged(PipelineStatus.STARTING_ERROR, runningErrorMsg, attributes);
+          errorWhileInitializing = true;
           getPipeline().errorNotification(e);
           throw e;
         }
@@ -133,24 +139,48 @@ public class ProductionPipeline {
         LOG.debug("Destroying");
 
         try {
-          pipeline.destroy();
+          // Determine the reason why we got all the way here
+          PipelineStopReason stopReason;
+          if(errorWhileRunning) {
+            stopReason = PipelineStopReason.FAILURE;
+          } else if(wasStopped()) {
+            stopReason = PipelineStopReason.USER_ACTION;
+          } else {
+            stopReason = PipelineStopReason.FINISHED;
+          }
+          // Destroy the pipeline
+          pipeline.destroy(true, stopReason);
         } catch (Throwable e) {
-          LOG.warn("Error while calling destroy: " + e, e);
+          LOG.warn("Error while calling destroy: " + e.toString(), e);
+          stateChanged(PipelineStatus.STOPPING_ERROR, e.toString(), null);
+          errorWhileDestroying = true;
+          // If this is the first error that happened during the execution, persist the reasoning in the message, otherwise
+          // keep the original message so that terminal state have the original error rather then any subsequent one.
+          if(runningErrorMsg == null) {
+            runningErrorMsg = e.toString();
+          }
           throw e;
         } finally {
-          // if the destroy throws an Exception but pipeline.run() finishes well,
-          // me move to finished state
-          if (finishing) {
+          if(errorWhileInitializing || errorWhileRunning || errorWhileDestroying) {
+            // In case of any error, persist that information
+            executionFailed = true;
+
+            // If there was any problem, we will consider retry
+            if (shouldRetry && !pipeline.shouldStopOnStageError() && !isExecutingInSlave && isRecoverable && !wasStopped()) {
+              stateChanged(PipelineStatus.RETRY, runningErrorMsg, null);
+            } else if(errorWhileInitializing) {
+              stateChanged(PipelineStatus.START_ERROR, runningErrorMsg, null);
+            } else if(errorWhileRunning) {
+              stateChanged(PipelineStatus.RUN_ERROR, runningErrorMsg, null);
+            } else if(errorWhileDestroying) {
+              stateChanged(PipelineStatus.STOP_ERROR, runningErrorMsg, null);
+            }
+          } else if(finishing) {
+            // Graceful shutdown
             LOG.debug("Finished");
             stateChanged(PipelineStatus.FINISHED, null, null);
-          } else if (errorWhileRunning) {
-            LOG.debug("Stopped due to an error");
-            if (shouldRetry && !pipeline.shouldStopOnStageError() && !isExecutingInSlave && isRecoverable) {
-              stateChanged(PipelineStatus.RETRY, runningErrorMsg, null);
-            } else {
-              stateChanged(PipelineStatus.RUN_ERROR, runningErrorMsg, null);
-            }
           }
+
           if (isExecutingInSlave) {
             LOG.debug("Calling cluster source post destroy");
             ((ClusterSource) pipeline.getSource()).postDestroy();
@@ -189,6 +219,10 @@ public class ProductionPipeline {
 
   public boolean wasStopped() {
     return pipelineRunner.wasStopped();
+  }
+
+  public boolean isExecutionFailed() {
+    return executionFailed;
   }
 
   /**

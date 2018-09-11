@@ -21,15 +21,17 @@ import com.streamsets.pipeline.api.ConfigGroups;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 
 @StageDef(
     version = 1,
     label = "JSON Generator",
     description = "Serializes a field to a string field in JSON format",
     icon = "json.png",
-    onlineHelpRefUrl = "index.html#Processors/JSONGenerator.html#task_kgk_3w1_h1b"
+    flags = StageBehaviorFlags.PURE_FUNCTION,
+    onlineHelpRefUrl ="index.html?contextID=task_kgk_3w1_h1b"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
@@ -38,9 +40,8 @@ public class JsonGeneratorDProcessor extends DProcessor {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.MODEL,
-      defaultValue = "",
-      label = "Field to Parse",
-      description = "String field that contains a JSON object",
+      label = "Field to Serialize",
+      description = "Map or List field to serialize to JSON",
       displayPosition = 10,
       group = "JSON"
   )
@@ -50,9 +51,8 @@ public class JsonGeneratorDProcessor extends DProcessor {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.STRING,
-      defaultValue = "",
       label = "Target Field",
-      description="Name of the field to set the parsed JSON data to",
+      description="Name of the field in which to place the serialized JSON string",
       displayPosition = 30,
       group = "JSON"
   )

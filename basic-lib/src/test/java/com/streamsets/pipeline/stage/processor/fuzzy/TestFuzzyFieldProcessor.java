@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@ import com.streamsets.pipeline.sdk.ProcessorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.StageRunner;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Ignore("The stage itself is currently disabled by having the @StageDef annotation commented out on which the tests depends on.")
 public class TestFuzzyFieldProcessor {
   private static final Logger LOG = LoggerFactory.getLogger(TestFuzzyFieldProcessor.class);
 
@@ -405,7 +407,7 @@ public class TestFuzzyFieldProcessor {
       Record record = RecordCreator.create("s", "s:1");
 
       record.set(Field.create(csvWithHeader));
-      
+
       StageRunner.Output output = runner.runProcess(ImmutableList.of(record));
       Assert.assertEquals(0, runner.getErrorRecords().size());
       Assert.assertEquals(1, output.getRecords().get("a").size());

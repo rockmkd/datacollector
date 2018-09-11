@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,49 +16,10 @@
 package com.streamsets.datacollector.util;
 
 import com.streamsets.pipeline.api.ErrorCode;
-import com.streamsets.pipeline.api.impl.ErrorMessage;
 
-public class PipelineException extends Exception {
-
-  private static Throwable getCause(Object... params) {
-    Throwable throwable = null;
-    if (params.length > 0 && params[params.length - 1] instanceof Throwable) {
-      throwable = (Throwable) params[params.length - 1];
-    }
-    return throwable;
-  }
-
-  private final ErrorCode errorCode;
-  private final ErrorMessage errorMessage;
-
-  // last parameter can be an exception cause
+public class PipelineException extends ErrorCodeException {
   public PipelineException(ErrorCode errorCode, Object... params) {
-    this.errorCode = errorCode;
-    errorMessage = new ErrorMessage(errorCode, params);
-
-    Throwable cause = getCause(params);
-    if(cause != null) {
-      initCause(cause);
-    }
+    super(errorCode, params);
   }
-
-  public ErrorMessage getErrorMessage() {
-    return errorMessage;
-  }
-
-  public ErrorCode getErrorCode() {
-    return errorCode;
-  }
-
-  @Override
-  public String getMessage() {
-    return errorMessage.getNonLocalized();
-  }
-
-  @Override
-  public String getLocalizedMessage() {
-    return errorMessage.getLocalized();
-  }
-
 }
 

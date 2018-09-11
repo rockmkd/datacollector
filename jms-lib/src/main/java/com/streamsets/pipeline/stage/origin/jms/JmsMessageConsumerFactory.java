@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,8 @@
  */
 package com.streamsets.pipeline.stage.origin.jms;
 
-import com.streamsets.pipeline.stage.origin.lib.BasicConfig;
 import com.streamsets.pipeline.stage.common.CredentialsConfig;
+import com.streamsets.pipeline.stage.origin.lib.BasicConfig;
 
 import javax.jms.ConnectionFactory;
 import javax.naming.InitialContext;
@@ -25,5 +25,5 @@ public interface JmsMessageConsumerFactory {
 
   JmsMessageConsumer create(InitialContext initialContext, ConnectionFactory connectionFactory,
                          BasicConfig basicConfig, CredentialsConfig credentialsConfig,
-                         JmsConfig jmsConfig, JmsMessageConverter jmsMessageConverter);
+                         JmsSourceConfig jmsConfig, JmsMessageConverter jmsMessageConverter);
 }

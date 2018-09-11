@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,12 @@ import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
+import java.math.BigDecimal;
+import java.sql.Types;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.zip.DataFormatException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +62,49 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
   private final List<JdbcFieldColumnMapping> generatedColumnMappings;
   private Map<String, Integer> columnType = new HashMap<>();
   private List<String> primaryKeyColumns;
+  private Map<String, String> columnsWithoutPrimaryKeys;
   JdbcRecordReader recordReader;
+  /* Static lists for column type checking in setParamsToStatement */
+  private Set<Integer> binaryTypes = new HashSet<>(Arrays.asList(
+      Types.BINARY,
+      Types.LONGVARBINARY,
+      Types.VARBINARY
+  ));
+  private Set<Integer> textTypes = new HashSet<>(Arrays.asList(
+      Types.CHAR,
+      Types.VARCHAR,
+      Types.BLOB,
+      Types.LONGNVARCHAR,
+      Types.NCHAR,
+      Types.NVARCHAR,
+      Types.LONGVARCHAR,
+      Types.SQLXML,
+      Types.CLOB,
+      Types.NCLOB
+  ));
+  private Set<Integer> numericTypes = new HashSet<>(Arrays.asList(
+      Types.BIT,
+      Types.TINYINT,
+      Types.SMALLINT,
+      Types.INTEGER,
+      Types.BIGINT,
+      Types.DECIMAL,
+      Types.NUMERIC,
+      Types.FLOAT,
+      Types.REAL,
+      Types.DOUBLE
+  ));
+  /*
+    The following should be handled by setObject() and hence
+    won't be checked.
+    Types.TIME_WITH_TIMEZONE
+    Types.TIMESTAMP_WITH_TIMEZONE
+ */
+  private Set<Integer> dateTypes = new HashSet<>(Arrays.asList(
+      Types.DATE,
+      Types.TIME,
+      Types.TIMESTAMP
+  ));
 
   // Index of columns returned by DatabaseMetaData.getColumns. Defined in DatabaseMetaData class.
   private static final int COLUMN_NAME = 4;
@@ -125,8 +173,10 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
     createCustomFieldMappings();
     lookupPrimaryKeys();
     primaryKeyParams = new LinkedList<>();
+    columnsWithoutPrimaryKeys = new HashMap<>(columnsToFields);
     for (String key: primaryKeyColumns) {
       primaryKeyParams.add(getColumnsToParameters().get(key));
+      columnsWithoutPrimaryKeys.remove(key);
     }
   }
 
@@ -318,6 +368,14 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
   }
 
   /**
+   * A list of table columns that don't include primary key columns
+   * @return List of table columns without primary keys
+   */
+  Map<String, String> getColumnsToFieldNoPK() {
+    return columnsWithoutPrimaryKeys;
+  }
+
+  /**
    * Whether or not to try to perform a transaction rollback on error.
    * @return whether to rollback the transaction
    */
@@ -379,6 +437,22 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
     }
   }
 
+  boolean isColumnTypeNumeric(int columnType) {
+    return numericTypes.contains(columnType);
+  }
+  boolean isColumnTypeText(int columnType) {
+    return textTypes.contains(columnType);
+  }
+
+  boolean isColumnTypeDate(int columnType) {
+    return dateTypes.contains(columnType);
+  }
+
+  boolean isColumnTypeBinary(int columnType) {
+    return binaryTypes.contains(columnType);
+  }
+
+
   int setParamsToStatement(int paramIdx,
                 PreparedStatement statement,
                 SortedMap<String, String> columnsToParameters,
@@ -390,31 +464,121 @@ public abstract class JdbcBaseRecordWriter implements JdbcRecordWriter {
       Field field = record.get(recordReader.getFieldPath(column, getColumnsToFields(), opCode));
       Field.Type fieldType = field.getType();
       Object value = field.getValue();
+      int columnType = getColumnType(column);
 
+      /* See SDC-7959: MapD does not support PreparedStatement.setObject()
+      * To minimise exceptions, explicitly set values using setType method.
+      * Note:
+      * - MAP, LIST_MAP not implemented as handled prior to calling. */
       try {
+        /* If a value is null, regardless of its passed in Field.Type, the column should be set to null
+         */
+        if (value == null) {
+          statement.setObject(paramIdx, value, getColumnType(column));
+          paramIdx++;
+          continue;
+        }
         switch (fieldType) {
           case LIST:
-            List<Object> unpackedList = unpackList((List<Field>) value);
-            Array array = connection.createArrayOf(getSQLTypeName(fieldType), unpackedList.toArray());
-            statement.setArray(paramIdx, array);
+            List<Field> fieldList = field.getValueAsList();
+            if (fieldList.size() > 0) {
+              Field.Type elementFieldType = fieldList.get(0).getType();
+              Array array = connection.createArrayOf(getSQLTypeName(elementFieldType), unpackList(fieldList).toArray());
+              statement.setArray(paramIdx, array);
+            } else {
+              statement.setArray(paramIdx, null);
+            }
             break;
           case DATE:
           case TIME:
           case DATETIME:
+            if (!isColumnTypeDate(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
             // Java Date types are not accepted by JDBC drivers, so we need to convert to java.sql.Timestamp
             statement.setTimestamp(paramIdx,
                 field.getValueAsDate() == null ? null : new java.sql.Timestamp(field.getValueAsDatetime().getTime())
             );
             break;
+          case BOOLEAN:
+            if (columnType != Types.BOOLEAN) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setBoolean(paramIdx, (Boolean)value);
+            break;
+          case CHAR:
+          case STRING:
+            if (!isColumnTypeText(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setString(paramIdx, String.valueOf(value));
+            break;
+          case BYTE:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setByte(paramIdx, (Byte)value);
+            break;
+          case SHORT:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setShort(paramIdx, (Short)value);
+            break;
+          case INTEGER:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setInt(paramIdx, (Integer)value);
+            break;
+          case LONG:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setLong(paramIdx, (Long)value);
+            break;
+          case FLOAT:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setFloat(paramIdx, (Float)value);
+            break;
+          case DOUBLE:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setDouble(paramIdx, (Double)value);
+            break;
+          case DECIMAL:
+            if (!isColumnTypeNumeric(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setBigDecimal(paramIdx, (BigDecimal)value);
+            break;
+          case BYTE_ARRAY:
+            if (!isColumnTypeBinary(columnType)) {
+              throw new IllegalArgumentException("Incorrect type");
+            }
+            statement.setBytes(paramIdx, (byte[])value);
+            break;
+          case FILE_REF:
+          case MAP: // should not be seen as un-mapping handled prior to call
+          case LIST_MAP: // should not be seen as un-mapping handled prior to call
+            throw new DataFormatException(fieldType.name());
+          case ZONED_DATETIME: //guidance is to use setObject() for this type
           default:
             statement.setObject(paramIdx, value, getColumnType(column));
             break;
         }
+      } catch (DataFormatException e) {
+        LOG.error("Query failed unsupported type {}", e.getMessage());
+        throw new OnRecordErrorException(record, JdbcErrors.JDBC_05, field.getValue(), fieldType.toString(), column);
+      } catch (IllegalArgumentException e) {
+        LOG.error("Query failed due to type mismatch {} for column {}", fieldType.toString(), column);
+        throw new OnRecordErrorException(record, JdbcErrors.JDBC_23, field.getValue(), fieldType.toString(), column);
       } catch (SQLException e) {
-        LOG.error(JdbcErrors.JDBC_23.getMessage(), column, fieldType.toString());
-        //There is a case that the real case is not what JDBC_23 says.
-        LOG.error("Query failed due to {}. {}", e.getMessage(), e);
-        throw new OnRecordErrorException(record, JdbcErrors.JDBC_23, column, fieldType.toString());
+        LOG.error("Query failed due to {}", e.getMessage(), e);
+        throw new OnRecordErrorException(record, JdbcErrors.JDBC_23, field.getValue(), fieldType.toString(), column);
       }
       ++paramIdx;
     }

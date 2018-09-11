@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,7 @@ public enum DataFormat implements Label {
   TEXT("Text", DataParserFormat.TEXT, DataGeneratorFormat.TEXT),
   JSON("JSON", DataParserFormat.JSON, DataGeneratorFormat.JSON),
   DELIMITED("Delimited", DataParserFormat.DELIMITED, DataGeneratorFormat.DELIMITED),
-  XML("XML", DataParserFormat.XML, null),
+  XML("XML", DataParserFormat.XML, DataGeneratorFormat.XML),
   SDC_JSON("SDC Record", DataParserFormat.SDC_RECORD, DataGeneratorFormat.SDC_RECORD),
   LOG("Log", DataParserFormat.LOG, null),
   AVRO("Avro", DataParserFormat.AVRO, DataGeneratorFormat.AVRO),
@@ -33,6 +33,9 @@ public enum DataFormat implements Label {
   PROTOBUF("Protobuf", DataParserFormat.PROTOBUF, DataGeneratorFormat.PROTOBUF),
   DATAGRAM("Datagram", DataParserFormat.DATAGRAM, null),
   WHOLE_FILE("Whole File", DataParserFormat.WHOLE_FILE, DataGeneratorFormat.WHOLE_FILE),
+  SYSLOG("Syslog", DataParserFormat.SYSLOG, null),
+  NETFLOW("Netflow", DataParserFormat.NETFLOW, null),
+  EXCEL("Excel", DataParserFormat.EXCEL, null),
   ;
 
   private final String label;

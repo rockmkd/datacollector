@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import com.streamsets.pipeline.api.ext.ContextExtensions;
 import com.streamsets.pipeline.api.ext.RecordWriter;
 import com.streamsets.pipeline.sdk.RecordCreator;
@@ -69,14 +70,14 @@ public class TestSdcIpcSource {
     }
 
     final Configs configs = new Configs();
-    configs.appId = "appId";
+    configs.appId = () -> "appId";
     configs.tlsConfigBean.tlsEnabled = ssl;
     configs.tlsConfigBean.keyStoreFilePath = keyStore.toString();
-    configs.tlsConfigBean.keyStorePassword = "keystore";
+    configs.tlsConfigBean.keyStorePassword = () -> "keystore";
     configs.port = randomPort;
     configs.maxWaitTimeSecs = 2;
     Source source = new SdcIpcSource(configs);
-    final SourceRunner runner = new SourceRunner.Builder(SdcIpcSource.class, source).addOutputLane("lane").build();
+    final SourceRunner runner = new SourceRunner.Builder(SdcIpcDSource.class, source).addOutputLane("lane").build();
     try {
       runner.runInit();
 
@@ -131,7 +132,7 @@ public class TestSdcIpcSource {
           Record r2 = RecordCreator.create();
           r2.set(Field.create(false));
           List<Record> records = ImmutableList.of(r1, r2);
-          return sendRecords("invalid", runner.getContext(), TLSTestUtils.getHostname() + ":" + configs.port, ssl,
+          return sendRecords(() ->"invalid", runner.getContext(), TLSTestUtils.getHostname() + ":" + configs.port, ssl,
                              trustStore.toString(), "truststore", compressed, records);
         }
       });
@@ -139,7 +140,7 @@ public class TestSdcIpcSource {
       Assert.assertFalse(future.get(5, TimeUnit.SECONDS));
 
       //test PING
-      HttpURLConnection conn = getConnection("/ping", "nop", runner.getContext(),
+      HttpURLConnection conn = getConnection("/ping", () -> "nop", runner.getContext(),
                                              TLSTestUtils.getHostname() + ":" + configs.port, ssl,
                                              trustStore.toString(), "truststore");
       Assert.assertEquals(HttpURLConnection.HTTP_OK, conn.getResponseCode());
@@ -149,19 +150,26 @@ public class TestSdcIpcSource {
     }
   }
 
-  private HttpURLConnection getConnection(String path, String appId, Stage.Context context, String hostPort, boolean ssl,
-      String trustStoreFile, String trustStorePassword) throws Exception {
+  private HttpURLConnection getConnection(
+    String path,
+    CredentialValue appId,
+    Stage.Context context,
+    String hostPort,
+    boolean ssl,
+    String trustStoreFile,
+    String trustStorePassword
+  ) throws Exception {
     com.streamsets.pipeline.stage.destination.sdcipc.Configs config =
         new com.streamsets.pipeline.stage.destination.sdcipc.Configs();
     // always valid to be able to init the config
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 1000;
     config.readTimeOutMs = 1000;
     config.hostPorts = ImmutableList.of(hostPort);
     config.tlsConfigBean.tlsEnabled = ssl;
     config.hostVerification = false;
     config.tlsConfigBean.trustStoreFilePath = trustStoreFile;
-    config.tlsConfigBean.trustStorePassword = trustStorePassword;
+    config.tlsConfigBean.trustStorePassword = () -> trustStorePassword;
     config.tlsConfigBean.useDefaultCiperSuites = true;
     config.tlsConfigBean.cipherSuites.add("TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256");
     List<Stage.ConfigIssue> issues = config.init(context);
@@ -174,9 +182,15 @@ public class TestSdcIpcSource {
     }
   }
 
-  private boolean sendRecords(String appId, Stage.Context context, String hostPort, boolean ssl, String trustStoreFile,
-      String trustStorePassword, boolean compressed,  List<Record> records)
-      throws Exception {
+  private boolean sendRecords(
+    CredentialValue appId,
+    Stage.Context context,
+    String hostPort,
+    boolean ssl,
+    String trustStoreFile,
+    String trustStorePassword,
+    boolean compressed,
+    List<Record> records) throws Exception {
     try {
       ContextExtensions ext = (ContextExtensions) context;
       HttpURLConnection conn = getConnection(Constants.IPC_PATH, appId, context, hostPort, ssl, trustStoreFile,

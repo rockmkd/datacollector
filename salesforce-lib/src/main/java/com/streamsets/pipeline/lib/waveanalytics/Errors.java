@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,10 @@ public enum Errors implements ErrorCode {
 
   WAVE_00("A configuration is invalid because: {}"),
   WAVE_01("Specific reason writing record failed: {}"),
+  WAVE_02("Exception getting dataflow list: {}"),
+  WAVE_03("Exception getting dataflow json: {}"),
+  WAVE_04("Exception patching dataflow json: {}"),
+  WAVE_05("Exception putting dataflow json: {}"),
   ;
   private final String msg;
 

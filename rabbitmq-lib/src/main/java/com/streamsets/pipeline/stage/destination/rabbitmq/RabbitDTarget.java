@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 import com.streamsets.pipeline.lib.rabbitmq.config.Groups;
 
 @StageDef(
@@ -32,12 +32,12 @@ import com.streamsets.pipeline.lib.rabbitmq.config.Groups;
     execution = ExecutionMode.STANDALONE,
     recordsByRef = true,
     upgrader = RabbitTargetUpgrader.class,
-    onlineHelpRefUrl = "index.html#Destinations/RabbitMQ.html#task_rwy_wn5_2v"
+    onlineHelpRefUrl ="index.html?contextID=task_rwy_wn5_2v"
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle
-public class RabbitDTarget extends DTarget{
-  @ConfigDefBean(groups = {"RABBITMQ", "QUEUE", "EXCHANGE", "ADVANCED"})
+public class RabbitDTarget extends DTarget {
+  @ConfigDefBean(groups = {"RABBITMQ", "QUEUE", "EXCHANGE", "ADVANCED", "DATA_FORMAT"})
   public RabbitTargetConfigBean conf;
 
   @Override

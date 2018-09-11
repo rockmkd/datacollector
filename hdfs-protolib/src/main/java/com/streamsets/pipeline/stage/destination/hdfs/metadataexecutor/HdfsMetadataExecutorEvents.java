@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,11 @@ public class HdfsMetadataExecutorEvents {
     .build();
 
   public static EventCreator FILE_CREATED = new EventCreator.Builder("file-created", 1)
+    .withRequiredField("filepath")
+    .withRequiredField("filename")
+    .build();
+
+  public static EventCreator FILE_REMOVED = new EventCreator.Builder("file-removed", 1)
     .withRequiredField("filepath")
     .withRequiredField("filename")
     .build();

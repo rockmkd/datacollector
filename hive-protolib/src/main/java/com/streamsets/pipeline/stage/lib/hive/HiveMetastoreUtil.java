@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +59,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 
@@ -119,13 +119,13 @@ public final class HiveMetastoreUtil {
   public static final String PARQUET_SERDE = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe";
 
 
-  private static final SimpleDateFormat datetimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-  private static final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
+  private static final ThreadLocal<SimpleDateFormat> datetimeFormat = ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
+  private static final ThreadLocal<SimpleDateFormat> timeFormat = ThreadLocal.withInitial(() -> new SimpleDateFormat("HH:mm:ss"));
 
   private static final String UNSUPPORTED_PARTITION_VALUE_REGEX = "(.*)[\\\\\"\'/?*%?^=\\[\\]]+(.*)";
   private static final Pattern UNSUPPORTED_PARTITION_VALUE_PATTERN = Pattern.compile(UNSUPPORTED_PARTITION_VALUE_REGEX);
   //Letters followed by letters/numbers/underscore
-  private static final Pattern COLUMN_NAME_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+  private static final Pattern OBJECT_NAME_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
   private static final Pattern COMMENT_PATTERN = Pattern.compile("[^\"]*");
 
   public enum MetadataRecordType {
@@ -661,10 +661,10 @@ public final class HiveMetastoreUtil {
           currField = Field.create(currField.getValueAsString());
           break;
         case DATETIME:
-          currField = Field.create(Field.Type.STRING, currField.getValue() == null ? null : datetimeFormat.format(currField.getValueAsDate()));
+          currField = Field.create(Field.Type.STRING, currField.getValue() == null ? null : datetimeFormat.get().format(currField.getValueAsDate()));
           break;
         case TIME:
-          currField = Field.create(Field.Type.STRING, currField.getValue() == null ? null : timeFormat.format(currField.getValueAsTime()));
+          currField = Field.create(Field.Type.STRING, currField.getValue() == null ? null : timeFormat.get().format(currField.getValueAsTime()));
           break;
         default:
           break;
@@ -700,10 +700,6 @@ public final class HiveMetastoreUtil {
     return columns;
   }
 
-  public static boolean validateName(String valName){
-    return MetaStoreUtils.validateName(valName);
-  }
-
   /**
    * Checks if partition value contains unsupported character.
    * @param value String to check
@@ -714,10 +710,13 @@ public final class HiveMetastoreUtil {
   }
 
   /**
-   * Validate that given column name is valid.
+   * Validate that given object name (column, table, database, ...) is valid.
+   *
+   * This method is the least common denominator of what both Avro and Hive allows. Since we match Avro schema field
+   * names directly to hive names, we can work only with only those names that work everywhere.
    */
-  public static boolean validateColumnName(String colName) {
-    return COLUMN_NAME_PATTERN.matcher(colName).matches();
+  public static boolean validateObjectName(String objName) {
+    return OBJECT_NAME_PATTERN.matcher(objName).matches();
   }
 
   /**
@@ -839,15 +838,17 @@ public final class HiveMetastoreUtil {
 
   public static Connection getHiveConnection(
       final String jdbcUrl,
-      final UserGroupInformation loginUgi
+      final UserGroupInformation loginUgi,
+      final List<ConnectionPropertyBean> driverProperties
   ) throws StageException {
+
+    Properties resolvedDriverProperties = new Properties();
+    for(ConnectionPropertyBean bean : driverProperties) {
+      resolvedDriverProperties.setProperty(bean.property, bean.value.get());
+    }
+
     try {
-      return loginUgi.doAs(new PrivilegedExceptionAction<Connection>() {
-        @Override
-        public Connection run() throws SQLException {
-          return DriverManager.getConnection(jdbcUrl);
-        }
-      });
+      return loginUgi.doAs((PrivilegedExceptionAction<Connection>) () -> DriverManager.getConnection(jdbcUrl, resolvedDriverProperties));
     } catch (Exception e) {
       LOG.error("Failed to connect to Hive with JDBC URL:" + jdbcUrl, e);
       throw new StageException(Errors.HIVE_22, jdbcUrl, e.getMessage());
@@ -916,12 +917,13 @@ public final class HiveMetastoreUtil {
   public static <T extends HMSCacheSupport.HMSCacheInfo> T getCacheInfo(
       HMSCache hmsCache,
       HMSCacheType cacheType,
-      String qualifiedName
+      String qualifiedName,
+      HiveQueryExecutor queryExecutor
   ) throws StageException {
     HMSCacheSupport.HMSCacheInfo cacheInfo = hmsCache.getIfPresent(cacheType, qualifiedName);
     if (cacheType != HMSCacheType.AVRO_SCHEMA_INFO && cacheInfo == null) {
       // Try loading by executing HMS query
-      cacheInfo = hmsCache.getOrLoad(cacheType, qualifiedName);
+      cacheInfo = hmsCache.getOrLoad(cacheType, qualifiedName, queryExecutor);
     }
     return (T)cacheInfo;
   }

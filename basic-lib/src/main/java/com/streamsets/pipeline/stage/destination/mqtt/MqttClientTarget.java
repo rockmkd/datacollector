@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,7 +75,7 @@ public class MqttClientTarget extends BaseTarget implements MqttCallback {
       try {
         this.mqttClientCommon.init(getContext(), issues);
         mqttClient = mqttClientCommon.createMqttClient(this);
-      } catch (MqttException e) {
+      } catch (MqttException|StageException e) {
         throw new RuntimeException(new StageException(Errors.MQTT_04, e, e));
       }
     }

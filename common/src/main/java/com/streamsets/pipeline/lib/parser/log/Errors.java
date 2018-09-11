@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +33,7 @@ public enum Errors implements ErrorCode {
   LOG_PARSER_09("Error parsing grok pattern {}, reason {}"),
   LOG_PARSER_10("Max stack trace lines field cannot be less than 0"),
   LOG_PARSER_11("Error compiling grok pattern definition {}, reason {}"),
+  LOG_PARSER_12("Error parsing {} record, expected {} header fields, but found {}"),
   ;
 
   private final String msg;

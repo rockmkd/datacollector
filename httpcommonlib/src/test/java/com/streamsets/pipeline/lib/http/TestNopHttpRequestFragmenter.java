@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.lib.http;
 
-import com.streamsets.pipeline.lib.sdcipc.SdcIpcRequestFragmenter;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;

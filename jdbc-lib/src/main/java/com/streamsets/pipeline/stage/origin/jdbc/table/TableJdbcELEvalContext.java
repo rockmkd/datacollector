@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@ import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
+import com.streamsets.pipeline.lib.jdbc.multithread.TableRuntimeContext;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -42,7 +43,7 @@ public final class TableJdbcELEvalContext {
     TimeNowEL.setTimeNowInContext(elVars, date);
   }
 
-  public void setTableContext(TableContext tableContext) {
+  public void setTableContext(TableRuntimeContext tableContext) {
     OffsetColumnEL.setTableInContext(elVars, tableContext);
   }
 

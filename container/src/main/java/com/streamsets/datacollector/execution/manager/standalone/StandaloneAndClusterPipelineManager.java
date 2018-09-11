@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 import com.streamsets.datacollector.event.handler.remote.RemoteDataCollector;
 import com.streamsets.datacollector.execution.EventListenerManager;
 import com.streamsets.datacollector.execution.Manager;
@@ -31,33 +30,35 @@ import com.streamsets.datacollector.execution.Previewer;
 import com.streamsets.datacollector.execution.PreviewerListener;
 import com.streamsets.datacollector.execution.Runner;
 import com.streamsets.datacollector.execution.StateEventListener;
+import com.streamsets.datacollector.execution.StatsCollectorRunner;
 import com.streamsets.datacollector.execution.manager.PipelineManagerException;
 import com.streamsets.datacollector.execution.manager.PreviewerProvider;
 import com.streamsets.datacollector.execution.manager.RunnerProvider;
 import com.streamsets.datacollector.main.RuntimeInfo;
+import com.streamsets.datacollector.metrics.MetricsCache;
 import com.streamsets.datacollector.metrics.MetricsConfigurator;
+import com.streamsets.datacollector.security.GroupsInScope;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.datacollector.store.PipelineInfo;
 import com.streamsets.datacollector.store.PipelineStoreException;
 import com.streamsets.datacollector.store.PipelineStoreTask;
 import com.streamsets.datacollector.task.AbstractTask;
+import com.streamsets.datacollector.usagestats.StatsCollector;
 import com.streamsets.datacollector.util.Configuration;
 import com.streamsets.datacollector.util.ContainerError;
 import com.streamsets.datacollector.util.PipelineException;
 import com.streamsets.datacollector.validation.ValidationError;
-import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.dc.execution.manager.standalone.ResourceManager;
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.impl.Utils;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
-
+import com.streamsets.pipeline.lib.util.ExceptionUtils;
 import dagger.ObjectGraph;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -83,6 +84,7 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
   @Inject PreviewerProvider previewerProvider;
   @Inject ResourceManager resourceManager;
   @Inject EventListenerManager eventListenerManager;
+  @Inject StatsCollector statsCollector;
 
   private Cache<String, RunnerInfo> runnerCache;
   private Cache<String, Previewer> previewerCache;
@@ -90,6 +92,8 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
   static final String RUNNER_EXPIRY_INTERVAL = "runner.expiry.interval";
   static final long DEFAULT_RUNNER_EXPIRY_INITIAL_DELAY = 30*60*1000;
   static final String RUNNER_EXPIRY_INITIAL_DELAY = "runner.expiry.initial.delay";
+  static final boolean DEFAULT_RUNNER_RESTART_PIPELINES = true;
+  static final String RUNNER_RESTART_PIPELINES = "runner.boot.pipeline.restart";
   private final long runnerExpiryInterval;
   private final long runnerExpiryInitialDelay;
   private ScheduledFuture<?> runnerExpiryFuture;
@@ -203,17 +207,27 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
 
   @Override
   public void runTask() {
-    previewerCache = CacheBuilder.newBuilder()
-      .expireAfterAccess(30, TimeUnit.MINUTES).removalListener(new RemovalListener<String, Previewer>() {
-        @Override
-        public void onRemoval(RemovalNotification<String, Previewer> removal) {
-          Previewer previewer = removal.getValue();
-          LOG.warn("Evicting idle previewer '{}::{}'::'{}' in status '{}'",
-            previewer.getName(), previewer.getRev(), previewer.getId(), previewer.getStatus());
-        }
-      }).build();
+    previewerCache = new MetricsCache<>(
+      runtimeInfo.getMetrics(),
+      "manager-previewer-cache",
+        CacheBuilder.newBuilder()
+          .expireAfterAccess(30, TimeUnit.MINUTES).removalListener((RemovalListener<String, Previewer>) removal -> {
+            Previewer previewer = removal.getValue();
+            LOG.warn("Evicting idle previewer '{}::{}'::'{}' in status '{}'",
+              previewer.getName(), previewer.getRev(), previewer.getId(), previewer.getStatus());
+          }).build()
+    );
 
-    runnerCache = CacheBuilder.newBuilder().build();
+    runnerCache = new MetricsCache<>(
+      runtimeInfo.getMetrics(),
+      "manager-runner-cache",
+      CacheBuilder.newBuilder().build())
+    ;
+
+    // On SDC start up we will try by default start all pipelines that were running at the time SDC was shut down. This
+    // can however be disabled via sdc.properties config. Especially helpful when starting all pipeline at once could
+    // lead to troubles.
+    boolean restartPipelines = configuration.get(RUNNER_RESTART_PIPELINES, DEFAULT_RUNNER_RESTART_PIPELINES);
 
     List<PipelineInfo> pipelineInfoList;
     try {
@@ -235,9 +249,18 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
           ExecutionMode executionMode = pipelineState.getExecutionMode();
           Runner runner = getRunner(name, rev, executionMode);
           runner.prepareForDataCollectorStart(pipelineState.getUser());
-          if (runner.getState().getStatus() == PipelineStatus.DISCONNECTED) {
+          if (restartPipelines && runner.getState().getStatus() == PipelineStatus.DISCONNECTED) {
             runnerCache.put(getNameAndRevString(name, rev), new RunnerInfo(runner, executionMode));
-            runner.onDataCollectorStart(pipelineState.getUser());
+            try {
+              String user = pipelineState.getUser();
+              // we need to skip enforcement user groups in scope.
+              GroupsInScope.executeIgnoreGroups(() -> {
+                runner.onDataCollectorStart(user);
+                return null;
+              });
+            } catch (Exception ex) {
+              ExceptionUtils.throwUndeclared(ex.getCause());
+            }
           }
         }
       } catch (Exception ex) {
@@ -332,7 +355,7 @@ public class StandaloneAndClusterPipelineManager extends AbstractTask implements
       executionMode = ExecutionMode.STANDALONE;
     }
     Runner runner = runnerProvider.createRunner(name, rev, objectGraph, executionMode);
-    return runner;
+    return new StatsCollectorRunner(runner, statsCollector);
   }
 
   private String getNameAndRevString(String name, String rev) {

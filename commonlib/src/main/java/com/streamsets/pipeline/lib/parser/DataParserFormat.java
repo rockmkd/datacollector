@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,12 +22,15 @@ import com.streamsets.pipeline.lib.data.DataFormat;
 import com.streamsets.pipeline.lib.parser.avro.AvroDataParserFactory;
 import com.streamsets.pipeline.lib.parser.binary.BinaryDataParserFactory;
 import com.streamsets.pipeline.lib.parser.delimited.DelimitedDataParserFactory;
+import com.streamsets.pipeline.lib.parser.excel.WorkbookParserFactory;
 import com.streamsets.pipeline.lib.parser.json.JsonDataParserFactory;
 import com.streamsets.pipeline.lib.parser.log.LogDataParserFactory;
+import com.streamsets.pipeline.lib.parser.net.netflow.NetflowDataParserFactory;
 import com.streamsets.pipeline.lib.parser.protobuf.ProtobufDataParserFactory;
 import com.streamsets.pipeline.lib.parser.sdcrecord.SdcRecordDataParserFactory;
 import com.streamsets.pipeline.lib.parser.text.TextDataParserFactory;
 import com.streamsets.pipeline.lib.parser.udp.DatagramParserFactory;
+import com.streamsets.pipeline.lib.parser.net.syslog.SyslogDataParserFactory;
 import com.streamsets.pipeline.lib.parser.wholefile.WholeFileDataParserFactory;
 import com.streamsets.pipeline.lib.parser.xml.XmlDataParserFactory;
 
@@ -48,6 +51,9 @@ public enum DataParserFormat implements DataFormat<DataParserFactory> {
   PROTOBUF(ProtobufDataParserFactory.class, ProtobufDataParserFactory.MODES, ProtobufDataParserFactory.CONFIGS),
   DATAGRAM(DatagramParserFactory.class, DatagramParserFactory.MODES, DatagramParserFactory.CONFIGS),
   WHOLE_FILE(WholeFileDataParserFactory.class, WholeFileDataParserFactory.MODES, WholeFileDataParserFactory.CONFIGS),
+  SYSLOG(SyslogDataParserFactory.class, SyslogDataParserFactory.MODES, SyslogDataParserFactory.CONFIGS),
+  NETFLOW(NetflowDataParserFactory.class, NetflowDataParserFactory.MODES, NetflowDataParserFactory.CONFIGS),
+  EXCEL(WorkbookParserFactory.class, WorkbookParserFactory.MODES, WorkbookParserFactory.CONFIGS),
   ;
 
   private final Class<? extends DataParserFactory> klass;

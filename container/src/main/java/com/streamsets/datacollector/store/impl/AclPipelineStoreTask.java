@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.config.PipelineFragmentConfiguration;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.execution.StateEventListener;
 import com.streamsets.datacollector.restapi.bean.UserJson;
@@ -89,10 +90,14 @@ public class AclPipelineStoreTask implements PipelineStoreTask {
       String pipelineId,
       String pipelineTitle,
       String description,
-      boolean isRemote
+      boolean isRemote,
+      boolean draft
   ) throws PipelineException {
-    PipelineConfiguration pipelineConf = pipelineStore.create(user, pipelineId, pipelineTitle, description, isRemote);
-    aclStore.createAcl(pipelineId, ResourceType.PIPELINE, System.currentTimeMillis(), user);
+    PipelineConfiguration pipelineConf = pipelineStore
+        .create(user, pipelineId, pipelineTitle, description, isRemote, draft);
+    if (!draft) {
+      aclStore.createAcl(pipelineId, ResourceType.PIPELINE, System.currentTimeMillis(), user);
+    }
     return pipelineConf;
   }
 
@@ -154,10 +159,11 @@ public class AclPipelineStoreTask implements PipelineStoreTask {
   public RuleDefinitions storeRules(
       String pipelineName,
       String tag,
-      RuleDefinitions ruleDefinitions
+      RuleDefinitions ruleDefinitions,
+      boolean draft
   ) throws PipelineException {
     aclStore.validateWritePermission(pipelineName, currentUser);
-    return pipelineStore.storeRules(pipelineName, tag, ruleDefinitions);
+    return pipelineStore.storeRules(pipelineName, tag, ruleDefinitions, draft);
   }
 
   @Override
@@ -210,5 +216,16 @@ public class AclPipelineStoreTask implements PipelineStoreTask {
         return false;
       }
     });
+  }
+
+  @Override
+  public PipelineFragmentConfiguration createPipelineFragment(
+      String user,
+      String pipelineId,
+      String pipelineTitle,
+      String description,
+      boolean draft
+  ) throws PipelineException {
+    return pipelineStore.createPipelineFragment(user, pipelineId, pipelineTitle, description, draft);
   }
 }

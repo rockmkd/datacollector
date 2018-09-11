@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,17 +15,21 @@
  */
 package com.streamsets.pipeline.stage.origin.jdbc;
 
-import com.streamsets.pipeline.api.EventRecord;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.api.lineage.EndPointType;
+import com.streamsets.pipeline.api.lineage.LineageEvent;
+import com.streamsets.pipeline.api.lineage.LineageEventType;
+import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.UnknownTypeAction;
 import com.streamsets.pipeline.sdk.SourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.h2.tools.SimpleResultSet;
 import org.junit.After;
 import org.junit.Assert;
@@ -65,13 +69,14 @@ public class TestJdbcSource {
   private final String query = "SELECT * FROM TEST.TEST_TABLE WHERE P_ID > ${offset} ORDER BY P_ID ASC LIMIT 10;";
   private final String queryNonIncremental = "SELECT * FROM TEST.TEST_TABLE LIMIT 10;";
   private final String queryStoredProcedure = "CALL STOREDPROC();";
-  private final String queryUnkownType = "SELECT * FROM TEST.TEST_UNKNOWN_TYPE WHERE P_ID > ${offset} ORDER BY P_ID ASC LIMIT 10;";
+  private final String queryUnknownType = "SELECT * FROM TEST.TEST_UNKNOWN_TYPE WHERE P_ID > ${offset} ORDER BY P_ID ASC LIMIT 10;";
   private final String initialOffset = "0";
-  private final long queryInterval = 0L;
+  private final String queriesPerSecond = "0";
+  private final long queryInterval = 0;
 
   private Connection connection = null;
-
   // This is used for the stored procedure, do not remove
+
   public static ResultSet simpleResultSet() throws SQLException {
     SimpleResultSet rs = new SimpleResultSet();
     rs.addColumn("ID", Types.INTEGER, 10, 0);
@@ -109,7 +114,7 @@ public class TestJdbcSource {
       );
       statement.addBatch(
           "CREATE TABLE IF NOT EXISTS TEST.TEST_NULL " +
-              "(p_id INT NOT NULL, name VARCHAR(255), number int);"
+              "(p_id INT NOT NULL, name VARCHAR(255), number int, ts TIMESTAMP);"
       );
       statement.addBatch(
         "CREATE TABLE IF NOT EXISTS TEST.TEST_TIMES " +
@@ -123,6 +128,10 @@ public class TestJdbcSource {
         "CREATE TABLE IF NOT EXISTS TEST.TEST_UNKNOWN_TYPE " +
           "(p_id INT NOT NULL, geo GEOMETRY);"
       );
+      statement.addBatch(
+        "CREATE TABLE IF NOT EXISTS TEST.TIMESTAMP_9 " +
+          "(p_id INT NOT NULL, ts TIMESTAMP(9));"
+      );
       // Add some data
       statement.addBatch("INSERT INTO TEST.TEST_TABLE VALUES (1, 'Adam', 'Kunicki')");
       statement.addBatch("INSERT INTO TEST.TEST_TABLE VALUES (2, 'Jon', 'Natkins')");
@@ -134,11 +143,13 @@ public class TestJdbcSource {
           RandomStringUtils.randomAlphanumeric(CLOB_SIZE) + "', RAWTOHEX('blob_val" +
           RandomStringUtils.randomAlphanumeric(CLOB_SIZE) + "'))");
       statement.addBatch("INSERT INTO TEST.TEST_JDBC_NS_HEADERS VALUES  (1, 1.5)");
-      statement.addBatch("INSERT INTO TEST.TEST_NULL VALUES  (1, NULL, NULL)");
+      statement.addBatch("INSERT INTO TEST.TEST_NULL VALUES  (1, NULL, NULL, NULL)");
       statement.addBatch("INSERT INTO TEST.TEST_TIMES VALUES  (1, '1993-09-01', '15:09:02', '1960-01-01 23:03:20')");
       statement.addBatch("CREATE ALIAS STOREDPROC FOR \"" + TestJdbcSource.class.getCanonicalName() + ".simpleResultSet\"");
       statement.addBatch("INSERT INTO TEST.TEST_UUID VALUES  (1, '80d00b8a-ffa3-45c2-93ba-d4278408552f')");
       statement.addBatch("INSERT INTO TEST.TEST_UNKNOWN_TYPE VALUES  (1, 'POINT (30 10)')");
+      statement.addBatch("INSERT INTO TEST.TEST_UNKNOWN_TYPE VALUES  (2, null)");
+      statement.addBatch("INSERT INTO TEST.TIMESTAMP_9 VALUES (1, '2018-08-09 19:21:36.992415')");
       statement.executeBatch();
     }
   }
@@ -156,6 +167,7 @@ public class TestJdbcSource {
       statement.execute("DROP ALIAS IF EXISTS STOREDPROC");
       statement.execute("DROP TABLE IF EXISTS TEST.TEST_UUID");
       statement.execute("DROP TABLE IF EXISTS TEST.TEST_UNKNOWN_TYPE");
+      statement.execute("DROP TABLE IF EXISTS TEST.TIMESTAMP_9");
     }
 
     // Last open connection terminates H2
@@ -165,8 +177,9 @@ public class TestJdbcSource {
   private HikariPoolConfigBean createConfigBean(String connectionString, String username, String password) {
     HikariPoolConfigBean bean = new HikariPoolConfigBean();
     bean.connectionString = connectionString;
-    bean.username = username;
-    bean.password = password;
+    bean.useCredentials = true;
+    bean.username = () -> username;
+    bean.password = () -> password;
 
     return bean;
   }
@@ -182,12 +195,13 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
-        );
+        UnknownTypeAction.STOP_PIPELINE,
+        queryInterval
+    );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
         .build();
@@ -239,12 +253,13 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
-        );
+        UnknownTypeAction.STOP_PIPELINE,
+        queryInterval
+    );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
         .build();
@@ -296,12 +311,13 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
-        );
+        UnknownTypeAction.STOP_PIPELINE,
+        queryInterval
+    );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
         .build();
@@ -350,11 +366,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean("some bad connection string", username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+        queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -380,11 +397,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         configBean,
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -407,11 +425,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -435,11 +454,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -466,11 +486,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -493,11 +514,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -520,12 +542,13 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
-      );
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
+    );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -558,11 +581,12 @@ public class TestJdbcSource {
         "FIRST_NAME",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -601,11 +625,12 @@ public class TestJdbcSource {
         "FIRST_NAME",
         1,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -647,11 +672,12 @@ public class TestJdbcSource {
         "FIRST_NAME",
         1,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -675,11 +701,12 @@ public class TestJdbcSource {
         "FIRST_NAME",
         1,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -702,11 +729,12 @@ public class TestJdbcSource {
         "FIRST_NAME",
         1,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -730,11 +758,12 @@ public class TestJdbcSource {
         "FIRST_NAME",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -768,11 +797,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -816,11 +846,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         true,
         "jdbc.",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -844,6 +875,10 @@ public class TestJdbcSource {
       assertEquals("2", parsedRecord.getHeader().getAttribute("jdbc.DEC.precision"));
       assertEquals(String.valueOf(Types.DECIMAL), parsedRecord.getHeader().getAttribute("jdbc.DEC.jdbcType"));
       assertEquals("TEST_JDBC_NS_HEADERS", parsedRecord.getHeader().getAttribute("jdbc.tables"));
+
+      Field decimalField = parsedRecord.get("/DEC");
+      assertEquals("1", decimalField.getAttribute(HeaderAttributeConstants.ATTR_SCALE));
+      assertEquals("2", decimalField.getAttribute(HeaderAttributeConstants.ATTR_PRECISION));
     } finally {
       runner.runDestroy();
     }
@@ -861,11 +896,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         null,
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -891,6 +927,10 @@ public class TestJdbcSource {
       assertTrue(parsedRecord.has("/NUMBER"));
       assertEquals(Field.Type.INTEGER, parsedRecord.get("/NUMBER").getType());
       assertNull(parsedRecord.get("/NUMBER").getValue());
+
+      assertTrue(parsedRecord.has("/TS"));
+      assertEquals(Field.Type.DATETIME, parsedRecord.get("/TS").getType());
+      assertNull(parsedRecord.get("/TS").getValue());
     } finally {
       runner.runDestroy();
     }
@@ -908,11 +948,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         null,
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
     );
 
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
@@ -955,11 +996,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        new CommonSourceConfigBean(queryInterval, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
         );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -987,7 +1029,7 @@ public class TestJdbcSource {
   }
 
   @Test
-  public void testNoMoreDataEvent() throws Exception {
+  public void testNoMoreDataEventIncremental() throws Exception {
     JdbcSource origin = new JdbcSource(
         true,
         query,
@@ -997,12 +1039,12 @@ public class TestJdbcSource {
         "",
         1000,
         JdbcRecordType.LIST_MAP,
-        // Using "0" leads to SDC-6429
-        new CommonSourceConfigBean(10, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
         );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -1017,17 +1059,255 @@ public class TestJdbcSource {
       output = runner.runProduce(null, 10);
       Assert.assertEquals(4, output.getRecords().get("lane").size());
       Assert.assertEquals(1, runner.getEventRecords().size());
-      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getHeader().getAttribute(EventRecord.TYPE));
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
       Assert.assertEquals(4, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      runner.clearEvents();
 
-      // Second batch should generate empty batch and run "empty" query
+      // Second batch should generate empty batch and run "empty" query thus triggering the no-more-data event
       output = runner.runProduce(output.getNewOffset(), 10);
       Assert.assertEquals(0, output.getRecords().get("lane").size());
       Assert.assertEquals(2, runner.getEventRecords().size());
-      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getHeader().getAttribute(EventRecord.TYPE));
-      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getHeader().getAttribute(EventRecord.TYPE));
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getEventType());
       Assert.assertEquals(4, runner.getEventRecords().get(1).get("/record-count").getValueAsLong());
+      runner.clearEvents();
 
+      // Third batch will also generate empty batch, but this thime should not trigger no-more-data event
+      output = runner.runProduce(output.getNewOffset(), 10);
+      Assert.assertEquals(0, output.getRecords().get("lane").size());
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testNoMoreDataEventNonIncremental() throws Exception {
+    JdbcSource origin = new JdbcSource(
+        false,
+        queryNonIncremental,
+        "0",
+        "P_ID",
+        false,
+        "",
+        1000,
+        JdbcRecordType.LIST_MAP,
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        false,
+        "",
+        createConfigBean(h2ConnectionString, username, password),
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
+        );
+    SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    runner.runInit();
+
+    try {
+      StageRunner.Output output;
+
+      // First batch will read the first 2 rows
+      output = runner.runProduce(null, 2);
+      Assert.assertEquals(2, output.getRecords().get("lane").size());
+      Assert.assertEquals(0, runner.getEventRecords().size());
+      runner.clearEvents();
+
+      // Second batch will read the rest and generate both success and no-more-data events
+      output = runner.runProduce(output.getNewOffset(), 10);
+      Assert.assertEquals(2, output.getRecords().get("lane").size());
+      Assert.assertEquals(2, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(4, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getEventType());
+      Assert.assertEquals(4, runner.getEventRecords().get(1).get("/record-count").getValueAsLong());
+      runner.clearEvents();
+
+      // Third batch will start reading from beginning since it's non-incremental mode and we'll read ll the records
+      // and hence another no-more-data will be generated.
+      output = runner.runProduce(output.getNewOffset(), 10);
+      Assert.assertEquals(4, output.getRecords().get("lane").size());
+      Assert.assertEquals(2, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(4, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getEventType());
+      Assert.assertEquals(4, runner.getEventRecords().get(1).get("/record-count").getValueAsLong());
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testNoMoreDataEventWhenNoRowsNonIncremental() throws Exception {
+    Statement statement = connection.createStatement();
+    statement.execute("TRUNCATE TABLE TEST.TEST_TABLE");
+
+    JdbcSource origin = new JdbcSource(
+        false,
+        queryNonIncremental,
+        "0",
+        "P_ID",
+        false,
+        "",
+        1000,
+        JdbcRecordType.LIST_MAP,
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        false,
+        "",
+        createConfigBean(h2ConnectionString, username, password),
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
+    );
+
+    SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    runner.runInit();
+
+    try {
+      StageRunner.Output output;
+
+      // First batch will produce no data rows
+      output = runner.runProduce(null, 2);
+
+      Assert.assertEquals(0, output.getRecords().get("lane").size());     // no records.
+      Assert.assertEquals(2, runner.getEventRecords().size());            // two events.
+
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(1).get("/record-count").getValueAsLong());
+
+      runner.clearEvents();
+
+      // Second batch will start reading from beginning since it's non-incremental mode and we'll read no
+      // records and hence another no-more-data will be generated.
+      output = runner.runProduce(output.getNewOffset(), 10);
+      Assert.assertEquals(0, output.getRecords().get("lane").size());
+      Assert.assertEquals(2, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(1).get("/record-count").getValueAsLong());
+
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testNoMoreDataEventWhenNoRowsIncremental() throws Exception {
+    Statement statement = connection.createStatement();
+    statement.execute("TRUNCATE TABLE TEST.TEST_TABLE");
+
+    JdbcSource origin = new JdbcSource(
+        true,
+        query,
+        "0",
+        "P_ID",
+        false,
+        "",
+        1000,
+        JdbcRecordType.LIST_MAP,
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        false,
+        "",
+        createConfigBean(h2ConnectionString, username, password),
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
+    );
+
+    SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    runner.runInit();
+
+    try {
+      StageRunner.Output output;
+
+      output = runner.runProduce(null, 10);
+      // First batch will read no data rows
+      Assert.assertEquals(0, output.getRecords().get("lane").size());
+
+      // First batch's event is successful query.
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+
+      runner.clearEvents();
+      output = runner.runProduce(output.getNewOffset(), 10);
+      // second batch will return no data rows.
+      Assert.assertEquals(0, output.getRecords().get("lane").size());
+
+      // Second batch's events are successful query and no-more-data.
+      Assert.assertEquals(2, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      Assert.assertEquals("no-more-data", runner.getEventRecords().get(1).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(1).get("/record-count").getValueAsLong());
+
+      runner.clearEvents();
+      output = runner.runProduce(output.getNewOffset(), 10);
+      // Third batch will return no data rows.
+      Assert.assertEquals(0, output.getRecords().get("lane").size());
+
+      // Third batch's event is successful query.
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(0, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testLineageEvent() throws Exception {
+    JdbcSource origin = new JdbcSource(
+        true,
+        query,
+        "0",
+        "P_ID",
+        false,
+        "",
+        1000,
+        JdbcRecordType.LIST_MAP,
+        // Using "0" leads to SDC-6429
+        new CommonSourceConfigBean("0.1", BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        false,
+        "",
+        createConfigBean(h2ConnectionString, username, password),
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
+    );
+    SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    runner.runInit();
+
+    try {
+      StageRunner.Output output;
+
+      // First batch should read all 4 records
+      output = runner.runProduce(null, 10);
+      Assert.assertEquals(4, output.getRecords().get("lane").size());
+      Assert.assertEquals(1, runner.getEventRecords().size());
+      Assert.assertEquals("jdbc-query-success", runner.getEventRecords().get(0).getEventType());
+      Assert.assertEquals(4, runner.getEventRecords().get(0).get("/rows").getValueAsLong());
+      List<LineageEvent> events = runner.getLineageEvents();
+
+      Assert.assertEquals(1, events.size());
+      Assert.assertEquals(LineageEventType.ENTITY_READ, events.get(0).getEventType());
+      Assert.assertEquals(query, events.get(0).getSpecificAttribute(LineageSpecificAttribute.DESCRIPTION));
+      Assert.assertEquals(EndPointType.JDBC.name(), events.get(0).getSpecificAttribute(LineageSpecificAttribute.ENDPOINT_TYPE));
+      Assert.assertTrue(events.get(0).getSpecificAttribute(LineageSpecificAttribute.ENTITY_NAME).contains(h2ConnectionString));
     } finally {
       runner.runDestroy();
     }
@@ -1037,7 +1317,7 @@ public class TestJdbcSource {
   public void testUnknownTypeStopPipeline() throws Exception {
     JdbcSource origin = new JdbcSource(
         true,
-        queryUnkownType,
+        queryUnknownType,
         "0",
         "P_ID",
         false,
@@ -1045,11 +1325,12 @@ public class TestJdbcSource {
         1000,
         JdbcRecordType.LIST_MAP,
         // Using "0" leads to SDC-6429
-        new CommonSourceConfigBean(10, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean("0.1", BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.STOP_PIPELINE
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
         );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -1073,7 +1354,7 @@ public class TestJdbcSource {
   public void testUnknownTypeToString() throws Exception {
     JdbcSource origin = new JdbcSource(
         true,
-        queryUnkownType,
+        queryUnknownType,
         "0",
         "P_ID",
         false,
@@ -1081,11 +1362,12 @@ public class TestJdbcSource {
         1000,
         JdbcRecordType.LIST_MAP,
         // Using "0" leads to SDC-6429
-        new CommonSourceConfigBean(10, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        new CommonSourceConfigBean("0.1", BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
         false,
         "",
         createConfigBean(h2ConnectionString, username, password),
-        UnknownTypeAction.CONVERT_TO_STRING
+        UnknownTypeAction.CONVERT_TO_STRING,
+        queryInterval
         );
     SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
         .addOutputLane("lane")
@@ -1098,17 +1380,90 @@ public class TestJdbcSource {
 
       // First batch should read all 4 records
       output = runner.runProduce(null, 10);
-      Assert.assertEquals(1, output.getRecords().get("lane").size());
-      Record record = output.getRecords().get("lane").get(0);
+      Assert.assertEquals(2, output.getRecords().get("lane").size());
 
+      Record record = output.getRecords().get("lane").get(0);
       Assert.assertTrue(record.has("/P_ID"));
       Assert.assertTrue(record.has("/GEO"));
-
       Assert.assertEquals(1, record.get("/P_ID").getValueAsLong());
       Assert.assertEquals("POINT (30 10)", record.get("/GEO").getValueAsString());
+
+      record = output.getRecords().get("lane").get(1);
+      Assert.assertTrue(record.has("/P_ID"));
+      Assert.assertTrue(record.has("/GEO"));
+      Assert.assertEquals(2, record.get("/P_ID").getValueAsLong());
+      Assert.assertEquals(Field.Type.STRING, record.get("/GEO").getType());
+      Assert.assertEquals(null, record.get("/GEO").getValue());
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testQueryReplaceUpperOffset() throws Exception {
+    JdbcSource origin = new JdbcSource(
+        true,
+        queryUnknownType,
+        "0",
+        "P_ID",
+        false,
+        "",
+        1000,
+        JdbcRecordType.LIST_MAP,
+        // Using "0" leads to SDC-6429
+        new CommonSourceConfigBean("0.1", BATCH_SIZE, CLOB_SIZE, CLOB_SIZE),
+        false,
+        "",
+        createConfigBean(h2ConnectionString, username, password),
+        UnknownTypeAction.CONVERT_TO_STRING,
+        queryInterval
+    );
+
+    final String lastSourceOffset = "10";
+    final String query = "${OFFSET}${offset}";
+
+    String result = origin.prepareQuery(query, lastSourceOffset);
+    Assert.assertEquals(result, lastSourceOffset+lastSourceOffset);
+  }
+
+  @Test
+  public void testTimestampAsString() throws Exception {
+    JdbcSource origin = new JdbcSource(
+        true,
+        "SELECT * from TEST.TIMESTAMP_9 T WHERE T.P_ID > ${offset} ORDER BY T.P_ID",
+        initialOffset,
+        "P_ID",
+        false,
+        "",
+        1000,
+        JdbcRecordType.LIST_MAP,
+        new CommonSourceConfigBean(queriesPerSecond, BATCH_SIZE, CLOB_SIZE, CLOB_SIZE, true),
+        false,
+        "",
+        createConfigBean(h2ConnectionString, username, password),
+        UnknownTypeAction.STOP_PIPELINE,
+				queryInterval
+    );
+    SourceRunner runner = new SourceRunner.Builder(JdbcDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    runner.runInit();
+
+    try {
+      // Check that existing rows are loaded.
+      StageRunner.Output output = runner.runProduce(null, 1000);
+      Map<String, List<Record>> recordMap = output.getRecords();
+      List<Record> parsedRecords = recordMap.get("lane");
+
+      assertEquals(1, parsedRecords.size());
+      assertTrue(parsedRecords.get(0).has("/TS"));
+      assertEquals(Field.Type.STRING, parsedRecords.get(0).get("/TS").getType());
+      assertEquals("2018-08-09 19:21:36.992415", parsedRecords.get(0).get("/TS").getValueAsString());
 
     } finally {
       runner.runDestroy();
     }
   }
+
 }

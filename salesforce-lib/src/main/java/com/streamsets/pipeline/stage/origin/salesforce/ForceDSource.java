@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,11 +22,11 @@ import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
 import com.streamsets.pipeline.api.Source;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DSource;
+import com.streamsets.pipeline.api.base.configurablestage.DSource;
 import com.streamsets.pipeline.lib.salesforce.ForceSourceConfigBean;
 
 @StageDef(
-    version = 1,
+    version = 2,
     label = "Salesforce",
     description = "Reads data from Salesforce",
     icon = "salesforce.png",
@@ -34,7 +34,8 @@ import com.streamsets.pipeline.lib.salesforce.ForceSourceConfigBean;
     recordsByRef = true,
     resetOffset = true,
     producesEvents = true,
-    onlineHelpRefUrl = "index.html#Origins/Salesforce.html#task_h1n_bs3_rx"
+    upgrader = ForceSourceUpgrader.class,
+    onlineHelpRefUrl ="index.html?contextID=task_h1n_bs3_rx"
 )
 @ConfigGroups(value = Groups.class)
 @GenerateResourceBundle

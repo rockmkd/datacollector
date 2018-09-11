@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,6 +39,7 @@ import java.util.TimeZone;
 @Path("/v1/system")
 @Api(value = "system")
 @DenyAll
+@RequiresCredentialsDeployed
 public class ConfigurationResource {
   private static final String UI_PREFIX = "ui.";
 
@@ -56,7 +57,7 @@ public class ConfigurationResource {
   @Produces(MediaType.APPLICATION_JSON)
   @PermitAll
   public Response getUIConfiguration() throws PipelineStoreException {
-    Configuration configuration = config.getSubSetConfiguration(UI_PREFIX);
+    Configuration configuration = config.maskSensitiveConfigs().getSubSetConfiguration(UI_PREFIX);
     configuration.set("ui.debug", String.valueOf(new File("/.sdc.debug").exists()));
     boolean inDaylight = TimeZone.getDefault().inDaylightTime(new Date());
     configuration.set("ui.server.timezone", TimeZone.getDefault().getDisplayName(inDaylight, TimeZone.SHORT));
@@ -73,6 +74,6 @@ public class ConfigurationResource {
   @PermitAll
   public Response getConfiguration() throws PipelineStoreException {
 
-    return Response.ok().type(MediaType.APPLICATION_JSON).entity(config.getUnresolvedConfiguration()).build();
+    return Response.ok().type(MediaType.APPLICATION_JSON).entity(config.maskSensitiveConfigs().getUnresolvedConfiguration()).build();
   }
 }

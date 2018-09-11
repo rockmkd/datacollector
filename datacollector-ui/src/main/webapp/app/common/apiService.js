@@ -19,12 +19,12 @@
 
 angular.module('dataCollectorApp.common')
   .factory('api', function($rootScope, $http, $q) {
-    var apiVersion = 'v1',
-      apiBase = 'rest/' + apiVersion,
-      api = {
-        apiVersion: apiVersion,
-        events: {}
-      };
+    var apiVersion = 'v1';
+    var apiBase = 'rest/' + apiVersion;
+    var api = {
+      apiVersion: apiVersion,
+      events: {}
+    };
 
     api.log = {
       /**
@@ -208,7 +208,7 @@ angular.module('dataCollectorApp.common')
       },
 
       /**
-       * Enable DPM
+       * Enable Control Hub
        * @param dpmInfo
        */
       enableDPM: function(dpmInfo) {
@@ -221,7 +221,7 @@ angular.module('dataCollectorApp.common')
       },
 
       /**
-       * Disable DPM
+       * Disable Control Hub
        */
       disableDPM: function() {
         var url = apiBase + '/system/disableDPM';
@@ -232,7 +232,7 @@ angular.module('dataCollectorApp.common')
       },
 
       /**
-       * Create DPM Groups & Users
+       * Create Control Hub Groups & Users
        * @param dpmInfo
        * @returns {*}
        */
@@ -409,11 +409,14 @@ angular.module('dataCollectorApp.common')
        *
        * @returns {*}
        */
-      getStageLibrariesExtras: function() {
+      getStageLibrariesExtras: function(libraryId) {
         var url = apiBase + '/stageLibraries/extras/list';
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            libraryId: libraryId ? libraryId : ''
+          }
         });
       },
 
@@ -567,13 +570,7 @@ angular.module('dataCollectorApp.common')
        * @returns Updated Pipeline Configuration
        */
       savePipelineConfig: function(name, config) {
-        var url;
-
-        if (!name) {
-          name = 'xyz';
-        }
-
-        url = apiBase + '/pipeline/' + name;
+        var url = apiBase + '/pipeline/' + name;
         return $http({
           method: 'POST',
           url: url,
@@ -586,13 +583,18 @@ angular.module('dataCollectorApp.common')
        *
        * @param name
        * @param description
+       * @param pipelineType
        */
-      createNewPipelineConfig: function(name, description) {
-        var url = apiBase + '/pipeline/' + encodeURIComponent(name) + '?autoGeneratePipelineId=true&description=' + description;
-
+      createNewPipelineConfig: function(name, description, pipelineType) {
+        var url = apiBase + '/pipeline/' + encodeURIComponent(name);
         return $http({
           method: 'PUT',
-          url: url
+          url: url,
+          params: {
+            autoGeneratePipelineId: true,
+            description: description,
+            pipelineType: pipelineType
+          }
         });
       },
 
@@ -651,6 +653,8 @@ angular.module('dataCollectorApp.common')
             duplicatePipelineObject.errorStage = pipelineObject.errorStage;
             duplicatePipelineObject.statsAggregatorStage = pipelineObject.statsAggregatorStage;
             duplicatePipelineObject.stages = pipelineObject.stages;
+            duplicatePipelineObject.startEventStages = pipelineObject.startEventStages;
+            duplicatePipelineObject.stopEventStages = pipelineObject.stopEventStages;
             if (pipelineObject.metadata && pipelineObject.metadata.labels) {
               duplicatePipelineObject.metadata = {
                 labels: pipelineObject.metadata.labels
@@ -676,7 +680,7 @@ angular.module('dataCollectorApp.common')
             //Save the pipeline Rules
             return api.pipelineAgent.savePipelineRules(name, duplicatePipelineRulesObject);
           })
-          .then(function(res) {
+          .then(function() {
             deferred.resolve(duplicatePipelineObject);
           },function(res) {
             deferred.reject(res);
@@ -763,9 +767,10 @@ angular.module('dataCollectorApp.common')
        * @param pipelineName
        * @param pipelineEnvelope
        * @param overwrite
+       * @param autoGeneratePipelineId
        */
-      importPipelineConfig: function(pipelineName, pipelineEnvelope, overwrite) {
-        var url = apiBase + '/pipeline/' + pipelineName + '/import?autoGeneratePipelineId=true';
+      importPipelineConfig: function(pipelineName, pipelineEnvelope, overwrite, autoGeneratePipelineId) {
+        var url = apiBase + '/pipeline/' + pipelineName + '/import?autoGeneratePipelineId=' + !!autoGeneratePipelineId;
         if (overwrite) {
           url += '&overwrite=' + overwrite;
         }
@@ -788,6 +793,51 @@ angular.module('dataCollectorApp.common')
       },
 
       /**
+       * Download Edge Executable.
+       *
+       * @param edgeOs
+       * @param edgeArch
+       * @param pipelineIds
+       */
+      downloadEdgeExecutable: function(edgeOs, edgeArch, pipelineIds) {
+        var url = apiBase + '/pipelines/executable?edgeOs=' + edgeOs + '&edgeArch=' + edgeArch +
+          '&pipelineIds=' + pipelineIds.join(',');
+        window.open(url, '_blank', '');
+      },
+
+      /**
+       * Download Sample Edge pipelines
+       * @param edgeHttpUrl
+       */
+      downloadPipelinesFromEdge: function(edgeHttpUrl) {
+        var url = apiBase + '/pipelines/downloadFromEdge' ;
+        return $http({
+          method: 'POST',
+          url: url,
+          data: edgeHttpUrl
+        });
+      },
+
+      /**
+       * Publish Pipelines to Data Collector Edge
+       *
+       * @param pipelineIds
+       * @param edgeHttpUrl
+       * @returns {*}
+       */
+      publishPipelinesToEdge: function(pipelineIds, edgeHttpUrl) {
+        var url = apiBase + '/pipelines/publishToEdge' ;
+        return $http({
+          method: 'POST',
+          url: url,
+          data: {
+            pipelineIds: pipelineIds,
+            edgeHttpUrl: edgeHttpUrl
+          }
+        });
+      },
+
+      /**
        * Start Preview for given Pipeline name
        *
        * @param name
@@ -795,32 +845,47 @@ angular.module('dataCollectorApp.common')
        * @param batchSize
        * @param rev
        * @param skipTargets
+       * @param skipLifecycleEvents
        * @param stageOutputList
        * @param endStage
        * @param timeout
+       * @param edgeHttpUrl
+       * @param testOrigin
        * @returns {*}
        */
-      createPreview: function(name, sourceOffset, batchSize, rev, skipTargets, stageOutputList, endStage, timeout) {
-        var url;
-
+      createPreview: function(
+        name,
+        sourceOffset,
+        batchSize,
+        rev,
+        skipTargets,
+        skipLifecycleEvents,
+        stageOutputList,
+        endStage,
+        timeout,
+        edgeHttpUrl,
+        testOrigin
+      ) {
         if (!batchSize) {
           batchSize = 10;
         }
-
         if (!timeout || timeout <=0) {
-          timeout = 10000;
+          timeout = 30000;
         }
-
-        url = apiBase + '/pipeline/' + name + '/preview?batchSize=' + batchSize + '&rev=' + rev +
-            '&skipTargets=' + skipTargets + '&timeout=' + timeout;
-
-        if (endStage) {
-          url += '&endStage=' + endStage;
-        }
-
+        var url = apiBase + '/pipeline/' + name + '/preview';
         return $http({
           method: 'POST',
           url: url,
+          params: {
+            batchSize: batchSize,
+            rev: rev,
+            skipTargets: skipTargets,
+            timeout: timeout,
+            skipLifecycleEvents: skipLifecycleEvents,
+            endStage: endStage,
+            edge: !!edgeHttpUrl,
+            testOrigin: !!testOrigin
+          },
           data: stageOutputList || []
         });
       },
@@ -829,43 +894,54 @@ angular.module('dataCollectorApp.common')
       /**
        * Fetches Preview Status
        *
+       * @param pipelineId
        * @param previewerId
-       * @param pipelineName
+       * @param edgeHttpUrl
        */
-      getPreviewStatus: function(previewerId, pipelineName) {
-        var url = apiBase + '/pipeline/pipelineName/preview/' + previewerId + '/status' ;
+      getPreviewStatus: function(pipelineId, previewerId, edgeHttpUrl) {
+        var url = apiBase + '/pipeline/' + pipelineId + '/preview/' + previewerId + '/status' ;
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            edge: !!edgeHttpUrl
+          }
         });
       },
-
 
       /**
        * Fetches Preview Data
        *
+       * @param pipelineId
        * @param previewerId
-       * @param pipelineName
+       * @param edgeHttpUrl
        */
-      getPreviewData: function(previewerId, pipelineName) {
-        var url = apiBase + '/pipeline/pipelineName/preview/' + previewerId;
+      getPreviewData: function(pipelineId, previewerId, edgeHttpUrl) {
+        var url = apiBase + '/pipeline/' + pipelineId + '/preview/' + previewerId;
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            edge: !!edgeHttpUrl
+          }
         });
       },
 
       /**
        * Stop Preview
        *
+       * @param pipelineId
        * @param previewerId
-       * @param pipelineName
+       * @param edgeHttpUrl
        */
-      cancelPreview: function(previewerId, pipelineName) {
-        var url = apiBase + '/pipeline/pipelineName/preview/' + previewerId;
+      cancelPreview: function(pipelineId, previewerId, edgeHttpUrl) {
+        var url = apiBase + '/pipeline/' + pipelineId + '/preview/' + previewerId;
         return $http({
           method: 'DELETE',
-          url: url
+          url: url,
+          params: {
+            edge: !!edgeHttpUrl
+          }
         });
       },
 
@@ -895,18 +971,22 @@ angular.module('dataCollectorApp.common')
         });
       },
 
-
       /**
        * Validate the Pipeline
        *
-       * @param name
+       * @param pipelineId
+       * @param edgeHttpUrl
        * @returns {*}
        */
-      validatePipeline: function(name) {
-        var url = apiBase + '/pipeline/' + name + '/validate?timeout=500000';
+      validatePipeline: function(pipelineId, edgeHttpUrl) {
+        var url = apiBase + '/pipeline/' + pipelineId + '/validate';
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            timeout: 500000,
+            edge: !!edgeHttpUrl
+          }
         });
       },
 
@@ -961,10 +1041,11 @@ angular.module('dataCollectorApp.common')
       /**
        * Stop multiple Pipelines
        *
-       * @param pipelineNames
+       * @param pipelineIds
+       * @param forceStop
        * @returns {*}
        */
-      stopPipelines: function(pipelineNames, forceStop) {
+      stopPipelines: function(pipelineIds, forceStop) {
         var url = apiBase + '/pipelines/stop';
         if (forceStop) {
           url = apiBase + '/pipelines/forceStop';
@@ -972,7 +1053,7 @@ angular.module('dataCollectorApp.common')
         return $http({
           method: 'POST',
           url: url,
-          data: pipelineNames
+          data: pipelineIds
         });
       },
 
@@ -981,8 +1062,8 @@ angular.module('dataCollectorApp.common')
        *
        * @returns {*}
        */
-      getPipelineMetrics: function(pipelineName, rev) {
-        var url = apiBase + '/pipeline/' + pipelineName + '/metrics?rev=' + rev ;
+      getPipelineMetrics: function(pipelineId, rev) {
+        var url = apiBase + '/pipeline/' + pipelineId + '/metrics?rev=' + rev ;
         return $http({
           method: 'GET',
           url: url
@@ -1081,6 +1162,19 @@ angular.module('dataCollectorApp.common')
       },
 
       /**
+       * Download captured snapshot for given pipeline name.
+       *
+       * @param pipelineName
+       * @param rev
+       * @param snapshotName
+       * @returns {*}
+       */
+      downloadSnapshot: function(pipelineName, rev, snapshotName) {
+        var url = apiBase + '/pipeline/' + pipelineName + '/snapshot/' + snapshotName + '?attachment=true&rev=' + rev;
+        window.open(url, '_blank', '');
+      },
+
+      /**
        * Delete captured snapshot for given pipeline name.
        *
        * @param pipelineName
@@ -1159,10 +1253,9 @@ angular.module('dataCollectorApp.common')
        * Get history of the pipeline
        *
        * @param name
-       * @param rev
        * @returns {*}
        */
-      getHistory: function(name, rev) {
+      getHistory: function(name) {
         var url = apiBase + '/pipeline/' + name + '/history';
         return $http({
           method: 'GET',
@@ -1174,10 +1267,9 @@ angular.module('dataCollectorApp.common')
        * Clear history of the pipeline
        *
        * @param name
-       * @param rev
        * @returns {*}
        */
-      clearHistory: function(name, rev) {
+      clearHistory: function(name) {
         var url = apiBase + '/pipeline/' + name + '/history';
         return $http({
           method: 'DELETE',
@@ -1596,6 +1688,26 @@ angular.module('dataCollectorApp.common')
 
     api.system = {
       /**
+       * Get stats and opt in/out status
+       *
+       * @returns {*}
+       */
+      getStats: () => $http({
+        method: 'GET',
+        url: apiBase + '/system/stats'
+      }),
+
+      /**
+       * Set opt in/out status for stats
+       *
+       * @returns {*}
+       */
+      setOptInStatus: isOptIn => $http({
+        method: 'POST',
+        url: apiBase + '/system/stats?active=' + (!!isOptIn)
+      }),
+
+      /**
        * Get all support bundle generators
        *
        * @returns {*}
@@ -1624,10 +1736,42 @@ angular.module('dataCollectorApp.common')
        * @returns {*}
        */
       uploadSupportBundle: function (generators) {
-        var url = apiBase + '/system/bundle/upload?=generators=';
+        var url = apiBase + '/system/bundle/upload?generators=';
         return $http({
           method: 'GET',
           url: url + generators.join(',')
+        });
+      }
+    };
+
+    api.activation = {
+      /**
+       * Returns SDC activation information
+       *
+       * @returns {*}
+       */
+      getActivation: function () {
+        var url = apiBase + '/activation';
+        return $http({
+          method: 'GET',
+          url: url
+        });
+      },
+
+      /**
+       * Uploads the SDC activation key
+       *
+       * @returns {*}
+       */
+      updateActivation: function (activationKey) {
+        var url = apiBase + '/activation';
+        return $http({
+          method: 'POST',
+          url: url,
+          data: activationKey,
+          headers:  {
+            'Content-Type': 'text/plain'
+          }
         });
       }
     };

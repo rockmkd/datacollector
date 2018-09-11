@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,8 @@ package com.streamsets.pipeline.stage.processor.fieldmask;
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.FieldSelectorModel;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.lib.el.FieldEL;
+import com.streamsets.pipeline.lib.el.RecordEL;
 
 import java.util.List;
 
@@ -29,7 +31,10 @@ public class FieldMaskConfig {
       defaultValue="",
       label = "Fields to Mask",
       description="Mask string fields. You can enter multiple fields for the same mask type.",
-      displayPosition = 10
+      displayPosition = 10,
+      evaluation = ConfigDef.Evaluation.EXPLICIT,
+      elDefs = {RecordEL.class, FieldEL.class},
+      group = "MASKING"
   )
   @FieldSelectorModel
   public List<String> fields;
@@ -40,7 +45,8 @@ public class FieldMaskConfig {
       defaultValue="VARIABLE_LENGTH",
       label = "Mask Type",
       description="",
-      displayPosition = 20
+      displayPosition = 20,
+      group = "MASKING"
   )
   @ValueChooserModel(MaskTypeChooseValues.class)
   public MaskType maskType;
@@ -52,7 +58,8 @@ public class FieldMaskConfig {
       description = "Use # to reveal field values. Other characters replace field values.",
       displayPosition = 30,
       dependsOn = "maskType",
-      triggeredByValue = "CUSTOM"
+      triggeredByValue = "CUSTOM",
+      group = "MASKING"
   )
   public String mask;
 
@@ -64,8 +71,8 @@ public class FieldMaskConfig {
     displayPosition = 40,
     dependsOn = "maskType",
     triggeredByValue = "REGEX",
-    defaultValue = "(.*)"
-
+    defaultValue = "(.*)",
+    group = "MASKING"
   )
   public String regex;
 
@@ -77,7 +84,8 @@ public class FieldMaskConfig {
     displayPosition = 50,
     dependsOn = "maskType",
     triggeredByValue = "REGEX",
-    defaultValue = "1"
+    defaultValue = "1",
+    group = "MASKING"
   )
   public String groupsToShow;
 

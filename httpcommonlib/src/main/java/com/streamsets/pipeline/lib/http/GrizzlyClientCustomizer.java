@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,12 +36,6 @@ public class GrizzlyClientCustomizer implements GrizzlyConnectorProvider.AsyncCl
   private final boolean useProxy;
   private final String username;
   private final String password;
-
-  public GrizzlyClientCustomizer(JerseyClientConfigBean conf) {
-    this.useProxy = conf.useProxy;
-    this.username = conf.proxy.username;
-    this.password = conf.proxy.password;
-  }
 
   public GrizzlyClientCustomizer(boolean useProxy, String username, String password) {
     this.useProxy = useProxy;

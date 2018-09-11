@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,9 +56,9 @@ public class CacheSnapshotStore implements SnapshotStore {
   }
 
   @Override
-  public SnapshotInfo create(String user, String name, String rev, String id, String label) throws PipelineException {
+  public SnapshotInfo create(String user, String name, String rev, String id, String label, boolean failureSnapshot) throws PipelineException {
     synchronized (lockCache.getLock(name)) {
-      SnapshotInfo snapshotInfo = snapshotStore.create(user, name, rev, id, label);
+      SnapshotInfo snapshotInfo = snapshotStore.create(user, name, rev, id, label, failureSnapshot);
       snapshotStateCache.put(getCacheKey(name, rev, id), snapshotInfo);
       return snapshotInfo;
     }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,12 @@ import com.streamsets.pipeline.api.ListBeanModel;
 import com.streamsets.pipeline.api.Processor;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.ValueChooserModel;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.lib.el.RecordEL;
-import com.streamsets.pipeline.lib.el.StringEL;
 import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
 import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnMapping;
+import com.streamsets.pipeline.stage.common.MissingValuesBehavior;
+import com.streamsets.pipeline.stage.common.MissingValuesBehaviorChooserValues;
 import com.streamsets.pipeline.stage.common.MultipleValuesBehavior;
 import com.streamsets.pipeline.stage.destination.jdbc.Groups;
 import com.streamsets.pipeline.stage.processor.kv.CacheConfig;
@@ -35,12 +36,12 @@ import com.streamsets.pipeline.stage.processor.kv.CacheConfig;
 import java.util.List;
 
 @StageDef(
-    version = 2,
+    version = 3,
     label = "JDBC Lookup",
     description = "Lookup values via JDBC to enrich records.",
     icon = "rdbms.png",
     upgrader = JdbcLookupProcessorUpgrader.class,
-    onlineHelpRefUrl = "index.html#Processors/JDBCLookup.html#task_kbr_2cy_hw"
+    onlineHelpRefUrl ="index.html?contextID=task_kbr_2cy_hw"
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle
@@ -52,7 +53,7 @@ public class JdbcLookupDProcessor extends DProcessor {
       mode = ConfigDef.Mode.SQL,
       label = "SQL Query",
       description = "SELECT <column>, ... FROM <table name> WHERE <column> <operator>  <expression>",
-      elDefs = {StringEL.class, RecordEL.class},
+      elDefs = {RecordEL.class},
       evaluation = ConfigDef.Evaluation.EXPLICIT,
       displayPosition = 20,
       group = "JDBC"
@@ -75,13 +76,25 @@ public class JdbcLookupDProcessor extends DProcessor {
       required = true,
       type = ConfigDef.Type.MODEL,
       label = "Multiple Values Behavior",
-      description = "How to handle multiple values ",
+      description = "How to handle multiple values",
       defaultValue = "FIRST_ONLY",
       displayPosition = 35,
       group = "JDBC"
   )
   @ValueChooserModel(JdbcLookupMultipleValuesBehaviorChooserValues.class)
   public MultipleValuesBehavior multipleValuesBehavior = MultipleValuesBehavior.DEFAULT;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Missing Values Behavior",
+      description = "How to handle missing values",
+      defaultValue = "PASS_RECORD_ON",
+      displayPosition = 37,
+      group = "JDBC"
+  )
+  @ValueChooserModel(MissingValuesBehaviorChooserValues.class)
+  public MissingValuesBehavior missingValuesBehavior = MissingValuesBehavior.DEFAULT;
 
   @ConfigDef(
       required = true,
@@ -115,6 +128,7 @@ public class JdbcLookupDProcessor extends DProcessor {
       query,
       columnMappings,
       multipleValuesBehavior,
+      missingValuesBehavior,
       maxClobSize,
       maxBlobSize,
       hikariConfigBean,

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@ public class MapRStreamsTargetConfigBean {
   @ValueChooserModel(ProducerDataFormatChooserValues.class)
   public DataFormat dataFormat;
 
-  @ConfigDefBean(groups = {"MAPR_STREAMS"})
+  @ConfigDefBean(groups = {"DATA_FORMAT"})
   public DataGeneratorFormatConfig dataGeneratorFormatConfig;
 
   public void init(Stage.Context context, List<Stage.ConfigIssue> issues) {

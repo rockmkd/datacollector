@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  */
 package com.streamsets.datacollector.config;
 
+import com.streamsets.datacollector.validation.Issue;
 import com.streamsets.datacollector.validation.RuleIssue;
 import com.streamsets.pipeline.api.Config;
 
@@ -29,10 +30,14 @@ public class RuleDefinitions {
   private final List<MetricsRuleDefinition> metricsRuleDefinitions;
   private final List<DataRuleDefinition> dataRuleDefinitions;
   private final List<DriftRuleDefinition> driftRuleDefinitions;
+
+  @Deprecated
   private final List<String> emailIds;
+
   private List<RuleIssue> ruleIssues;
   private UUID uuid = null;
   private List<Config> configuration;
+  private List<Issue> configIssues;
 
   public RuleDefinitions(
       int schemaVersion,
@@ -62,8 +67,16 @@ public class RuleDefinitions {
     return schemaVersion;
   }
 
+  public void setSchemaVersion(int schemaVersion) {
+    this.schemaVersion = schemaVersion;
+  }
+
   public int getVersion() {
     return version;
+  }
+
+  public void setVersion(int version) {
+    this.version = version;
   }
 
   public List<MetricsRuleDefinition> getMetricsRuleDefinitions() {
@@ -85,6 +98,7 @@ public class RuleDefinitions {
     return rules;
   }
 
+  @Deprecated
   public List<String> getEmailIds() {
     return emailIds;
   }
@@ -111,5 +125,13 @@ public class RuleDefinitions {
 
   public void setConfiguration(List<Config> configuration) {
     this.configuration = configuration;
+  }
+
+  public List<Issue> getConfigIssues() {
+    return configIssues;
+  }
+
+  public void setConfigIssues(List<Issue> configIssues) {
+    this.configIssues = configIssues;
   }
 }

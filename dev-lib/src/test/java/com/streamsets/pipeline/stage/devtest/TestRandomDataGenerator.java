@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,9 +20,11 @@ import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
+import com.streamsets.pipeline.stage.common.HeaderAttributeConstants;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,9 +55,20 @@ public class TestRandomDataGenerator {
     doubleData.field = "salary";
     doubleData.type = RandomDataGeneratorSource.Type.DOUBLE;
 
+    RandomDataGeneratorSource.DataGeneratorConfig decimalData = new RandomDataGeneratorSource.DataGeneratorConfig();
+    decimalData.field = "decimal";
+    decimalData.type = RandomDataGeneratorSource.Type.DECIMAL;
+    decimalData.scale = 2;
+    decimalData.precision = 5;
+
+    RandomDataGeneratorSource.DataGeneratorConfig zonedDateTimeData =
+        new RandomDataGeneratorSource.DataGeneratorConfig();
+    zonedDateTimeData.field = "zonedDateTime";
+    zonedDateTimeData.type = RandomDataGeneratorSource.Type.ZONED_DATETIME;
 
     final PushSourceRunner runner = new PushSourceRunner.Builder(RandomDataGeneratorSource.class)
-      .addConfiguration("dataGenConfigs", Arrays.asList(stringData, dateData, doubleData, longData, intData))
+      .addConfiguration("dataGenConfigs",
+          Arrays.asList(stringData, dateData, doubleData, longData, intData, decimalData, zonedDateTimeData))
       .addConfiguration("rootFieldType", RandomDataGeneratorSource.RootType.MAP)
       .addConfiguration("delay", 0)
       .addConfiguration("batchSize", 1000)
@@ -77,11 +90,21 @@ public class TestRandomDataGenerator {
       runner.waitOnProduce();
 
       Assert.assertEquals(1, records.size());
-      Assert.assertEquals(Field.Type.STRING, records.get(0).get("/name").getType());
-      Assert.assertEquals(Field.Type.INTEGER, records.get(0).get("/age").getType());
-      Assert.assertEquals(Field.Type.LONG, records.get(0).get("/milliSecondsSinceBirth").getType());
-      Assert.assertEquals(Field.Type.DATE, records.get(0).get("/dob").getType());
-      Assert.assertEquals(Field.Type.DOUBLE, records.get(0).get("/salary").getType());
+      Record record =  records.get(0);
+      Assert.assertEquals(Field.Type.STRING, record.get("/name").getType());
+      Assert.assertEquals(Field.Type.INTEGER, record.get("/age").getType());
+      Assert.assertEquals(Field.Type.LONG, record.get("/milliSecondsSinceBirth").getType());
+      Assert.assertEquals(Field.Type.DATE, record.get("/dob").getType());
+      Assert.assertEquals(Field.Type.DOUBLE, record.get("/salary").getType());
+
+      Field decimalField = record.get("/decimal");
+      Assert.assertNotNull(decimalData);
+      Assert.assertEquals(Field.Type.DECIMAL, decimalField.getType());
+      Assert.assertEquals("5", decimalField.getAttribute(HeaderAttributeConstants.ATTR_PRECISION));
+      Assert.assertEquals("2", decimalField.getAttribute(HeaderAttributeConstants.ATTR_SCALE));
+
+      Assert.assertEquals(Field.Type.ZONED_DATETIME, record.get("/zonedDateTime").getType());
+      Assert.assertTrue(record.get("/zonedDateTime").getValue() instanceof ZonedDateTime);
     } finally {
       runner.runDestroy();
     }
@@ -147,13 +170,13 @@ public class TestRandomDataGenerator {
       runner.runProduce(Collections.<String, String>emptyMap(), 1000, output -> runner.setStop());
       runner.waitOnProduce();
 
-      List<Record> records = runner.getEventRecords();
+      List<EventRecord> records = runner.getEventRecords();
       Assert.assertTrue(records.size() > 1);
       for(long i = 0; i < records.size(); i++) {
-        Record r = records.get((int)i);
+        EventRecord r = records.get((int)i);
 
         // Validate header
-        Assert.assertEquals("secret-name", r.getHeader().getAttribute(EventRecord.TYPE));
+        Assert.assertEquals("secret-name", r.getEventType());
 
         // Validate field
         Field field = r.get().getValueAsMap().get("event");

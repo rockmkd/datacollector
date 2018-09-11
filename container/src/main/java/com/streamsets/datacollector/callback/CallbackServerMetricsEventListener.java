@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,8 @@ package com.streamsets.datacollector.callback;
 import com.streamsets.datacollector.main.RuntimeInfo;
 import com.streamsets.datacollector.metrics.MetricsEventListener;
 
-public final class CallbackServerMetricsEventListener extends CallbackServerEventListener implements MetricsEventListener {
+public final class CallbackServerMetricsEventListener extends CallbackServerEventListener implements
+    MetricsEventListener {
 
   public CallbackServerMetricsEventListener(
       String user,

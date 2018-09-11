@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@ package com.streamsets.pipeline.lib.http;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.api.credential.CredentialValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,7 +68,7 @@ public class HttpReceiverWithFragmenterWriter implements HttpReceiver {
   }
 
   @Override
-  public String getAppId() {
+  public CredentialValue getAppId() {
     return httpConfigs.getAppId();
   }
 
@@ -87,7 +88,7 @@ public class HttpReceiverWithFragmenterWriter implements HttpReceiver {
   }
 
   @Override
-  public boolean process(HttpServletRequest req, InputStream is) throws IOException {
+  public boolean process(HttpServletRequest req, InputStream is, HttpServletResponse resp) throws IOException {
     String requestor = req.getRemoteAddr() + ":" + req.getRemotePort();
     LOG.debug("Processing request from '{}'", requestor);
     List<byte[]> fragments =

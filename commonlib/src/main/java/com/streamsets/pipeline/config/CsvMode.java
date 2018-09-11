@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,8 @@ public enum CsvMode implements Label {
   EXCEL("MS Excel CSV", CSVFormat.EXCEL),
   MYSQL("MySQL CSV", CSVFormat.MYSQL),
   TDF("Tab Separated Values", CSVFormat.TDF),
+  POSTGRES_CSV("PostgreSQL CSV", CSVFormat.POSTGRESQL_CSV),
+  POSTGRES_TEXT("PostgreSQL Text", CSVFormat.POSTGRESQL_TEXT),
   CUSTOM("Custom", null)
   ;
 

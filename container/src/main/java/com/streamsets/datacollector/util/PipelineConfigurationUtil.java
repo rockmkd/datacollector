@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,15 +18,27 @@ package com.streamsets.datacollector.util;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.streamsets.datacollector.config.ConfigDefinition;
+import com.streamsets.datacollector.config.ModelDefinition;
 import com.streamsets.datacollector.config.PipelineConfiguration;
+import com.streamsets.datacollector.config.ServiceConfiguration;
+import com.streamsets.datacollector.config.ServiceDefinition;
+import com.streamsets.datacollector.config.ServiceDependencyDefinition;
 import com.streamsets.datacollector.config.StageConfiguration;
+import com.streamsets.datacollector.config.StageDefinition;
 import com.streamsets.datacollector.json.ObjectMapperFactory;
 import com.streamsets.datacollector.restapi.bean.BeanHelper;
 import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
+import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.impl.Utils;
+import org.apache.commons.collections.CollectionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,17 +55,17 @@ public class PipelineConfigurationUtil {
 
   public static Map<String, String> getFlattenedStringMap(String mapName, PipelineConfiguration pipelineConf) {
     Map<String, String> result = new HashMap<>();
-    for (Map.Entry<String, Object> entry : getFlattenedMap(mapName, pipelineConf).entrySet()) {
+    for (Map.Entry<String, Object> entry : getFlattenedMap(mapName, pipelineConf.getConfiguration()).entrySet()) {
       result.put(entry.getKey(), String.valueOf(entry.getValue()));
     }
     return result;
   }
 
   @SuppressWarnings("unchecked")
-  public static Map<String, Object> getFlattenedMap(String mapName, PipelineConfiguration pipelineConf) {
+  public static Map<String, Object> getFlattenedMap(String mapName, List<Config> pipelineConf) {
     Map<String, Object> constants = new HashMap<>();
-    if(pipelineConf != null && pipelineConf.getConfiguration() != null) {
-      for (Config config : pipelineConf.getConfiguration()) {
+    if(pipelineConf != null) {
+      for (Config config : pipelineConf) {
         if (mapName.equals(config.getName()) && config.getValue() != null) {
           for (Map<String, String> map : (List<Map<String, String>>) config.getValue()) {
             constants.put(map.get(KEY), map.get(VALUE));
@@ -110,6 +122,101 @@ public class PipelineConfigurationUtil {
       }
     }
     return null;
+  }
+
+  public static StageConfiguration getStageConfigurationWithDefaultValues(
+      StageLibraryTask stageLibraryTask,
+      String library,
+      String stageName,
+      String stageInstanceName,
+      String labelPrefix
+  ) {
+    StageDefinition stageDefinition = stageLibraryTask.getStage(library, stageName, false);
+
+    if (stageDefinition == null) {
+      return null;
+    }
+
+    List<Config> configurationList = new ArrayList<>();
+    for (ConfigDefinition configDefinition : stageDefinition.getConfigDefinitions()) {
+      configurationList.add(getConfigWithDefaultValue(configDefinition));
+    }
+
+    List<ServiceConfiguration> serviceConfigurationList = new ArrayList<>();
+    if (CollectionUtils.isNotEmpty(stageDefinition.getServices())) {
+      List<ServiceDefinition> serviceDefinitions = stageLibraryTask.getServiceDefinitions();
+      for(ServiceDependencyDefinition serviceDependencyDefinition: stageDefinition.getServices()) {
+        ServiceDefinition serviceDefinition = serviceDefinitions.stream()
+            .filter(s -> s.getProvides().equals(serviceDependencyDefinition.getService()))
+            .findAny()
+            .orElse(null);
+
+        if (serviceDefinition != null) {
+          List<Config> serviceConfigList = new ArrayList<>();
+          for (ConfigDefinition configDefinition : serviceDefinition.getConfigDefinitions()) {
+            if (serviceDependencyDefinition.getConfiguration() != null &&
+                serviceDependencyDefinition.getConfiguration().containsKey(configDefinition.getName())) {
+              serviceConfigList.add(new Config(
+                  configDefinition.getName(),
+                  serviceDependencyDefinition.getConfiguration().get(configDefinition.getName())
+              ));
+            } else {
+              serviceConfigList.add(getConfigWithDefaultValue(configDefinition));
+            }
+          }
+          serviceConfigurationList.add(new ServiceConfiguration(
+              serviceDefinition.getProvides(),
+              serviceDefinition.getVersion(),
+              serviceConfigList
+          ));
+        }
+      }
+    }
+
+    return new StageConfiguration(
+        stageInstanceName,
+        library,
+        stageName,
+        stageDefinition.getVersion(),
+        configurationList,
+        ImmutableMap.of(
+            "label", labelPrefix + stageDefinition.getLabel(),
+            "stageType", stageDefinition.getType().toString()
+        ),
+        serviceConfigurationList,
+        new ArrayList<>(),
+        new ArrayList<>(),
+        new ArrayList<>()
+    );
+  }
+
+  private static Config getConfigWithDefaultValue(ConfigDefinition configDefinition) {
+    switch (configDefinition.getType()) {
+      case MODEL:
+        ModelDefinition modelDefinition = configDefinition.getModel();
+        switch (modelDefinition.getModelType()) {
+          case FIELD_SELECTOR_MULTI_VALUE:
+            return new Config(configDefinition.getName(), Collections.emptyList());
+          case LIST_BEAN:
+            Map<String, Object> listBeanDefaultValue = new HashMap<>();
+            for (ConfigDefinition modelConfigDefinition : modelDefinition.getConfigDefinitions()) {
+              Config listBeanConfig = getConfigWithDefaultValue(modelConfigDefinition);
+              listBeanDefaultValue.put(modelConfigDefinition.getName(), listBeanConfig.getValue());
+            }
+            return new Config(configDefinition.getName(), ImmutableList.of(listBeanDefaultValue));
+          default:
+            break;
+        }
+        break;
+      case MAP:
+      case LIST:
+        return new Config(configDefinition.getName(), Collections.emptyList());
+      case BOOLEAN:
+        return new Config(configDefinition.getName(), false);
+      default:
+        return new Config(configDefinition.getName(), configDefinition.getDefaultValue());
+    }
+    return new Config(configDefinition.getName(), configDefinition.getDefaultValue());
   }
 
 }

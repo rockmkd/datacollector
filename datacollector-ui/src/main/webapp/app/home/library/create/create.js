@@ -19,7 +19,7 @@
 
 angular
   .module('dataCollectorApp.home')
-  .controller('CreateModalInstanceController', function ($scope, $modalInstance, $translate, api) {
+  .controller('CreateModalInstanceController', function ($scope, $modalInstance, $translate, api, pipelineType) {
     angular.extend($scope, {
       common: {
         errors: []
@@ -30,25 +30,27 @@ angular
       newConfig : {
         name: '',
         description: '',
-        stages: []
+        pipelineType: pipelineType !== undefined ? pipelineType: 'DATA_COLLECTOR'
       },
 
       save : function () {
         if($scope.newConfig.name) {
-          api.pipelineAgent.createNewPipelineConfig($scope.newConfig.name, $scope.newConfig.description).
-            then(
-              function(res) {
-                $modalInstance.close(res.data);
-              },
-              function(res) {
-                $scope.common.errors = [res.data];
-              }
-            );
+          api.pipelineAgent.createNewPipelineConfig(
+            $scope.newConfig.name,
+            $scope.newConfig.description,
+            $scope.newConfig.pipelineType
+          ).then(
+            function(res) {
+              $modalInstance.close(res.data);
+            },
+            function(res) {
+              $scope.common.errors = [res.data];
+            }
+          );
         } else {
           $translate('home.library.nameRequiredValidation').then(function(translation) {
             $scope.common.errors = [translation];
           });
-
         }
       },
       cancel : function () {

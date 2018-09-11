@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,19 +15,26 @@
  */
 package com.streamsets.datacollector.validation;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.streamsets.datacollector.config.DataRuleDefinition;
 import com.streamsets.datacollector.config.MetricsRuleDefinition;
 import com.streamsets.datacollector.config.RuleDefinitions;
 import com.streamsets.datacollector.config.ThresholdType;
+import com.streamsets.datacollector.configupgrade.RuleDefinitionsUpgrader;
+import com.streamsets.datacollector.creation.PipelineBeanCreator;
+import com.streamsets.datacollector.creation.RuleDefinitionsConfigBean;
+import com.streamsets.datacollector.definition.ConcreteELDefinitionExtractor;
 import com.streamsets.datacollector.el.ELEvaluator;
 import com.streamsets.datacollector.el.ELVariables;
 import com.streamsets.datacollector.el.RuleELRegistry;
 import com.streamsets.pipeline.api.Field;
+import com.streamsets.pipeline.api.FieldVisitor;
 import com.streamsets.pipeline.api.Record;
+import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.lib.el.RecordEL;
-
+import org.apache.commons.collections.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,18 +60,33 @@ public class RuleDefinitionValidator {
   private static final String EMAIL_IDS = "emailIds";
   private static final String SAMPLING_PERCENTAGE = "Sampling Percentage";
 
+  private final String pipelineId;
+  private final RuleDefinitions ruleDefinitions;
+  private final Map<String, Object> pipelineParameters;
   private final ELEvaluator elEvaluator;
   private final ELVariables variables;
 
-  public RuleDefinitionValidator() {
+  public RuleDefinitionValidator(
+      String pipelineId,
+      RuleDefinitions ruleDefinitions,
+      Map<String, Object> pipelineParameters
+  ) {
+    this.pipelineId = Preconditions.checkNotNull(pipelineId, "pipelineId cannot be null");
+    this.ruleDefinitions = Preconditions.checkNotNull(ruleDefinitions, "ruleDefinitions cannot be null");
+    this.pipelineParameters = pipelineParameters;
     variables = new ELVariables();
-    elEvaluator = new ELEvaluator("RuleDefinitionValidator", RuleELRegistry.getRuleELs(RuleELRegistry.GENERAL));
+    elEvaluator = new ELEvaluator("RuleDefinitionValidator", false, ConcreteELDefinitionExtractor.get(), RuleELRegistry.getRuleELs(RuleELRegistry.GENERAL));
   }
 
-  public boolean validateRuleDefinition(RuleDefinitions ruleDefinitions) {
-    Preconditions.checkNotNull(ruleDefinitions);
-
+  public boolean validateRuleDefinition() {
     List<RuleIssue> ruleIssues = new ArrayList<>();
+
+    List<Issue> configIssues = new ArrayList<>();
+    configIssues.addAll(upgradeRuleDefinitions());
+    RuleDefinitionsConfigBean ruleDefinitionsConfigBean = PipelineBeanCreator.get()
+        .createRuleDefinitionsConfigBean(ruleDefinitions, configIssues, pipelineParameters);
+    List<String> emailIds = ruleDefinitionsConfigBean.emailIDs;
+
     for(DataRuleDefinition dataRuleDefinition : ruleDefinitions.getDataRuleDefinitions()) {
       //reset valid flag before validating
       dataRuleDefinition.setValid(true);
@@ -96,8 +118,7 @@ public class RuleDefinitionValidator {
         ruleIssues.add(r);
         dataRuleDefinition.setValid(false);
       }
-      if(dataRuleDefinition.isSendEmail() &&
-        (ruleDefinitions.getEmailIds() == null || ruleDefinitions.getEmailIds().isEmpty())) {
+      if(dataRuleDefinition.isSendEmail() && CollectionUtils.isEmpty(emailIds)) {
         RuleIssue r = RuleIssue.createRuleIssue(ruleId, ValidationError.VALIDATION_0042);
         r.setAdditionalInfo(PROPERTY, EMAIL_IDS);
         ruleIssues.add(r);
@@ -154,8 +175,7 @@ public class RuleDefinitionValidator {
           metricsRuleDefinition.setValid(false);
         }
       }
-      if(metricsRuleDefinition.isSendEmail() &&
-        (ruleDefinitions.getEmailIds() == null || ruleDefinitions.getEmailIds().isEmpty())) {
+      if(metricsRuleDefinition.isSendEmail() && CollectionUtils.isEmpty(emailIds)) {
         RuleIssue r = RuleIssue.createRuleIssue(ruleId, ValidationError.VALIDATION_0042);
         r.setAdditionalInfo(PROPERTY, EMAIL_IDS);
         ruleIssues.add(r);
@@ -164,7 +184,8 @@ public class RuleDefinitionValidator {
     }
 
     ruleDefinitions.setRuleIssues(ruleIssues);
-    return ruleIssues.size() == 0 ? true : false;
+    ruleDefinitions.setConfigIssues(configIssues);
+    return ruleIssues.size() == 0 && configIssues.size() == 0;
   }
 
   private RuleIssue validateMetricAlertExpressions(String condition, String ruleId){
@@ -283,14 +304,25 @@ public class RuleDefinitionValidator {
           }
 
           @Override
+          public String getErrorJobId() {
+            return null;
+          }
+
+          @Override
           public Map<String, Object> getAllAttributes() {
             return null;
           }
 
           @Override
-          public Map<String, Object> setAllAttributes(Map<String, Object> newAttrs) {
+          public Map<String, Object> overrideUserAndSystemAttributes(Map<String, Object> newAttrs) {
             return null;
           }
+          @Override
+          public Map<String, Object> getUserAttributes() {return null;}
+
+          @Override
+          public Map<String, Object> setUserAttributes(Map<String, Object> newAttributes) {return null;}
+
         };
       }
 
@@ -331,9 +363,19 @@ public class RuleDefinitionValidator {
       }
 
       @Override
+      public List<String> getEscapedFieldPathsOrdered() {
+        return null;
+      }
+
+      @Override
       public Field set(String fieldPath, Field newField) {
         return null;
       }
+
+      @Override
+      public void forEachField(FieldVisitor visitor) throws StageException {
+      }
+
     };
 
     RecordEL.setRecordInContext(variables, record);
@@ -343,6 +385,21 @@ public class RuleDefinitionValidator {
       return RuleIssue.createRuleIssue(ruleId, ValidationError.VALIDATION_0045, condition, ex.toString());
     }
     return null;
+  }
+
+  @VisibleForTesting
+  RuleDefinitionsUpgrader getUpgrader() {
+    return RuleDefinitionsUpgrader.get();
+  }
+
+  private List<Issue> upgradeRuleDefinitions() {
+    List<Issue> upgradeIssues = new ArrayList<>();
+    RuleDefinitions upgradedRuleDefinitions = getUpgrader().upgradeIfNecessary(
+        pipelineId,
+        ruleDefinitions,
+        upgradeIssues
+    );
+    return upgradeIssues;
   }
 
 }

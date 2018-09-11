@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,14 +61,14 @@ public class TestSdcIpcTarget {
   public void testSingleHost() throws Exception {
     HttpURLConnection conn = Mockito.mock(MockHttpURLConnection.class);
     Configs config = new ForTestConfigs(conn);
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 100;
     config.readTimeOutMs = 200;
     config.hostPorts = ImmutableList.of("localhost:10000");
     config.retriesPerBatch = 2;
     config.tlsConfigBean.tlsEnabled = false;
     config.tlsConfigBean.trustStoreFilePath = "";
-    config.tlsConfigBean.trustStorePassword = "";
+    config.tlsConfigBean.trustStorePassword = () -> "";
     config.hostVerification = true;
     SdcIpcTarget target = new SdcIpcTarget(config);
     target.initializeHostPortsLists();
@@ -82,14 +82,14 @@ public class TestSdcIpcTarget {
   public void testMultipleHosts() throws Exception {
     HttpURLConnection conn = Mockito.mock(MockHttpURLConnection.class);
     Configs config = new ForTestConfigs(conn);
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 100;
     config.readTimeOutMs = 200;
     config.hostPorts = Arrays.asList("localhost:10000", "localhost:10001");
     config.retriesPerBatch = 2;
     config.tlsConfigBean.tlsEnabled = false;
     config.tlsConfigBean.trustStoreFilePath = "";
-    config.tlsConfigBean.trustStorePassword = "";
+    config.tlsConfigBean.trustStorePassword = () -> "";
     config.hostVerification = true;
 
     // 2 hostPorts
@@ -144,19 +144,19 @@ public class TestSdcIpcTarget {
   public void testWriteOK() throws Exception {
     HttpURLConnection conn = Mockito.mock(MockHttpURLConnection.class);
     Configs config = new ForTestConfigs(conn);
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 100;
     config.readTimeOutMs = 200;
     config.hostPorts = ImmutableList.of("localhost:10000");
     config.retriesPerBatch = 2;
     config.tlsConfigBean.tlsEnabled = false;
     config.tlsConfigBean.trustStoreFilePath = "";
-    config.tlsConfigBean.trustStorePassword = "";
+    config.tlsConfigBean.trustStorePassword = () -> "";
     config.hostVerification = true;
 
     SdcIpcTarget target = new SdcIpcTarget(config);
 
-    TargetRunner runner = new TargetRunner.Builder(SdcIpcTarget.class, target).build();
+    TargetRunner runner = new TargetRunner.Builder(SdcIpcDTarget.class, target).build();
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     Mockito.when(conn.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
@@ -186,14 +186,14 @@ public class TestSdcIpcTarget {
 
     HttpURLConnection conn = Mockito.mock(MockHttpURLConnection.class);
     Configs config = new ForTestConfigs(conn);
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.connectionTimeOutMs = 100;
     config.readTimeOutMs = 200;
     config.hostPorts = ImmutableList.of("localhost:10000");
     config.retriesPerBatch = 2;
     config.tlsConfigBean.tlsEnabled = false;
     config.tlsConfigBean.trustStoreFilePath = "";
-    config.tlsConfigBean.trustStorePassword = "";
+    config.tlsConfigBean.trustStorePassword = () -> "";
     config.hostVerification = true;
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -204,7 +204,7 @@ public class TestSdcIpcTarget {
     SdcIpcTarget target = new SdcIpcTarget(config);
 
     // RECORDS TO ERROR
-    TargetRunner runner = new TargetRunner.Builder(SdcIpcTarget.class, target).setOnRecordError(OnRecordError.TO_ERROR)
+    TargetRunner runner = new TargetRunner.Builder(SdcIpcDTarget.class, target).setOnRecordError(OnRecordError.TO_ERROR)
                                                                               .build();
     try {
       runner.runInit();
@@ -227,7 +227,7 @@ public class TestSdcIpcTarget {
     Mockito.when(conn.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
     Mockito.when(conn.getHeaderField(Mockito.eq(Constants.X_SDC_PING_HEADER))).thenReturn(Constants.X_SDC_PING_VALUE);
     Mockito.when(conn.getOutputStream()).thenReturn(baos);
-    runner = new TargetRunner.Builder(SdcIpcTarget.class, target).setOnRecordError(OnRecordError.DISCARD).build();
+    runner = new TargetRunner.Builder(SdcIpcDTarget.class, target).setOnRecordError(OnRecordError.DISCARD).build();
     try {
       runner.runInit();
 
@@ -249,7 +249,7 @@ public class TestSdcIpcTarget {
     Mockito.when(conn.getResponseCode()).thenReturn(HttpURLConnection.HTTP_OK);
     Mockito.when(conn.getHeaderField(Mockito.eq(Constants.X_SDC_PING_HEADER))).thenReturn(Constants.X_SDC_PING_VALUE);
     Mockito.when(conn.getOutputStream()).thenReturn(baos);
-    runner = new TargetRunner.Builder(SdcIpcTarget.class, target).setOnRecordError(OnRecordError.STOP_PIPELINE).build();
+    runner = new TargetRunner.Builder(SdcIpcDTarget.class, target).setOnRecordError(OnRecordError.STOP_PIPELINE).build();
     try {
       runner.runInit();
 
@@ -323,21 +323,21 @@ public class TestSdcIpcTarget {
       server.start();
 
       Configs config = new Configs();
-      config.appId = "appId";
+      config.appId = () -> "appId";
       config.connectionTimeOutMs = 1000;
       config.readTimeOutMs = 2000;
       config.hostPorts = ImmutableList.of("localhost:" + server.getURI().getPort());
       config.retriesPerBatch = 2;
       config.tlsConfigBean.tlsEnabled = false;
       config.tlsConfigBean.trustStoreFilePath = "";
-      config.tlsConfigBean.trustStorePassword = "";
+      config.tlsConfigBean.trustStorePassword = () -> "";
       config.hostVerification = true;
       config.compression = false;
 
       // test OK without compression
       SdcIpcTarget target = new SdcIpcTarget(config);
 
-      TargetRunner runner = new TargetRunner.Builder(SdcIpcTarget.class, target)
+      TargetRunner runner = new TargetRunner.Builder(SdcIpcDTarget.class, target)
           .setOnRecordError(OnRecordError.TO_ERROR).build();
       try {
         runner.runInit();
@@ -354,7 +354,7 @@ public class TestSdcIpcTarget {
 
       config.compression = false;
       target = new SdcIpcTarget(config);
-      runner = new TargetRunner.Builder(SdcIpcTarget.class, target)
+      runner = new TargetRunner.Builder(SdcIpcDTarget.class, target)
           .setOnRecordError(OnRecordError.TO_ERROR).build();
       try {
         runner.runInit();
@@ -371,12 +371,12 @@ public class TestSdcIpcTarget {
 
       target = new SdcIpcTarget(config);
 
-      runner = new TargetRunner.Builder(SdcIpcTarget.class, target).setOnRecordError(OnRecordError.TO_ERROR).build();
+      runner = new TargetRunner.Builder(SdcIpcDTarget.class, target).setOnRecordError(OnRecordError.TO_ERROR).build();
       try {
         runner.runInit();
 
         // to force the error
-        config.appId = "invalid";
+        config.appId = () -> "invalid";
 
         List<Record> records = ImmutableList.of(RecordCreator.create(), RecordCreator.create());
         runner.runWrite(records);
@@ -426,19 +426,19 @@ public class TestSdcIpcTarget {
       server.start();
 
       Configs config = new Configs();
-      config.appId = "appId";
+      config.appId = () -> "appId";
       config.connectionTimeOutMs = 1000;
       config.readTimeOutMs = 2000;
       config.hostPorts = ImmutableList.of(hostname + ":" + server.getURI().getPort());
       config.retriesPerBatch = 2;
       config.tlsConfigBean.tlsEnabled = true;
       config.tlsConfigBean.trustStoreFilePath = trustStore.getName();
-      config.tlsConfigBean.trustStorePassword = "truststore";
+      config.tlsConfigBean.trustStorePassword = () -> "truststore";
       config.hostVerification = hostVerification;
 
       SdcIpcTarget target = new SdcIpcTarget(config);
 
-      TargetRunner runner = new TargetRunner.Builder(SdcIpcTarget.class, target)
+      TargetRunner runner = new TargetRunner.Builder(SdcIpcDTarget.class, target)
           .setOnRecordError(OnRecordError.TO_ERROR).setResourcesDir(testDir.toString()).build();
       try {
         runner.runInit();
@@ -469,7 +469,7 @@ public class TestSdcIpcTarget {
   public void testBackOff() throws Exception {
     HttpURLConnection conn = Mockito.mock(MockHttpURLConnection.class);
     Configs config = new ForTestConfigs(conn);
-    config.appId = "appId";
+    config.appId = () -> "appId";
     config.hostPorts = ImmutableList.of("localhost:10000");
     config.retriesPerBatch = 3;
     config.backOff = 10;
@@ -483,7 +483,7 @@ public class TestSdcIpcTarget {
     Mockito.when(conn.getHeaderField(Mockito.eq(Constants.X_SDC_PING_HEADER))).thenReturn(Constants.X_SDC_PING_VALUE);
     Mockito.when(conn.getOutputStream()).thenReturn(baos);
 
-    TargetRunner runner = new TargetRunner.Builder(SdcIpcTarget.class, target)
+    TargetRunner runner = new TargetRunner.Builder(SdcIpcDTarget.class, target)
       .setOnRecordError(OnRecordError.TO_ERROR)
       .build();
 

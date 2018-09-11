@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package com.streamsets.pipeline.stage.destination.jdbc;
 
-import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -27,7 +26,14 @@ import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELVars;
 import com.streamsets.pipeline.lib.cache.CacheCleaner;
 import com.streamsets.pipeline.lib.el.ELUtils;
-import com.streamsets.pipeline.lib.jdbc.*;
+import com.streamsets.pipeline.lib.operation.ChangeLogFormat;
+import com.streamsets.pipeline.lib.jdbc.HikariPoolConfigBean;
+import com.streamsets.pipeline.lib.jdbc.JDBCOperationType;
+import com.streamsets.pipeline.lib.jdbc.JdbcErrors;
+import com.streamsets.pipeline.lib.jdbc.JdbcFieldColumnParamMapping;
+import com.streamsets.pipeline.lib.jdbc.JdbcRecordReaderWriterFactory;
+import com.streamsets.pipeline.lib.jdbc.JdbcRecordWriter;
+import com.streamsets.pipeline.lib.jdbc.JdbcUtil;
 import com.streamsets.pipeline.lib.operation.UnsupportedOperationAction;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
@@ -38,7 +44,6 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -60,7 +65,6 @@ public class JdbcTarget extends BaseTarget {
   private final List<JdbcFieldColumnParamMapping> customMappings;
   private final boolean caseSensitive;
 
-  private final Properties driverProperties = new Properties();
   private final ChangeLogFormat changeLogFormat;
   private final HikariPoolConfigBean hikariConfigBean;
   private final CacheCleaner cacheCleaner;
@@ -79,7 +83,7 @@ public class JdbcTarget extends BaseTarget {
     @Override
     public JdbcRecordWriter load(String tableName) throws Exception {
       return JdbcRecordReaderWriterFactory.createJdbcRecordWriter(
-          hikariConfigBean.connectionString,
+          hikariConfigBean.getConnectionString(),
           dataSource,
           schema,
           tableName,
@@ -120,7 +124,6 @@ public class JdbcTarget extends BaseTarget {
     this.useMultiRowOp = useMultiRowOp;
     this.maxPrepStmtParameters = maxPrepStmtParameters;
     this.maxPrepStmtCache = maxPrepStmtCache;
-    this.driverProperties.putAll(hikariConfigBean.driverProperties);
     this.changeLogFormat = changeLogFormat;
     this.defaultOperation = defaultOperation;
     this.unsupportedAction = unsupportedAction;
@@ -150,16 +153,11 @@ public class JdbcTarget extends BaseTarget {
 
     tableNameVars = getContext().createELVars();
     tableNameEval = context.createELEval(JdbcUtil.TABLE_NAME);
-    ELUtils.validateExpression(
-        tableNameEval,
-        tableNameVars,
-        tableNameTemplate,
+    ELUtils.validateExpression(tableNameTemplate,
         getContext(),
         Groups.JDBC.getLabel(),
         JdbcUtil.TABLE_NAME,
-        JdbcErrors.JDBC_26,
-        String.class,
-        issues
+        JdbcErrors.JDBC_26, issues
     );
 
     if (issues.isEmpty() && null == dataSource) {
@@ -167,16 +165,14 @@ public class JdbcTarget extends BaseTarget {
         String tableName = tableNameTemplate;
 
         dataSource = JdbcUtil.createDataSourceForWrite(
-            hikariConfigBean,
-            driverProperties,
-            schema,
+            hikariConfigBean, schema,
             tableName,
             caseSensitive,
             issues,
             customMappings,
             getContext()
         );
-      } catch (RuntimeException | SQLException e) {
+      } catch (RuntimeException | SQLException | StageException e) {
         LOG.debug("Could not connect to data source", e);
         issues.add(getContext().createConfigIssue(Groups.JDBC.name(), CONNECTION_STRING, JdbcErrors.JDBC_00, e.toString()));
       }
@@ -202,6 +198,8 @@ public class JdbcTarget extends BaseTarget {
       // No records - take the opportunity to clean up the cache so that we don't hold on to memory indefinitely
       cacheCleaner.periodicCleanUp();
     }
-    JdbcUtil.write(batch, schema, tableNameEval, tableNameVars, tableNameTemplate, caseSensitive, recordWriters, errorRecordHandler);
+    // jdbc target always commit batch execution
+    final boolean perRecord = false;
+    JdbcUtil.write(batch, schema, tableNameEval, tableNameVars, tableNameTemplate, caseSensitive, recordWriters, errorRecordHandler, perRecord);
   }
 }

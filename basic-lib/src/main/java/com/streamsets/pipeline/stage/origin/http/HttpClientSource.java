@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
  */
 package com.streamsets.pipeline.stage.origin.http;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
@@ -26,32 +28,27 @@ import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.api.el.ELEval;
 import com.streamsets.pipeline.api.el.ELEvalException;
 import com.streamsets.pipeline.api.el.ELVars;
-import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.lib.el.RecordEL;
+import com.streamsets.pipeline.lib.el.TimeEL;
 import com.streamsets.pipeline.lib.el.VaultEL;
-import com.streamsets.pipeline.lib.http.AuthenticationFailureException;
-import com.streamsets.pipeline.lib.http.AuthenticationType;
 import com.streamsets.pipeline.lib.http.Errors;
-import com.streamsets.pipeline.lib.http.GrizzlyClientCustomizer;
 import com.streamsets.pipeline.lib.http.Groups;
+import com.streamsets.pipeline.lib.http.HttpClientCommon;
 import com.streamsets.pipeline.lib.http.HttpMethod;
-import com.streamsets.pipeline.lib.http.JerseyClientUtil;
 import com.streamsets.pipeline.lib.parser.DataParser;
 import com.streamsets.pipeline.lib.parser.DataParserException;
 import com.streamsets.pipeline.lib.parser.DataParserFactory;
+import com.streamsets.pipeline.lib.util.ExceptionUtils;
 import com.streamsets.pipeline.lib.util.ThreadUtil;
 import com.streamsets.pipeline.stage.common.DefaultErrorRecordHandler;
 import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import com.streamsets.pipeline.stage.util.http.HttpStageUtil;
-import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.client.ClientProperties;
+import org.apache.commons.lang.StringUtils;
 import org.glassfish.jersey.client.oauth1.AccessToken;
 import org.glassfish.jersey.client.oauth1.OAuth1ClientSupport;
-import org.glassfish.jersey.grizzly.connector.GrizzlyConnectorProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.NotFoundException;
-import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
@@ -63,19 +60,22 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketTimeoutException;
 import java.nio.charset.Charset;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import static com.streamsets.pipeline.lib.http.Errors.HTTP_21;
-import static com.streamsets.pipeline.lib.http.Errors.HTTP_22;
-import static com.streamsets.pipeline.lib.http.Errors.HTTP_24;
 import static com.streamsets.pipeline.lib.parser.json.Errors.JSON_PARSER_00;
 
 /**
@@ -86,18 +86,20 @@ public class HttpClientSource extends BaseSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(HttpClientSource.class);
 
+  private static final Set<PaginationMode> LINK_PAGINATION = ImmutableSet.of(
+      PaginationMode.LINK_HEADER,
+      PaginationMode.LINK_FIELD
+  );
   private static final int SLEEP_TIME_WAITING_FOR_BATCH_SIZE_MS = 100;
   private static final String RESOURCE_CONFIG_NAME = "resourceUrl";
   private static final String REQUEST_BODY_CONFIG_NAME = "requestBody";
   private static final String HEADER_CONFIG_NAME = "headers";
+  private static final String STOP_CONFIG_NAME = "stopCondition";
   private static final String DATA_FORMAT_CONFIG_PREFIX = "conf.dataFormatConfig.";
   private static final String TLS_CONFIG_PREFIX = "conf.tlsConfig.";
   private static final String BASIC_CONFIG_PREFIX = "conf.basic.";
   private static final String VAULT_EL_PREFIX = VaultEL.PREFIX + ":";
   private static final HashFunction HF = Hashing.sha256();
-  public static final String OAUTH2_GROUP = "OAUTH2";
-  public static final String CONF_CLIENT_OAUTH2_TOKEN_URL = "conf.client.oauth2.tokenUrl";
-  public static final String NO_ACCESS_TOKEN = "Access Token was not found in the response from the authorization server";
 
   private final HttpClientConfigBean conf;
   private Hasher hasher;
@@ -117,10 +119,12 @@ public class HttpClientSource extends BaseSource {
   private ELVars resourceVars;
   private ELVars bodyVars;
   private ELVars headerVars;
+  private ELVars stopVars;
 
   private ELEval resourceEval;
   private ELEval bodyEval;
   private ELEval headerEval;
+  private ELEval stopEval;
 
   private DataParserFactory parserFactory;
   private ErrorRecordHandler errorRecordHandler;
@@ -137,12 +141,14 @@ public class HttpClientSource extends BaseSource {
 
   private Map<Integer, HttpResponseActionConfigBean> statusToActionConfigs = new HashMap<>();
   private HttpResponseActionConfigBean timeoutActionConfig;
+  private final HttpClientCommon clientCommon;
 
   /**
    * @param conf Configuration object for the HTTP client
    */
   public HttpClientSource(final HttpClientConfigBean conf) {
     this.conf = conf;
+    clientCommon = new HttpClientCommon(conf.client);
   }
 
   /** {@inheritDoc} */
@@ -163,9 +169,14 @@ public class HttpClientSource extends BaseSource {
 
     bodyVars = getContext().createELVars();
     bodyEval = getContext().createELEval(REQUEST_BODY_CONFIG_NAME);
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of(conf.timeZoneID)));
+    TimeEL.setCalendarInContext(bodyVars, calendar);
 
     headerVars = getContext().createELVars();
     headerEval = getContext().createELEval(HEADER_CONFIG_NAME);
+
+    stopVars = getContext().createELVars();
+    stopEval = getContext().createELEval(STOP_CONFIG_NAME);
 
     next = null;
     haveMorePages = false;
@@ -217,7 +228,12 @@ public class HttpClientSource extends BaseSource {
 
     // Validation succeeded so configure the client.
     if (issues.isEmpty()) {
-      configureClient(issues);
+      try {
+        configureClient(issues);
+      } catch (StageException e) {
+        // should not happen on initial connect
+        ExceptionUtils.throwUndeclared(e);
+      }
     }
     return issues;
   }
@@ -225,71 +241,20 @@ public class HttpClientSource extends BaseSource {
   /**
    * Helper method to apply Jersey client configuration properties.
    */
-  private void configureClient(List<ConfigIssue> issues) {
-    ClientConfig clientConfig = new ClientConfig()
-        .property(ClientProperties.CONNECT_TIMEOUT, conf.client.connectTimeoutMillis)
-        .property(ClientProperties.READ_TIMEOUT, conf.client.readTimeoutMillis)
-        .property(ClientProperties.ASYNC_THREADPOOL_SIZE, 1)
-        .property(ClientProperties.REQUEST_ENTITY_PROCESSING, conf.client.transferEncoding)
-        .connectorProvider(new GrizzlyConnectorProvider(new GrizzlyClientCustomizer(conf.client)));
+  private void configureClient(List<ConfigIssue> issues) throws StageException {
 
-    clientBuilder = ClientBuilder.newBuilder().withConfig(clientConfig);
+    clientCommon.init(issues, getContext());
 
-    if (conf.client.useProxy) {
-      JerseyClientUtil.configureProxy(conf.client.proxy, clientBuilder);
+    if (issues.isEmpty()) {
+      client = clientCommon.getClient();
+      parserFactory = conf.dataFormatConfig.getParserFactory();
     }
 
-    JerseyClientUtil.configureSslContext(conf.client.tlsConfig, clientBuilder);
-
-    configureAuthAndBuildClient(clientBuilder, issues);
-
-    parserFactory = conf.dataFormatConfig.getParserFactory();
-  }
-
-  /**
-   * Helper to apply authentication properties to Jersey client.
-   *
-   * @param clientBuilder Jersey Client builder to configure
-   */
-  private void configureAuthAndBuildClient(ClientBuilder clientBuilder, List<ConfigIssue> issues) {
-    if (conf.client.authType == AuthenticationType.OAUTH) {
-      authToken = JerseyClientUtil.configureOAuth1(conf.client.oauth, clientBuilder);
-    } else if (conf.client.authType != AuthenticationType.NONE) {
-      JerseyClientUtil.configurePasswordAuth(conf.client.authType, conf.client.basicAuth, clientBuilder);
-    }
-    client = clientBuilder.build();
-    if (conf.client.useOAuth2) {
-      try {
-        conf.client.oauth2.init(getContext(), issues, client);
-      } catch (AuthenticationFailureException ex) {
-        LOG.error("OAuth2 Authentication failed", ex); // NOSONAR
-        issues.add(getContext().createConfigIssue(OAUTH2_GROUP, CONF_CLIENT_OAUTH2_TOKEN_URL, HTTP_21));
-      } catch (IOException ex) {
-        LOG.error(NO_ACCESS_TOKEN, ex);
-        issues.add(getContext().createConfigIssue(OAUTH2_GROUP, CONF_CLIENT_OAUTH2_TOKEN_URL, HTTP_22));
-      } catch (NotFoundException ex) {
-        LOG.error(Utils.format(HTTP_24.getMessage(),
-            conf.client.oauth2.tokenUrl, conf.client.oauth2.transferEncoding), ex);
-        issues.add(getContext().createConfigIssue(OAUTH2_GROUP,
-            CONF_CLIENT_OAUTH2_TOKEN_URL, HTTP_24, conf.client.oauth2.tokenUrl, conf.client.oauth2.transferEncoding));
-      }
-    }
   }
 
   private void reconnectClient() throws StageException {
     closeHttpResources();
-    client = clientBuilder.build();
-    if (conf.client.useOAuth2) {
-      try {
-        conf.client.oauth2.reInit(client); // NotFoundException won't be thrown because one authentication happened during init()
-      } catch (AuthenticationFailureException ex) {
-        LOG.error("OAuth2 Authentication failed", ex);
-        throw new StageException(HTTP_21);
-      } catch (IOException ex) {
-        LOG.error(NO_ACCESS_TOKEN, ex);
-        throw new StageException(HTTP_22);
-      }
-    }
+    client = clientCommon.buildNewClient();
   }
 
   /** {@inheritDoc} */
@@ -321,11 +286,12 @@ public class HttpClientSource extends BaseSource {
 
     setPageOffset(lastSourceOffset);
 
-    resolvedUrl = resourceEval.eval(resourceVars, conf.resourceUrl, String.class);
-    WebTarget target = client.target(resolvedUrl);
+    setResolvedUrl(resolveInitialUrl(lastSourceOffset));
+    WebTarget target = client.target(getResolvedUrl());
 
     // If the request (headers or body) contain a known sensitive EL and we're not using https then fail the request.
     if (requestContainsSensitiveInfo() && !target.getUri().getScheme().toLowerCase().startsWith("https")) {
+      LOG.error(Errors.HTTP_07.getMessage());
       throw new StageException(Errors.HTTP_07);
     }
 
@@ -369,6 +335,16 @@ public class HttpClientSource extends BaseSource {
     return newSourceOffset.orElse(lastSourceOffset);
   }
 
+  @VisibleForTesting
+  String resolveInitialUrl(String storedOffset) throws ELEvalException {
+    if (LINK_PAGINATION.contains(conf.pagination.mode) && StringUtils.isNotBlank(storedOffset)) {
+      final HttpSourceOffset offset = HttpSourceOffset.fromString(storedOffset);
+      return offset.getUrl();
+    } else {
+      return resourceEval.eval(resourceVars, conf.resourceUrl, String.class);
+    }
+  }
+
   /**
    * Returns the URL of the next page to fetch when paging is enabled. Otherwise
    * returns the previously configured URL.
@@ -377,17 +353,19 @@ public class HttpClientSource extends BaseSource {
    * @return next URL to fetch
    * @throws ELEvalException if the resource expression cannot be evaluated
    */
-  private String resolveNextPageUrl(String sourceOffset) throws ELEvalException {
+  @VisibleForTesting
+  String resolveNextPageUrl(String sourceOffset) throws ELEvalException {
     String url;
-    if (conf.pagination.mode == PaginationMode.LINK_HEADER && next != null) {
+    if (LINK_PAGINATION.contains(conf.pagination.mode) && next != null) {
       url = next.getUri().toString();
+      setResolvedUrl(url);
     } else if (conf.pagination.mode == PaginationMode.BY_OFFSET || conf.pagination.mode == PaginationMode.BY_PAGE) {
       if (sourceOffset != null) {
         setPageOffset(sourceOffset);
       }
       url = resourceEval.eval(resourceVars, conf.resourceUrl, String.class);
     } else {
-      url = resolvedUrl;
+      url = getResolvedUrl();
     }
     return url;
   }
@@ -405,7 +383,7 @@ public class HttpClientSource extends BaseSource {
     }
 
     int startAt = conf.pagination.startAt;
-    if (sourceOffset != null) {
+    if (StringUtils.isNotEmpty(sourceOffset)) {
       startAt = HttpSourceOffset.fromString(sourceOffset).getStartAt();
     }
     resourceVars.addVariable(START_AT, startAt);
@@ -447,9 +425,9 @@ public class HttpClientSource extends BaseSource {
           final String contentType = HttpStageUtil.getContentTypeWithDefault(
               resolvedHeaders, conf.defaultRequestContentType);
           hasher.putString(requestBody, Charset.forName(conf.dataFormatConfig.charset));
-          response = invocationBuilder.method(conf.httpMethod.getLabel(), Entity.entity(requestBody, contentType));
+          setResponse(invocationBuilder.method(conf.httpMethod.getLabel(), Entity.entity(requestBody, contentType)));
         } else {
-          response = invocationBuilder.method(conf.httpMethod.getLabel());
+          setResponse(invocationBuilder.method(conf.httpMethod.getLabel()));
         }
         LOG.debug("Retrieved response in {} ms", System.currentTimeMillis() - startTime);
 
@@ -458,6 +436,7 @@ public class HttpClientSource extends BaseSource {
         final boolean statusOk = status >= 200 && status < 300;
         if (conf.client.useOAuth2 && status == 403) { // Token may have expired
           if (gotNewToken) {
+            LOG.error(HTTP_21.getMessage());
             throw new StageException(HTTP_21);
           }
           gotNewToken = HttpStageUtil.getNewOAuth2Token(conf.client.oauth2, client);
@@ -468,7 +447,15 @@ public class HttpClientSource extends BaseSource {
           keepRequesting = applyResponseAction(
               actionConf,
               statusChanged,
-              input -> new StageException(Errors.HTTP_14, status, response.readEntity(String.class))
+              input -> {
+                final StageException stageException = new StageException(
+                    Errors.HTTP_14,
+                    status,
+                    response.readEntity(String.class)
+                );
+                LOG.error(stageException.getMessage());
+                return stageException;
+              }
           );
 
         } else {
@@ -476,29 +463,33 @@ public class HttpClientSource extends BaseSource {
           retryCount = 0;
         }
         lastStatus = status;
-      } catch (ProcessingException e) {
+      } catch (Exception e) {
         LOG.debug("Request failed after {} ms", System.currentTimeMillis() - startTime);
-        if (e.getCause() != null && e.getCause() instanceof TimeoutException) {
+        final Throwable cause = e.getCause();
+        if (cause != null && (cause instanceof TimeoutException || cause instanceof SocketTimeoutException)) {
           LOG.warn(
-            String.format(
-                "TimeoutException attempting to read response in HttpClientSource: %s",
-                e.getMessage()
-            ),
-          e);
-
+              "{} attempting to read response in HttpClientSource: {}",
+              cause.getClass().getSimpleName(),
+              e.getMessage(),
+              e
+          );
           // read timeout; consult configured action to decide on backoff and retry strategy
           if (this.timeoutActionConfig != null) {
             final HttpResponseActionConfigBean actionConf = this.timeoutActionConfig;
 
             final boolean firstTimeout = !lastRequestTimedOut;
 
-            applyResponseAction(actionConf, firstTimeout, input -> new StageException(Errors.HTTP_18));
+            applyResponseAction(actionConf, firstTimeout, input -> {
+                  LOG.error(Errors.HTTP_18.getMessage());
+                  return new StageException(Errors.HTTP_18);
+                }
+            );
 
           }
 
           lastRequestTimedOut = true;
           keepRequesting = false;
-        } else if (e.getCause() != null && e.getCause() instanceof InterruptedException) {
+        } else if (cause != null && cause instanceof InterruptedException) {
           LOG.error(
             String.format(
                 "InterruptedException attempting to make request in HttpClientSource; stopping: %s",
@@ -513,6 +504,10 @@ public class HttpClientSource extends BaseSource {
                 e.getMessage()
             ),
           e);
+          Throwable reportEx = cause != null ? cause : e;
+          final StageException stageException = new StageException(Errors.HTTP_32, reportEx.toString(), reportEx);
+          LOG.error(stageException.getMessage());
+          throw stageException;
         }
       }
       keepRequesting &= !getContext().isStopped();
@@ -533,7 +528,9 @@ public class HttpClientSource extends BaseSource {
       retryCount++;
     }
     if (actionConf.getMaxNumRetries() > 0 && retryCount > actionConf.getMaxNumRetries()) {
-      throw new StageException(Errors.HTTP_19, actionConf.getMaxNumRetries());
+      final StageException stageException = new StageException(Errors.HTTP_19, actionConf.getMaxNumRetries());
+      LOG.error(stageException.getMessage());
+      throw stageException;
     }
 
     boolean uninterrupted = true;
@@ -572,7 +569,7 @@ public class HttpClientSource extends BaseSource {
     shouldMakeRequest |= (haveMorePages && conf.pagination.mode != PaginationMode.LINK_HEADER);
     shouldMakeRequest |= now > lastRequestCompletedTime + conf.pollingInterval &&
         conf.httpMode == HttpClientMode.POLLING;
-    shouldMakeRequest |= now > lastRequestCompletedTime && conf.httpMode == HttpClientMode.STREAMING;
+    shouldMakeRequest |= now > lastRequestCompletedTime && conf.httpMode == HttpClientMode.STREAMING && conf.httpMethod != HttpMethod.HEAD;
 
     return shouldMakeRequest;
   }
@@ -587,9 +584,10 @@ public class HttpClientSource extends BaseSource {
    * @return the next source offset to commit
    * @throws StageException if an unhandled error is encountered
    */
-  private String parseResponse(long start, int maxRecords, BatchMaker batchMaker) throws StageException {
+  @VisibleForTesting
+  String parseResponse(long start, int maxRecords, BatchMaker batchMaker) throws StageException {
     HttpSourceOffset sourceOffset = new HttpSourceOffset(
-        resolvedUrl,
+        getResolvedUrl(),
         currentParameterHash,
         System.currentTimeMillis(),
         getCurrentPage()
@@ -597,7 +595,7 @@ public class HttpClientSource extends BaseSource {
     InputStream in = null;
     if (parser == null) {
       // Only get a new parser if we are done with the old one.
-      in = response.readEntity(InputStream.class);
+      in = getResponse().readEntity(InputStream.class);
       try {
         parser = parserFactory.getParser(sourceOffset.toString(), in, "0");
       } catch (DataParserException e) {
@@ -605,6 +603,7 @@ public class HttpClientSource extends BaseSource {
           LOG.warn("No data returned in HTTP response body.", e);
           return sourceOffset.toString();
         }
+        LOG.warn("Error parsing response", e);
         throw e;
       }
     }
@@ -620,6 +619,18 @@ public class HttpClientSource extends BaseSource {
           break;
         }
 
+        // LINK_FIELD pagination
+        if (conf.pagination.mode == PaginationMode.LINK_FIELD) {
+          // evaluate stopping condition
+          RecordEL.setRecordInContext(stopVars, record);
+          haveMorePages = !stopEval.eval(stopVars, conf.pagination.stopCondition, Boolean.class);
+          if (haveMorePages) {
+            next = Link.fromUri(record.get(conf.pagination.nextPageFieldPath).getValueAsString()).build();
+          } else {
+            next = null;
+          }
+        }
+
         if (conf.pagination.mode != PaginationMode.NONE && record.has(conf.pagination.resultFieldPath)) {
           subRecordCount = parsePaginatedResult(batchMaker, sourceOffset.toString(), record);
           recordCount += subRecordCount;
@@ -632,6 +643,7 @@ public class HttpClientSource extends BaseSource {
       } while (recordCount < maxRecords && !waitTimeExpired(start));
 
     } catch (IOException e) {
+      LOG.error(Errors.HTTP_00.getMessage(), e.toString(), e);
       errorRecordHandler.onError(Errors.HTTP_00, e.toString(), e);
 
     } finally {
@@ -639,14 +651,57 @@ public class HttpClientSource extends BaseSource {
         if (record == null) {
           cleanupResponse(in);
         }
-        incrementSourceOffset(sourceOffset, subRecordCount);
+        if (subRecordCount != 0) {
+          incrementSourceOffset(sourceOffset, subRecordCount);
+        }
       } catch(IOException e) {
+        LOG.warn(Errors.HTTP_28.getMessage(), e.toString(), e);
         errorRecordHandler.onError(Errors.HTTP_28, e.toString(), e);
       }
     }
 
     return sourceOffset.toString();
   }
+
+  @VisibleForTesting
+  Response getResponse() {
+    return response;
+  }
+
+  @VisibleForTesting
+  void setResponse(Response response) {
+    this.response = response;
+  }
+
+  /**
+   * Used only for HEAD requests.  Sets up a record for output based on headers only
+   * with an empty body.
+   *
+   * @param batchMaker batch to add records to.
+   * @return the next source offset to commit
+   * @throws StageException if an unhandled error is encountered
+   */
+
+  String parseHeadersOnly(BatchMaker batchMaker) throws StageException {
+    HttpSourceOffset sourceOffset = new HttpSourceOffset(
+            getResolvedUrl(),
+            currentParameterHash,
+            System.currentTimeMillis(),
+            getCurrentPage()
+    );
+
+    Record record = getContext().createRecord(sourceOffset + "::0");
+    addResponseHeaders(record.getHeader());
+    record.set(Field.create(new HashMap()));
+
+    batchMaker.addRecord(record);
+    recordCount++;
+    incrementSourceOffset(sourceOffset, 1);
+    lastRequestCompletedTime = System.currentTimeMillis();
+    return sourceOffset.toString();
+
+  }
+
 
   /**
    * Increments the current source offset's startAt portion by the specified amount.
@@ -679,16 +734,18 @@ public class HttpClientSource extends BaseSource {
       try {
         in.close();
       } catch(IOException e) {
+        LOG.warn("Error closing input stream", ex);
         ex = e;
       }
     }
 
-    response.close();
-    response = null;
+    getResponse().close();
+    setResponse(null);
 
     try {
       parser.close();
     } catch(IOException e) {
+      LOG.warn("Error closing parser", ex);
       ex = e;
     }
     parser = null;
@@ -703,7 +760,8 @@ public class HttpClientSource extends BaseSource {
    *
    * @return page number or offset
    */
-  private int getCurrentPage() {
+  @VisibleForTesting
+  int getCurrentPage() {
     // Body params take precedence, but usually only one or the other should be used.
     if (bodyVars.hasVariable(START_AT)) {
       return (int) bodyVars.getVariable(START_AT);
@@ -727,12 +785,16 @@ public class HttpClientSource extends BaseSource {
     int numSubRecords = 0;
 
     if (!record.has(conf.pagination.resultFieldPath)) {
-      throw new StageException(Errors.HTTP_12, conf.pagination.resultFieldPath);
+      final StageException stageException = new StageException(Errors.HTTP_12, conf.pagination.resultFieldPath);
+      LOG.error(stageException.getMessage());
+      throw stageException;
     }
     Field resultField = record.get(conf.pagination.resultFieldPath);
 
     if (resultField.getType() != Field.Type.LIST) {
-      throw new StageException(Errors.HTTP_08, resultField.getType());
+      final StageException stageException = new StageException(Errors.HTTP_08, resultField.getType());
+      LOG.error(stageException.getMessage());
+      throw stageException;
     }
 
     List<Field> results = resultField.getValueAsList();
@@ -749,7 +811,9 @@ public class HttpClientSource extends BaseSource {
       batchMaker.addRecord(r);
       ++numSubRecords;
     }
-    haveMorePages = numSubRecords > 0;
+    if (conf.pagination.mode != PaginationMode.LINK_FIELD) {
+      haveMorePages = numSubRecords > 0;
+    }
     return numSubRecords;
   }
 
@@ -758,11 +822,12 @@ public class HttpClientSource extends BaseSource {
    * @param header an SDC record header to populate
    */
   private void addResponseHeaders(Record.Header header) {
-    if (response.getStringHeaders() == null) {
+    final MultivaluedMap<String, String> headers = getResponse().getStringHeaders();
+    if (headers == null) {
       return;
     }
 
-    for (Map.Entry<String, List<String>> entry : response.getStringHeaders().entrySet()) {
+    for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
       if (!entry.getValue().isEmpty()) {
         String firstValue = entry.getValue().get(0);
         header.setAttribute(entry.getKey(), firstValue);
@@ -820,40 +885,56 @@ public class HttpClientSource extends BaseSource {
       StageException {
     Optional<String> newSourceOffset = Optional.empty();
 
-    if (response == null) {
+    if (getResponse() == null) {
       return newSourceOffset;
     }
 
     // Response was not in the OK range, so treat as an error
-    int status = response.getStatus();
+    int status = getResponse().getStatus();
     if (status < 200 || status >= 300) {
       lastRequestCompletedTime = System.currentTimeMillis();
-      String reason = response.getStatusInfo().getReasonPhrase();
-      String respString = response.readEntity(String.class);
-      response.close();
-      response = null;
+      String reason = getResponse().getStatusInfo().getReasonPhrase();
+      String respString = getResponse().readEntity(String.class);
+      getResponse().close();
+      setResponse(null);
 
-      errorRecordHandler.onError(Errors.HTTP_01, status, reason + " : " + respString);
+
+      final String errorMsg = reason + " : " + respString;
+      LOG.warn(Errors.HTTP_01.getMessage(), status, errorMsg);
+      errorRecordHandler.onError(Errors.HTTP_01, status, errorMsg);
 
       return newSourceOffset;
     }
 
     if (conf.pagination.mode == PaginationMode.LINK_HEADER) {
-      next = response.getLink("next");
+      next = getResponse().getLink("next");
       if (next == null) {
         haveMorePages = false;
       }
     }
 
 
-    if (response.hasEntity()) {
+    if (getResponse().hasEntity()) {
       newSourceOffset = Optional.of(parseResponse(start, maxRecords, batchMaker));
-    }
+    } else if (conf.httpMethod.getLabel() == "HEAD") {
+      // Handle HEAD only requests, which have no body, by creating a blank record for output with headers.
+      newSourceOffset = Optional.of(parseHeadersOnly(batchMaker));
 
+    }
     return newSourceOffset;
   }
 
   protected String nonTerminating(String sourceOffset) {
     return sourceOffset == null ? "" : sourceOffset;
+  }
+
+  @VisibleForTesting
+  String getResolvedUrl() {
+    return resolvedUrl;
+  }
+
+  @VisibleForTesting
+  void setResolvedUrl(String resolvedUrl) {
+    this.resolvedUrl = resolvedUrl;
   }
 }

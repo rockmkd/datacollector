@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,18 +15,29 @@
  */
 package com.streamsets.pipeline.stage.destination.devnull;
 
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.HideConfigs;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
 import com.streamsets.pipeline.api.Target;
-import com.streamsets.pipeline.configurablestage.DTarget;
+import com.streamsets.pipeline.api.base.configurablestage.DTarget;
 
 @StageDef(
     version = 1,
     label = "Trash",
     icon="trash.png",
     description = "Discards records",
-    onlineHelpRefUrl = "index.html#Destinations/Trash.html#task_ad4_qyl_zq"
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+    },
+    flags = StageBehaviorFlags.PASSTHROUGH,
+    onlineHelpRefUrl ="index.html?contextID=task_ad4_qyl_zq"
 )
 @HideConfigs(preconditions = true, onErrorRecord = true)
 @GenerateResourceBundle

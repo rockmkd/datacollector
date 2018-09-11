@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +17,13 @@ package com.streamsets.pipeline.stage.processor.selector;
 
 import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigGroups;
+import com.streamsets.pipeline.api.ExecutionMode;
 import com.streamsets.pipeline.api.GenerateResourceBundle;
 import com.streamsets.pipeline.api.PredicateModel;
 import com.streamsets.pipeline.api.Processor;
+import com.streamsets.pipeline.api.StageBehaviorFlags;
 import com.streamsets.pipeline.api.StageDef;
-import com.streamsets.pipeline.configurablestage.DProcessor;
+import com.streamsets.pipeline.api.base.configurablestage.DProcessor;
 import com.streamsets.pipeline.lib.el.RecordEL;
 import com.streamsets.pipeline.lib.el.TimeNowEL;
 
@@ -35,7 +37,17 @@ import java.util.Map;
     icon="laneSelector.png",
     outputStreams = StageDef.VariableOutputStreams.class,
     outputStreamsDrivenByConfig = "lanePredicates",
-    onlineHelpRefUrl = "index.html#Processors/StreamSelector.html#task_iss_2zx_wq"
+    flags = StageBehaviorFlags.PASSTHROUGH,
+    onlineHelpRefUrl ="index.html?contextID=task_iss_2zx_wq",
+    execution = {
+        ExecutionMode.STANDALONE,
+        ExecutionMode.CLUSTER_BATCH,
+        ExecutionMode.CLUSTER_YARN_STREAMING,
+        ExecutionMode.CLUSTER_MESOS_STREAMING,
+        ExecutionMode.EDGE,
+        ExecutionMode.EMR_BATCH
+
+    }
 )
 @ConfigGroups(Groups.class)
 @GenerateResourceBundle

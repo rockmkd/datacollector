@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,10 @@ import com.streamsets.pipeline.api.ConfigDef;
 import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.Dependency;
 import com.streamsets.pipeline.api.ValueChooserModel;
+import com.streamsets.pipeline.config.TimeZoneChooserValues;
 import com.streamsets.pipeline.lib.el.TimeEL;
+import com.streamsets.pipeline.lib.jdbc.parser.sql.UnsupportedFieldTypeChooserValues;
+import com.streamsets.pipeline.lib.jdbc.parser.sql.UnsupportedFieldTypeValues;
 import com.streamsets.pipeline.stage.origin.jdbc.cdc.CDCSourceConfigBean;
 
 public class OracleCDCConfigBean {
@@ -75,10 +78,95 @@ public class OracleCDCConfigBean {
   
   @ConfigDef(
       required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Dictionary Source",
+      description = "Location of the LogMiner dictionary",
+      displayPosition = 70,
+      group = "CDC"
+  )
+  @ValueChooserModel(DictionaryChooserValues.class)
+  public DictionaryValues dictionary;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Buffer Changes Locally",
+      description = "Buffer changes in SDC memory or on Disk. Use this to reduce PGA memory usage on the DB",
+      displayPosition = 80,
+      group = "CDC",
+      defaultValue = "true"
+  )
+  public boolean bufferLocally;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Buffer Location",
+      displayPosition = 90,
+      group = "CDC",
+      defaultValue = "IN_MEMORY",
+      dependsOn = "bufferLocally",
+      triggeredByValue = "true"
+  )
+  @ValueChooserModel(BufferingChooserValues.class)
+  public BufferingValues bufferLocation;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Discard Old Uncommitted Transactions",
+      description = "If uncommitted transactions have gone past the transaction window, discard them. If unchecked, such" +
+          " transactions are sent to error",
+      displayPosition = 100,
+      group = "CDC",
+      dependsOn = "bufferLocally",
+      triggeredByValue = "true",
+      defaultValue = "false"
+  )
+  public boolean discardExpired;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "Unsupported Field Type",
+      description = "Action to take if an unsupported field type is encountered. When buffering locally," +
+          " the action is triggered immediately when the record is read without waiting for the commit",
+      displayPosition = 110,
+      group = "CDC",
+      defaultValue = "TO_ERROR"
+  )
+  @ValueChooserModel(UnsupportedFieldTypeChooserValues.class)
+  public UnsupportedFieldTypeValues unsupportedFieldOp;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Add unsupported fields to records",
+      description = "Add values of unsupported fields as unparsed strings to records",
+      displayPosition = 115,
+      group = "CDC",
+      defaultValue = "false"
+  )
+  public boolean sendUnsupportedFields;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Include Nulls",
+      description = "Includes null values passed from the database from full supplemental logging rather than " +
+          "not returning those fields.",
+      displayPosition = 120,
+      group = "CDC",
+      defaultValue = "false"
+  )
+  public boolean allowNulls;
+
+  @ConfigDef(
+      required = true,
       type = ConfigDef.Type.NUMBER,
       label = "Maximum Transaction Length",
       description = "Time window to look for changes within a transaction before commit (in seconds)",
-      displayPosition = 70,
+      displayPosition = 130,
       group = "CDC",
       elDefs = TimeEL.class,
       defaultValue = "${1 * HOURS}"
@@ -92,7 +180,7 @@ public class OracleCDCConfigBean {
       description = "Time window of time a LogMiner session should be kept open. " +
           "Must be greater than or equal to Maximum Transaction Length. " +
           "Keeping this small will reduce memory usage on Oracle.",
-      displayPosition = 70,
+      displayPosition = 140,
       group = "CDC",
       elDefs = TimeEL.class,
       defaultValue = "${2 * HOURS}"
@@ -101,36 +189,80 @@ public class OracleCDCConfigBean {
 
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.MODEL,
-      label = "Dictionary Source",
-      description = "Location of the LogMiner dictionary",
-      displayPosition = 80,
-      group = "CDC"
+      type = ConfigDef.Type.NUMBER,
+      label = "JDBC Fetch Size",
+      description = "To reduce latency, set this lower if the write rate to the tables is low.",
+      displayPosition = 145,
+      group = "CDC",
+      min = 1,
+      defaultValue = "1"
   )
-  @ValueChooserModel(DictionaryChooserValues.class)
-  public DictionaryValues dictionary;
-  
-  @ConfigDef(
-      required = false,
-      type = ConfigDef.Type.BOOLEAN,
-      label = "Set LogMiner StartSCN",
-      defaultValue = "false",
-      description = "Enable setting LogMiner's startSCN ",
-      displayPosition = 40,
-      group = "CDC"
-  )
-  public boolean useLogMinerSCN;
-  
+  public int jdbcFetchSize;
+
   @ConfigDef(
       required = true,
-      type = ConfigDef.Type.STRING,
-      label = "LogMiner Start SCN",
-      description = "System change number to use for LogMiner",
-      displayPosition = 40,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Parse SQL Query",
+      description = "Parse the SQL Query read from LogMiner into an SDC record. If unselected, the unparsed sql " +
+          "statement is inserted into the /sql field",
+      displayPosition = 150,
       group = "CDC",
-      dependencies = {
-          @Dependency(configName = "useLogMinerSCN", triggeredByValues = "true"),
-      }
+      defaultValue = "true"
   )
-  public String logMinerStartSCN;
+  public boolean parseQuery;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Send Redo Query in headers",
+      description = "Send the actual redo query returned by LogMiner in record headers",
+      displayPosition = 170,
+      group = "CDC",
+      defaultValue = "false"
+  )
+  public boolean keepOriginalQuery;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.BOOLEAN,
+      label = "Use PEG Parser (beta)",
+      description = "Optionally use the alternate parser to enhance performance",
+      displayPosition = 5, // display at the top of the advanced tab
+      group = "ADVANCED",
+      dependsOn = "parseQuery",
+      triggeredByValue = "true",
+      defaultValue = "false"
+  )
+  public boolean useNewParser;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.NUMBER,
+      label = "Parsing Thread Pool Size",
+      description = "Number of threads to use to parse",
+      displayPosition = 6,
+      group = "ADVANCED",
+      dependencies = {
+          @Dependency(configName = "parseQuery", triggeredByValues = "true"),
+          @Dependency(configName = "bufferLocally", triggeredByValues = "true")
+          // during non-local buffering we receive committed transactions in the order that oracle chooses,
+          // so we can't parallelize it
+      },
+      defaultValue = "1",
+      min = 1
+  )
+  public int parseThreadPoolSize;
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.MODEL,
+      label = "DB Time Zone",
+      description = "Time Zone that the DB is operating in",
+      displayPosition = 180,
+      group = "CDC"
+  )
+
+  @ValueChooserModel(TimeZoneChooserValues.class)
+  public String dbTimeZone;
+
 }
