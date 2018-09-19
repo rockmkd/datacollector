@@ -792,6 +792,18 @@ angular.module('dataCollectorApp.common')
         });
       },
 
+      importPipelineFromUrl: function(pipelineTitle, pipelineHttpUrl) {
+        var url = apiBase + '/pipeline/' + pipelineTitle + '/importFromURL';
+        return $http({
+          method: 'POST',
+          url: url,
+          params: {
+            pipelineHttpUrl: pipelineHttpUrl,
+            autoGeneratePipelineId: true
+          }
+        });
+      },
+
       /**
        * Download Edge Executable.
        *

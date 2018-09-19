@@ -27,10 +27,7 @@ import com.streamsets.pipeline.lib.io.fileref.LocalFileRef;
 import com.streamsets.pipeline.sdk.ProcessorRunner;
 import com.streamsets.pipeline.sdk.RecordCreator;
 import com.streamsets.pipeline.sdk.StageRunner;
-import com.streamsts.pipeline.stage.processor.transformer.Errors;
-import com.streamsts.pipeline.stage.processor.transformer.JobConfig;
-import com.streamsts.pipeline.stage.processor.transformer.WholeFileTransformerDProcessor;
-import org.junit.AfterClass;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -257,6 +254,32 @@ public class TestWholeFileTransformerProcessor {
       List<Record> errorRecords = runner.getErrorRecords();
       Assert.assertEquals(1, errorRecords.size());
       Assert.assertEquals(Errors.CONVERT_11.getCode(), errorRecords.get(0).getHeader().getErrorCode());
+    } finally {
+      runner.runDestroy();
+    }
+  }
+
+  @Test
+  public void testTempParquetSubDirectoryPath() throws Exception {
+    final String tempSubDir = rootPath + "/subdir1/subsubdir1" + "/.parquet";
+    WholeFileTransformerProcessor wholeFileTransofrmer  = new TestWholeFileTransformerProcessorBuilder()
+        .tempDir(tempSubDir)
+        .build();
+
+    final Record record = createRecord(validAvroFile);
+    final String sourceFileName = "testFile";
+
+    ProcessorRunner runner = new ProcessorRunner.Builder(WholeFileTransformerDProcessor.class, wholeFileTransofrmer)
+        .addOutputLane("a")
+        .setOnRecordError(OnRecordError.TO_ERROR)
+        .build();
+
+    try {
+      runner.runInit();
+
+      Path tempFilePath = wholeFileTransofrmer.getAndValidateTempFilePath(record, sourceFileName);
+      Assert.assertEquals(tempSubDir, tempFilePath.getParent().toString());
+      Assert.assertTrue(Files.exists(tempFilePath.getParent()));
     } finally {
       runner.runDestroy();
     }
