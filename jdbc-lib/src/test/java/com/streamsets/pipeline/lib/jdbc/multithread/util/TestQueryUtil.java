@@ -28,6 +28,7 @@ import java.util.Map;
 public class TestQueryUtil {
   private final int maxBatchSize = 1;
   private final String tableName = "dbo.test";
+  private final String CTTableName = "cdc.dbo_test_CT";
   private final List<String> offsetColumns = ImmutableList.of(MSQueryUtil.SYS_CHANGE_VERSION, "pk1", "pk2");
 
   @Test
@@ -85,20 +86,154 @@ public class TestQueryUtil {
   @Test
   public void testMSQLCDCQueryWithNoStartOffset() {
     Map<String, String> offsetMap = new HashMap<>();
+    final String startLSN = "1";
+    final String seqVal = "2";
     offsetMap.put(MSQueryUtil.SYS_CHANGE_VERSION, "0");
-    offsetMap.put("__$start_lsn", "1");
-    offsetMap.put("__$seqval", "2");
+    offsetMap.put("__$start_lsn", startLSN);
+    offsetMap.put("__$seqval", seqVal);
     final boolean allowLateTable = false;
     final boolean enableSchemaChanges = false;
-
+    final int fetchSize = 1000;
+    final boolean useTable = true;
+    final int txnWindow = 3600; // 1 hour
 
     Map<String, String> startOffset = new HashMap<>();
 
 
-    String query = MSQueryUtil.buildCDCQuery(offsetMap, tableName, startOffset, allowLateTable, enableSchemaChanges);
+    String query = MSQueryUtil.buildCDCQuery(
+        offsetMap,
+        CTTableName,
+        startOffset,
+        allowLateTable,
+        enableSchemaChanges,
+        fetchSize,
+        useTable,
+        txnWindow
+    );
 
-    String expected = "SELECT * FROM dbo.test WHERE ((__$start_lsn = CAST(0x1 AS BINARY(10)) ) AND (__$seqval > CAST" +
-        "(0x2 AS BINARY(10)) ) ) OR (__$start_lsn > CAST(0x1 AS BINARY(10)) )   ORDER BY __$start_lsn, __$seqval";
+    String expected = String.format("DECLARE @start_lsn binary(10) = " +
+        "sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); " +
+        "DECLARE @to_lsn binary(10) = sys.fn_cdc_map_time_to_lsn('largest less than or equal', " +
+        "DATEADD(second, %s, sys.fn_cdc_map_lsn_to_time(@start_lsn))); " +
+        "IF @start_lsn = @to_lsn SET @to_lsn = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); " +
+        "SELECT TOP %s * FROM %s " +
+        "WHERE ((__$start_lsn = CAST(0x%s AS BINARY(10)) ) AND (__$seqval > CAST(0x%s AS BINARY(10)) ) ) " +
+        "OR (__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn)   " +
+        "ORDER BY __$start_lsn, __$seqval", startLSN, txnWindow, fetchSize, CTTableName, startLSN, seqVal);
+
+    Assert.assertTrue(StringUtils.contains(query, expected));
+  }
+
+  @Test
+  public void testMSQLCDCQueryWithNoStartOffsetUsingQuery() {
+    Map<String, String> offsetMap = new HashMap<>();
+    final String startLSN = "1";
+    final String seqVal = "2";
+    offsetMap.put(MSQueryUtil.SYS_CHANGE_VERSION, "0");
+    offsetMap.put("__$start_lsn", startLSN);
+    offsetMap.put("__$seqval", seqVal);
+    final boolean allowLateTable = false;
+    final boolean enableSchemaChanges = false;
+    final int fetchSize = 1000;
+    final boolean useTable = false;
+    final int txnWindow = 3600; // 1 hour
+
+    Map<String, String> startOffset = new HashMap<>();
+
+    String query = MSQueryUtil.buildCDCQuery(
+        offsetMap,
+        CTTableName,
+        startOffset,
+        allowLateTable,
+        enableSchemaChanges,
+        fetchSize,
+        useTable,
+        txnWindow
+    );
+
+    String expected = String.format("DECLARE @start_lsn binary(10) = " +
+        "sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); " +
+        "DECLARE @to_lsn binary(10) = sys.fn_cdc_map_time_to_lsn('largest less than or equal', " +
+        "DATEADD(second, %s, sys.fn_cdc_map_lsn_to_time(@start_lsn))); " +
+        "IF @start_lsn = @to_lsn SET @to_lsn = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); " +
+        "SELECT TOP %s * FROM cdc.fn_cdc_get_all_changes_dbo_test (@start_lsn, @to_lsn, N'all update old') " +
+        "WHERE ((__$start_lsn = CAST(0x%s AS BINARY(10)) ) AND (__$seqval > CAST(0x%s AS BINARY(10)) ) ) " +
+        "OR (__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn)   " +
+        "ORDER BY __$start_lsn, __$seqval", startLSN, txnWindow, fetchSize, startLSN, seqVal);
+
+    Assert.assertTrue(StringUtils.contains(query, expected));
+  }
+
+  @Test
+  public void testMSQLCDCQueryWithStartOffsetAndNoTxnWindow() {
+    Map<String, String> offsetMap = new HashMap<>();
+    final String startLSN = "1";
+    final String seqVal = "2";
+    offsetMap.put(MSQueryUtil.SYS_CHANGE_VERSION, "0");
+    offsetMap.put("__$start_lsn", startLSN);
+    offsetMap.put("__$seqval", seqVal);
+    final boolean allowLateTable = false;
+    final boolean enableSchemaChanges = false;
+    final int fetchSize = 1000;
+    final boolean useTable = true;
+    final int txnWindow = -1;
+
+    Map<String, String> startOffset = new HashMap<>();
+
+
+    String query = MSQueryUtil.buildCDCQuery(
+        offsetMap,
+        CTTableName,
+        startOffset,
+        allowLateTable,
+        enableSchemaChanges,
+        fetchSize,
+        useTable,
+        txnWindow
+    );
+
+    String expected = String.format("DECLARE @start_lsn binary(10) = " +
+        "sys.fn_cdc_map_time_to_lsn('smallest greater than or equal', sys.fn_cdc_map_lsn_to_time(0x%s)); " +
+        "DECLARE @to_lsn binary(10) = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); " +
+        "SELECT TOP %s * FROM %s " +
+        "WHERE ((__$start_lsn = CAST(0x%s AS BINARY(10)) ) AND (__$seqval > CAST(0x%s AS BINARY(10)) ) ) " +
+        "OR (__$start_lsn > @start_lsn and __$start_lsn <= @to_lsn)   " +
+        "ORDER BY __$start_lsn, __$seqval ", startLSN, fetchSize, CTTableName, startLSN, seqVal);
+
+    Assert.assertTrue(StringUtils.contains(query, expected));
+  }
+
+  @Test
+  public void testMSQLCDCQueryWithOpedStartOffset() {
+    Map<String, String> offsetMap = new HashMap<>();
+
+    final boolean allowLateTable = false;
+    final boolean enableSchemaChanges = false;
+    final int fetchSize = 1000;
+    final boolean useTable = true;
+    final int txnWindow = -1;
+
+    Map<String, String> startOffset = new HashMap<>();
+    String startLSN = "-1";
+    startOffset.put(MSQueryUtil.CDC_START_LSN, startLSN);
+
+
+    String query = MSQueryUtil.buildCDCQuery(
+        offsetMap,
+        CTTableName,
+        startOffset,
+        allowLateTable,
+        enableSchemaChanges,
+        fetchSize,
+        useTable,
+        txnWindow
+    );
+
+    String expected = String.format("DECLARE @start_lsn binary(10) = sys.fn_cdc_get_max_lsn(); " +
+        "DECLARE @to_lsn binary(10) = sys.fn_cdc_map_time_to_lsn('largest less than or equal', GETDATE()); " +
+        "SELECT TOP 1000 * FROM %s " +
+        "WHERE __$start_lsn >= @start_lsn and __$start_lsn <= @to_lsn  " +
+        "ORDER BY __$start_lsn, __$seqval ", CTTableName);
 
     Assert.assertTrue(StringUtils.contains(query, expected));
   }

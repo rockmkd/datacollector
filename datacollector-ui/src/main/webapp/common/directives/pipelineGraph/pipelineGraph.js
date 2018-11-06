@@ -604,11 +604,11 @@ angular.module('pipelineGraphDirectives', [])
     // call to propagate changes to graph
     GraphCreator.prototype.updateGraph = function(){
 
-      var thisGraph = this,
-        consts = thisGraph.consts,
-        state = $scope.state,
-        stageErrorCounts = thisGraph.stageErrorCounts,
-        firstConfigIssue;
+      var thisGraph = this;
+      var consts = thisGraph.consts;
+      var state = $scope.state;
+      var stageErrorCounts = thisGraph.stageErrorCounts;
+      var firstConfigIssue;
 
       if (graph.isPreviewMode) {
         stageErrorCounts = graph.previewStageErrorCounts;
@@ -834,6 +834,7 @@ angular.module('pipelineGraphDirectives', [])
           firstConfigIssue = undefined;
         });
 
+
       //Add Configuration Icon
       /*
       newGs.append('svg:foreignObject')
@@ -896,6 +897,20 @@ angular.module('pipelineGraphDirectives', [])
         .on('mouseup', function() {
           $scope.state.showBadRecords = false;
         });
+
+      // Add beta icon
+      newGs.append('svg:image')
+        .filter(function(d) {
+            return pipelineService.isBetaStage(d.stageName);
+        })
+        .attr('x', 10)
+        .attr('y', 10)
+        .attr('width', 10.5)
+        .attr('height', 19.5)
+        .attr('xlink:href', '/assets/beta.svg')
+        .attr('class', 'graph-bootstrap-tooltip')
+        .attr('data-placement', 'top')
+        .attr('title', 'This is a technology preview stage, do not use in production');
 
 
       // remove old nodes
@@ -1026,7 +1041,6 @@ angular.module('pipelineGraphDirectives', [])
       } else {
         graphWarning.style('visibility', 'hidden');
       }
-
 
       $('.graph-bootstrap-tooltip').each(function() {
         var $this = $(this),

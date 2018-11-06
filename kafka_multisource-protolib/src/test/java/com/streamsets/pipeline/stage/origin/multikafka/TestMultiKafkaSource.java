@@ -22,6 +22,7 @@ import com.streamsets.pipeline.api.lineage.LineageEvent;
 import com.streamsets.pipeline.api.lineage.LineageEventType;
 import com.streamsets.pipeline.api.lineage.LineageSpecificAttribute;
 import com.streamsets.pipeline.config.DataFormat;
+import com.streamsets.pipeline.lib.kafka.KafkaAutoOffsetReset;
 import com.streamsets.pipeline.lib.kafka.KafkaErrors;
 import com.streamsets.pipeline.sdk.PushSourceRunner;
 import com.streamsets.pipeline.sdk.StageRunner;
@@ -72,6 +73,8 @@ public class TestMultiKafkaSource {
     conf.dataFormatConfig.charset = "UTF-8";
     conf.dataFormatConfig.removeCtrlChars = false;
     conf.dataFormatConfig.textMaxLineLen = 4096;
+    conf.kafkaAutoOffsetReset = KafkaAutoOffsetReset.EARLIEST;
+    conf.timestampToSearchOffsets = 0;
 
     return conf;
   }
@@ -157,6 +160,15 @@ public class TestMultiKafkaSource {
   public void testMultipleTopics() throws StageException, InterruptedException, ExecutionException {
     MultiKafkaBeanConfig conf = getConfig();
     conf.numberOfThreads = 100;
+
+    // SDC-10162. The batch size must be
+    // greater than the number of records in the topic.
+    // This is only required for testing, because of the way we mock -
+    // first call returns the records, second call returns empty.
+    // previously, the requested batch size was ignored, and all records
+    // returned by poll were passed into the pipeline as a batch.
+    conf.maxBatchSize = 1000;
+
     int numTopics = 20;
     long totalMessages = 0;
     Random rand = new Random();
@@ -170,6 +182,7 @@ public class TestMultiKafkaSource {
     }
 
     for(int i=0; i<conf.numberOfThreads; i++) {
+
       int numMessages = rand.nextInt(40)+1;
       totalMessages += numMessages;
       ConsumerRecords<String, byte[]> consumerRecords = generateConsumerRecords(numMessages, topicNames.get(rand.nextInt(numTopics)), 0);
@@ -298,8 +311,13 @@ public class TestMultiKafkaSource {
     }
 
     Map<TopicPartition, List<ConsumerRecord<String, byte[]>>> recordsMap = new HashMap<>();
-    recordsMap.put(new TopicPartition(topic, partition), consumerRecordsList);
-    return new ConsumerRecords<>(recordsMap);
+    if(count == 0) {
+      // SDC-10162 - this will make a ConsumerRecords() object which will return true when tested for isEmpty().
+      return new ConsumerRecords<>(recordsMap);
+    } else {
+      recordsMap.put(new TopicPartition(topic, partition), consumerRecordsList);
+      return new ConsumerRecords<>(recordsMap);
+    }
   }
 
   static class MultiKafkaPushSourceTestCallback implements PushSourceRunner.Callback {

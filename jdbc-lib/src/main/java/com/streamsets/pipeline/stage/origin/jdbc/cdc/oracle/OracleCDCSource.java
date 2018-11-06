@@ -444,7 +444,7 @@ public class OracleCDCSource extends BaseSource {
     } catch (SQLException ex) {
       LOG.error("SQLException while trying to setup record generator thread", ex);
       generationStarted = false;
-      return;
+      throw new StageException(JDBC_52, ex);
     }
     final Offset os = offset;
     final PreparedStatement select = selectFromLogMnrContents;
@@ -601,6 +601,7 @@ public class OracleCDCSource extends BaseSource {
                     recordQueue.put(new RecordOffset(record, offset));
                   }
                 } catch (UnparseableSQLException ex) {
+                  LOG.error("Parsing failed", ex);
                   unparseable.offer(queryString);
                 }
               } else {
@@ -727,7 +728,7 @@ public class OracleCDCSource extends BaseSource {
           );
         } catch (SQLException ex) {
           LOG.error("Error while attempting to start LogMiner", ex);
-          otherErrors.offer(new ErrorAndCause(JDBC_52, ex));
+          addToStageExceptionsQueue(new StageException(JDBC_52, ex));
         } catch (StageException ex) {
           LOG.error("Error while attempting to start logminer for redo log dictionary", ex);
           addToStageExceptionsQueue(ex);
@@ -820,6 +821,7 @@ public class OracleCDCSource extends BaseSource {
         try {
           createdField = objectToField(table, columnName, column.getValue());
         } catch (UnsupportedFieldTypeException ex) {
+          LOG.error("Unsupported field type exception", ex);
           if (configBean.sendUnsupportedFields) {
             createdField = Field.create(column.getValue());
           }
@@ -947,6 +949,7 @@ public class OracleCDCSource extends BaseSource {
           }
         }
       } catch (ExecutionException e) {
+        LOG.error("{}:{}", JDBC_405.getMessage(), e.getMessage(), e);
         final Throwable cause = e.getCause();
         if (cause instanceof UnparseableSQLException) {
           unparseable.offer(recordFuture.sql);
