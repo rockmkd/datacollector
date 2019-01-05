@@ -20,6 +20,6 @@ import com.streamsets.pipeline.api.base.BaseEnumChooserValues;
 public class AuthenticationChooserValues extends BaseEnumChooserValues<Authentication> {
 
   public AuthenticationChooserValues() {
-    super(Authentication.NONE, Authentication.PASSWORD, Authentication.PRIVATE_KEY);
+    super(Authentication.class);
   }
 }

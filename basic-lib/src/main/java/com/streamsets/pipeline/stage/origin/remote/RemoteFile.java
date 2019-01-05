@@ -15,16 +15,29 @@
  */
 package com.streamsets.pipeline.stage.origin.remote;
 
-import org.apache.commons.vfs2.FileObject;
+import java.io.IOException;
+import java.io.InputStream;
 
-class RemoteFile {
-  final String filename;
-  final long lastModified;
-  final FileObject remoteObject;
+/**
+ * Holder for necessary info about a remote file, as well as a way to create an {@link InputStream}.
+ * Subclasses can determine how the {@link InputStream} is created based on what the remote source is.
+ */
+abstract class RemoteFile {
+  private final String filePath;
+  private final long lastModified;
 
-  RemoteFile(String filename, long lastModified, final FileObject remoteObject) {
-    this.filename = filename;
+  protected RemoteFile(String filePath, long lastModified) {
+    this.filePath = filePath;
     this.lastModified = lastModified;
-    this.remoteObject = remoteObject;
   }
+
+  String getFilePath() {
+    return filePath;
+  }
+
+  long getLastModified() {
+    return lastModified;
+  }
+
+  abstract InputStream createInputStream() throws IOException;
 }

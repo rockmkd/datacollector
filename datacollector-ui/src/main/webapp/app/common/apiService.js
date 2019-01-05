@@ -377,16 +377,12 @@ angular.module('dataCollectorApp.common')
        *
        * @returns {*}
        */
-      installLibraries: function(repoUrl, libraryList) {
+      installLibraries: function(libraryUrlList) {
         var url = apiBase + '/stageLibraries/install';
-        if (repoUrl) {
-          url += '?repoUrl=' + repoUrl;
-        }
-
         return $http({
           method: 'POST',
           url: url,
-          data: libraryList
+          data: libraryUrlList
         });
       },
 
@@ -1209,14 +1205,18 @@ angular.module('dataCollectorApp.common')
        * @param pipelineName
        * @param rev
        * @param stageInstanceName
+       * @param edge
        * @returns {*}
        */
-      getErrorRecords: function(pipelineName, rev, stageInstanceName) {
-        var url = apiBase + '/pipeline/' + pipelineName + '/errorRecords?rev=' + rev +
-          '&stageInstanceName=' + stageInstanceName;
+      getErrorRecords: function(pipelineName, rev, stageInstanceName, edge) {
+        var url = apiBase + '/pipeline/' + pipelineName + '/errorRecords';
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            stageInstanceName: stageInstanceName,
+            edge: !!edge
+          }
         });
       },
 
@@ -1227,14 +1227,18 @@ angular.module('dataCollectorApp.common')
        * @param pipelineName
        * @param rev
        * @param stageInstanceName
+       * @param edge
        * @returns {*}
        */
-      getErrorMessages: function(pipelineName, rev, stageInstanceName) {
-        var url = apiBase + '/pipeline/' + pipelineName + '/errorMessages?rev=' + rev +
-          '&stageInstanceName=' + stageInstanceName;
+      getErrorMessages: function(pipelineName, rev, stageInstanceName, edge) {
+        var url = apiBase + '/pipeline/' + pipelineName + '/errorMessages';
         return $http({
           method: 'GET',
-          url: url
+          url: url,
+          params: {
+            stageInstanceName: stageInstanceName,
+            edge: !!edge
+          }
         });
       },
 

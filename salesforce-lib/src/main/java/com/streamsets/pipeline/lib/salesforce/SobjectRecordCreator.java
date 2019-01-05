@@ -90,6 +90,7 @@ public abstract class SobjectRecordCreator extends ForceRecordCreatorImpl {
   protected static final String RECORD_ID_OFFSET_PREFIX = "recordId:";
 
   private static final TimeZone TZ = TimeZone.getTimeZone("GMT");
+  private static final String NAME = "Name";
 
   private final SimpleDateFormat datetimeFormat = new SimpleDateFormat("yyyy-MM-dd\'T\'HH:mm:ss");
   private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
@@ -187,8 +188,12 @@ public abstract class SobjectRecordCreator extends ForceRecordCreatorImpl {
       List<List<Pair<String, String>>> references,
       SOQLParser.FieldListContext flc
   ) throws StageException {
+    List<String> objectTypes = new ArrayList<>();
+
+    objectTypes.add(objectType);
     for (SOQLParser.FieldElementContext fec : flc.fieldElement()) {
       SOQLParser.SubqueryContext subquery = fec.subquery();
+      SOQLParser.TypeOfClauseContext typeofClause = fec.typeOfClause();
       if (subquery != null) {
         // Recurse into subqueries
         getReferencesFromFieldList(partnerConnection,
@@ -196,6 +201,16 @@ public abstract class SobjectRecordCreator extends ForceRecordCreatorImpl {
             metadataMap.get(objectType).getChildSObjectType(subquery.objectList().getText()),
             references,
             subquery.fieldList());
+      } else if (typeofClause != null) {
+        for (SOQLParser.WhenThenClauseContext whenThen : typeofClause.whenThenClause()) {
+          String whenObjectType = whenThen.whenObjectType().getText();
+          objectTypes.add(whenObjectType);
+          for (SOQLParser.FieldNameContext fieldName : whenThen.whenFieldList().fieldName()) {
+            String[] pathElements = fieldName.getText().split("\\.");
+            // Handle references
+            extractReferences(whenObjectType, references, pathElements);
+          }
+        }
       } else {
         String fieldName = fec.getText();
         String[] pathElements = fieldName.split("\\.");
@@ -205,7 +220,7 @@ public abstract class SobjectRecordCreator extends ForceRecordCreatorImpl {
     }
 
     try {
-      getAllReferences(partnerConnection, metadataMap, references, new String[]{objectType}, METADATA_DEPTH);
+      getAllReferences(partnerConnection, metadataMap, references, objectTypes.toArray(new String[0]), METADATA_DEPTH);
     } catch (ConnectionException e) {
       throw new StageException(Errors.FORCE_21, sobjectType, e);
     }
@@ -297,22 +312,28 @@ public abstract class SobjectRecordCreator extends ForceRecordCreatorImpl {
         }
       }
 
-      for (List<Pair<String, String>> path : references) {
-        // Top field name in the path should be in the metadata now
-        if (!path.isEmpty()) {
-          Pair<String, String> top = path.get(0);
-          Field field = metadataMap.get(top.getLeft()).getFieldFromRelationship(top.getRight());
-          Set<String> sobjectNames = metadataMap.keySet();
-          for (String ref : field.getReferenceTo()) {
-            ref = ref.toLowerCase();
-            if (!sobjectNames.contains(ref) && !next.contains(ref)) {
-              next.add(ref);
+      if (references != null) {
+        for (List<Pair<String, String>> path : references) {
+          // Top field name in the path should be in the metadata now
+          if (!path.isEmpty()) {
+            Pair<String, String> top = path.get(0);
+            Field field = metadataMap.get(top.getLeft()).getFieldFromRelationship(top.getRight());
+            Set<String> sobjectNames = metadataMap.keySet();
+            for (String ref : field.getReferenceTo()) {
+              ref = ref.toLowerCase();
+              if (!sobjectNames.contains(ref) && !next.contains(ref)) {
+                next.add(ref);
+              }
+              if (path.size() > 1) {
+                path.set(1, Pair.of(ref, path.get(1).getRight()));
+              }
             }
-            if (path.size() > 1) {
-              path.set(1, Pair.of(ref, path.get(1).getRight()));
+            // SDC-10422 Polymorphic references have an implicit reference to the Name object type
+            if (field.isPolymorphicForeignKey()) {
+              next.add(NAME);
             }
+            path.remove(0);
           }
-          path.remove(0);
         }
       }
     }
@@ -453,7 +474,18 @@ public abstract class SobjectRecordCreator extends ForceRecordCreatorImpl {
   }
 
   public com.sforce.soap.partner.Field getFieldMetadata(String objectType, String fieldName) {
-    return metadataCache.get(objectType).getFieldFromName(fieldName);
+    return metadataCache.get(objectType.toLowerCase()).getFieldFromName(fieldName.toLowerCase());
+  }
+
+  public boolean objectTypeIsCached(String objectType) {
+    return (metadataCache != null && metadataCache.get(objectType.toLowerCase()) != null);
+  }
+
+  public void addObjectTypeToCache(PartnerConnection partnerConnection, String objectType) throws ConnectionException {
+    if (metadataCache == null) {
+      metadataCache = new LinkedHashMap<>();
+    }
+    getAllReferences(partnerConnection, metadataCache, null, new String[]{objectType}, 1);
   }
 
   // SDC-9731 will remove the duplicate method from ForceSource

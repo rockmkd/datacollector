@@ -39,6 +39,7 @@ import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.api.base.BaseSource;
 import com.streamsets.pipeline.lib.event.CommonEvents;
 import com.streamsets.pipeline.lib.salesforce.BulkRecordCreator;
+import com.streamsets.pipeline.lib.salesforce.ChangeDataCaptureRecordCreator;
 import com.streamsets.pipeline.lib.salesforce.Errors;
 import com.streamsets.pipeline.lib.salesforce.ForceConfigBean;
 import com.streamsets.pipeline.lib.salesforce.ForceRecordCreator;
@@ -115,7 +116,7 @@ public class ForceSource extends BaseSource {
   private JobInfo job;
   private QueryResultList queryResultList;
   private int resultIndex;
-  private XMLEventReader rdr;
+  private XMLEventReader xmlEventReader;
   private Set<String> processedBatches;
   private BatchInfoList batchList;
 
@@ -264,39 +265,16 @@ public class ForceSource extends BaseSource {
     }
 
     if (issues.isEmpty() && conf.subscribeToStreaming) {
-      if (conf.subscriptionType == SubscriptionType.PUSH_TOPIC) {
-        String query = "SELECT Id, Query FROM PushTopic WHERE Name = '"+conf.pushTopic+"'";
-
-        try {
-          QueryResult qr = partnerConnection.query(query);
-
-          if (qr.getSize() != 1) {
-            issues.add(
-                getContext().createConfigIssue(
-                    Groups.SUBSCRIBE.name(), ForceConfigBean.CONF_PREFIX + "pushTopic", Errors.FORCE_00,
-                    "Can't find Push Topic '" + conf.pushTopic +"'"
-                )
-            );
-          } else if (null == sobjectType) {
-            String soqlQuery = (String)qr.getRecords()[0].getField("Query");
-            try {
-              sobjectType = ForceUtils.getSobjectTypeFromQuery(soqlQuery);
-              LOG.info("Found sobject type {}", sobjectType);
-            } catch (StageException e) {
-              issues.add(getContext().createConfigIssue(Groups.SUBSCRIBE.name(),
-                  ForceConfigBean.CONF_PREFIX + "pushTopic",
-                  Errors.FORCE_00,
-                  "Badly formed SOQL Query: " + soqlQuery
-              ));
-            }
-          }
-        } catch (ConnectionException e) {
-          issues.add(
-              getContext().createConfigIssue(
-                  Groups.FORCE.name(), ForceConfigBean.CONF_PREFIX + "authEndpoint", Errors.FORCE_00, e
-              )
-          );
-        }
+      switch (conf.subscriptionType) {
+        case PUSH_TOPIC:
+          setObjectTypeFromQuery(issues);
+          break;
+        case PLATFORM_EVENT:
+          // Do nothing
+          break;
+        case CDC:
+          sobjectType = conf.cdcObject;
+          break;
       }
 
       messageQueue = new ArrayBlockingQueue<>(2 * conf.basicConfig.maxBatchSize);
@@ -313,6 +291,41 @@ public class ForceSource extends BaseSource {
 
     // If issues is not empty, the UI will inform the user of each configuration issue in the list.
     return issues;
+  }
+
+  private void setObjectTypeFromQuery(List<ConfigIssue> issues) {
+    String query = "SELECT Id, Query FROM PushTopic WHERE Name = '"+conf.pushTopic+"'";
+
+    try {
+      QueryResult qr = partnerConnection.query(query);
+
+      if (qr.getSize() != 1) {
+        issues.add(
+            getContext().createConfigIssue(
+                Groups.SUBSCRIBE.name(), ForceConfigBean.CONF_PREFIX + "pushTopic", Errors.FORCE_00,
+                "Can't find Push Topic '" + conf.pushTopic +"'"
+            )
+        );
+      } else if (null == sobjectType) {
+        String soqlQuery = (String)qr.getRecords()[0].getField("Query");
+        try {
+          sobjectType = ForceUtils.getSobjectTypeFromQuery(soqlQuery);
+          LOG.info("Found sobject type {}", sobjectType);
+        } catch (StageException e) {
+          issues.add(getContext().createConfigIssue(Groups.SUBSCRIBE.name(),
+              ForceConfigBean.CONF_PREFIX + "pushTopic",
+              Errors.FORCE_00,
+              "Badly formed SOQL Query: " + soqlQuery
+          ));
+        }
+      }
+    } catch (ConnectionException e) {
+      issues.add(
+          getContext().createConfigIssue(
+              Groups.FORCE.name(), ForceConfigBean.CONF_PREFIX + "authEndpoint", Errors.FORCE_00, e
+          )
+      );
+    }
   }
 
   // Returns true if the first ORDER BY field matches fieldName
@@ -338,15 +351,19 @@ public class ForceSource extends BaseSource {
   private ForceRecordCreator buildRecordCreator() {
     if (conf.queryExistingData) {
       if (conf.useBulkAPI) {
+        //IMPORTANT: BulkRecordCreator is not thread safe since it is using SimpleDateFormat
         return new BulkRecordCreator(getContext(), conf, sobjectType);
       } else {
         return new SoapRecordCreator(getContext(), conf, sobjectType);
       }
     } else if (conf.subscribeToStreaming) {
-      if (conf.subscriptionType == SubscriptionType.PUSH_TOPIC) {
-        return new PushTopicRecordCreator(getContext(), conf, sobjectType);
-      } else {
-        return new PlatformEventRecordCreator(getContext(), conf.platformEvent, conf);
+      switch (conf.subscriptionType) {
+        case PUSH_TOPIC:
+          return new PushTopicRecordCreator(getContext(), conf, sobjectType);
+        case PLATFORM_EVENT:
+          return new PlatformEventRecordCreator(getContext(), conf.platformEvent, conf);
+        case CDC:
+          return new ChangeDataCaptureRecordCreator(getContext(), conf, sobjectType);
       }
     }
 
@@ -509,19 +526,19 @@ public class ForceSource extends BaseSource {
       try {
         // PK Chunking gives us multiple batches - process them in turn
         batchList = bulkConnection.getBatchInfoList(job.getId());
-        for (BatchInfo b : batchList.getBatchInfo()) {
-          if (b.getState() == BatchStateEnum.Failed) {
-            LOG.error("Batch {} failed: {}", b.getId(), b.getStateMessage());
-            throw new StageException(Errors.FORCE_03, b.getStateMessage());
-          } else if (!processedBatches.contains(b.getId())) {
-            if (b.getState() == BatchStateEnum.NotProcessed) {
+        for (BatchInfo batchInfo : batchList.getBatchInfo()) {
+          if (batchInfo.getState() == BatchStateEnum.Failed) {
+            LOG.error("Batch {} failed: {}", batchInfo.getId(), batchInfo.getStateMessage());
+            throw new StageException(Errors.FORCE_03, batchInfo.getStateMessage());
+          } else if (!processedBatches.contains(batchInfo.getId())) {
+            if (batchInfo.getState() == BatchStateEnum.NotProcessed) {
               // Skip this batch - it's the 'original batch' in PK chunking
               // See https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/asynch_api_code_curl_walkthrough_pk_chunking.htm
-              LOG.info("Batch {} not processed", b.getId());
-              processedBatches.add(b.getId());
-            } else if (b.getState() == BatchStateEnum.Completed) {
-              LOG.info("Batch {} completed", b.getId());
-              batch = b;
+              LOG.info("Batch {} not processed", batchInfo.getId());
+              processedBatches.add(batchInfo.getId());
+            } else if (batchInfo.getState() == BatchStateEnum.Completed) {
+              LOG.info("Batch {} completed", batchInfo.getId());
+              batch = batchInfo;
               queryResultList = bulkConnection.getQueryResultList(job.getId(), batch.getId());
               LOG.info("Query results: {}", queryResultList.getResult());
               resultIndex = 0;
@@ -548,13 +565,13 @@ public class ForceSource extends BaseSource {
       }
     }
 
-    if (rdr == null && queryResultList != null) {
+    if (xmlEventReader == null && queryResultList != null) {
       // We have results - retrieve the next one!
       String resultId = queryResultList.getResult()[resultIndex];
       resultIndex++;
 
       try {
-        rdr = xmlInputFactory.createXMLEventReader(bulkConnection.getQueryResultStream(job.getId(), batch.getId(), resultId));
+        xmlEventReader = xmlInputFactory.createXMLEventReader(bulkConnection.getQueryResultStream(job.getId(), batch.getId(), resultId));
       } catch (AsyncApiException e) {
         throw new StageException(Errors.FORCE_05, e);
       } catch (XMLStreamException e) {
@@ -562,16 +579,15 @@ public class ForceSource extends BaseSource {
       }
     }
 
-    if (rdr != null){
+    if (xmlEventReader != null){
       int numRecords = 0;
-      while (rdr.hasNext() && numRecords < maxBatchSize) {
+      while (xmlEventReader.hasNext() && numRecords < maxBatchSize) {
         try {
-          XMLEvent event = rdr.nextEvent();
+          XMLEvent event = xmlEventReader.nextEvent();
           if (event.isStartElement() && event.asStartElement().getName().getLocalPart().equals(RECORDS)) {
             // SDC-9731 will refactor record creators so we don't need this downcast
-            String offset = ((BulkRecordCreator)recordCreator).createRecord(rdr, batchMaker);
+            String offset = ((BulkRecordCreator) recordCreator).createRecord(xmlEventReader, batchMaker);
             nextSourceOffset = RECORD_ID_OFFSET_PREFIX + offset;
-            final String sourceId = conf.soqlQuery + "::" + offset;
             ++numRecords;
           }
         } catch (XMLStreamException e) {
@@ -579,9 +595,9 @@ public class ForceSource extends BaseSource {
         }
       }
 
-      if (!rdr.hasNext()) {
+      if (!xmlEventReader.hasNext()) {
         // Exhausted this result - come back in on the next batch
-        rdr = null;
+        xmlEventReader = null;
         if (resultIndex == queryResultList.getResult().length) {
           // We're out of results, too!
           processedBatches.add(batch.getId());
@@ -609,14 +625,9 @@ public class ForceSource extends BaseSource {
             }
           }
         }
-        return nextSourceOffset;
       }
-
       LOG.info("Full batch of {} records", numRecords);
-
-      return nextSourceOffset;
     }
-
     return nextSourceOffset;
   }
 
@@ -829,13 +840,15 @@ public class ForceSource extends BaseSource {
       nextSourceOffset = lastSourceOffset;
     }
 
+    if (conf.subscriptionType == SubscriptionType.PUSH_TOPIC && !(recordCreator instanceof PushTopicRecordCreator)) {
+      recordCreator = new PushTopicRecordCreator((SobjectRecordCreator)recordCreator);
+    }
+
     if (recordCreator instanceof SobjectRecordCreator) {
-      // Switch out recordCreator
-      PushTopicRecordCreator pushTopicRecordCreator = new PushTopicRecordCreator((SobjectRecordCreator)recordCreator);
-      if (!pushTopicRecordCreator.metadataCacheExists()) {
-        pushTopicRecordCreator.buildMetadataCache(partnerConnection);
+      SobjectRecordCreator sobjectRecordCreator = (SobjectRecordCreator)recordCreator;
+      if (!StringUtils.isEmpty(sobjectType) && !sobjectRecordCreator.metadataCacheExists()) {
+        sobjectRecordCreator.buildMetadataCache(partnerConnection);
       }
-      recordCreator = pushTopicRecordCreator;
     }
 
     if (forceConsumer == null) {

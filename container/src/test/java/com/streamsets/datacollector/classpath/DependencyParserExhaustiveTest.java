@@ -150,7 +150,8 @@ public class DependencyParserExhaustiveTest {
       {"netty-tcnative-boringssl-static-2.0.3.Final.jar", new Dependency("netty-tcnative-boringssl-static", "2.0.3")},
       {"netty-tcnative-boringssl-static-1.1.33.Fork19.jar", new Dependency("netty-tcnative-boringssl-static", "1.1.33.Fork19")},
       {"nzjdbc3.jar", new Dependency("nzjdbc3", "")},
-      {"ojdbc6.jar", new Dependency("ojdbc6", "")},
+      {"ojdbc6.jar", new Dependency("ojdbc", "6")},
+      {"ojdbc8.jar", new Dependency("ojdbc", "8")},
       {"parquet-avro-1.8.1.jar", new Dependency("parquet", "1.8.1")},
       {"parquet-format-2.3.0-incubating.jar", new Dependency("parquet", "2.3.0-incubating")},
       {"pentaho-aggdesigner-algorithm-5.1.5-jhyde.jar", new Dependency("pentaho-aggdesigner-algorithm", "5.1.5-jhyde")},
@@ -165,6 +166,7 @@ public class DependencyParserExhaustiveTest {
       {"streamsets-datacollector-apache-kafka_0_10-lib-3.0.0.0.jar", new Dependency("streamsets", "3.0.0.0")},
       // This is specific of SDC build - from some reason we resolve "SNAPSHOT" into the timestamp
       {"streamsets-datacollector-spark-api-3.1.0.0-20171107.193324-1.jar", new Dependency("streamsets-datacollector-spark-api", "3.1.0.0-20171107.193324-1")},
+      {"streamsets-datacollector-dataprotector-lib-1.3.0.jar", new Dependency("streamsets-datacollector-dataprotector", "1.3.0")},
       {"swagger-annotations-1.5.13.jar", new Dependency("swagger", "1.5.13")},
       {"swagger-core-1.5.13.jar", new Dependency("swagger", "1.5.13")},
       {"swagger-jaxrs-1.5.13.jar", new Dependency("swagger", "1.5.13")},

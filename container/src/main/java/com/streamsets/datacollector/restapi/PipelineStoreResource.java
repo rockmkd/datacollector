@@ -166,6 +166,7 @@ public class PipelineStoreResource {
   private static final String DPM_PIPELINE_ID = "dpm.pipeline.id";
 
   private static final String DATA_COLLECTOR_EDGE = "DATA_COLLECTOR_EDGE";
+  private static final String CLUSTER_MODE = "CLUSTER";
   private static final String MICROSERVICE = "MICROSERVICE";
 
   private static final String SYSTEM_ALL_PIPELINES = "system:allPipelines";
@@ -722,12 +723,29 @@ public class PipelineStoreResource {
       pipelineId = pipelineTitle.replaceAll(PIPELINE_ID_REGEX, "") + UUID.randomUUID().toString();
     }
     RestAPIUtils.injectPipelineInMDC(pipelineTitle + "/" + pipelineId);
-    PipelineConfiguration pipelineConfig = store.create(user, pipelineId, pipelineTitle, description, false, draft);
+    PipelineConfiguration pipelineConfig = store.create(user, pipelineId, pipelineTitle, description, false, draft,
+        new HashMap<String, Object>()
+    );
 
     if (pipelineType.equals(DATA_COLLECTOR_EDGE)) {
       List<Config> newConfigs = createWithNewConfig(
           pipelineConfig.getConfiguration(),
           new Config("executionMode", ExecutionMode.EDGE.name())
+      );
+      pipelineConfig.setConfiguration(newConfigs);
+      if (!draft) {
+        pipelineConfig = store.save(
+            user,
+            pipelineConfig.getPipelineId(),
+            pipelineConfig.getInfo().getLastRev(),
+            pipelineConfig.getDescription(),
+            pipelineConfig
+        );
+      }
+    } else if (pipelineType.equals(CLUSTER_MODE)) {
+      List<Config> newConfigs = createWithNewConfig(
+          pipelineConfig.getConfiguration(),
+          new Config("executionMode", ExecutionMode.CLUSTER_YARN_STREAMING.name())
       );
       pipelineConfig.setConfiguration(newConfigs);
       if (!draft) {
@@ -1416,13 +1434,17 @@ public class PipelineStoreResource {
         if (autoGeneratePipelineId) {
           name = label.replaceAll(PIPELINE_ID_REGEX, "") + UUID.randomUUID().toString();
         }
-        newPipelineConfig = store.create(user, name, label, pipelineConfig.getDescription(), false, draft);
+        newPipelineConfig = store.create(user, name, label, pipelineConfig.getDescription(), false, draft,
+            new HashMap<String, Object>()
+        );
       }
     } else {
       if (autoGeneratePipelineId) {
         name = label.replaceAll(PIPELINE_ID_REGEX, "") + UUID.randomUUID().toString();
       }
-      newPipelineConfig = store.create(user, name, label, pipelineConfig.getDescription(), false, draft);
+      newPipelineConfig = store.create(user, name, label, pipelineConfig.getDescription(), false, draft,
+          new HashMap<String, Object>()
+      );
     }
 
     if (!draft) {
@@ -1661,7 +1683,7 @@ public class PipelineStoreResource {
               pipelineConfig.getTitle(),
               pipelineConfig.getDescription(),
               false,
-              false
+              false, new HashMap<String, Object>()
           );
 
           pipelineConfig.setUuid(newPipelineConfig.getUuid());

@@ -23,12 +23,12 @@
     <parent>
         <groupId>com.streamsets</groupId>
         <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-        <version>3.6.0-SNAPSHOT</version>
+        <version>3.8.0-SNAPSHOT</version>
         <relativePath>../stage-lib-parent</relativePath>
     </parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-cdh_5_14-lib</artifactId>
-    <version>3.6.0-SNAPSHOT</version>
+    <version>3.8.0-SNAPSHOT</version>
     <description>StreamSets Data Collector CDH 5.14 Lib</description>
     <name>StreamSets Data Collector CDH 5.14 Lib</name>
     <packaging>jar</packaging>
@@ -72,6 +72,20 @@
                 </exclusion>
             </exclusions>
           </dependency>
+
+
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-mapreduce-client-common</artifactId>
+            <version>${hadoop.version}</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>javax.servlet</groupId>
+                    <artifactId>servlet-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
         <!-- Leave this dependency right here so it takes precedence in the classpath over jersey 1.9 brought in by
         hadoop/hive test classes which wrongfully includes the javax.ws.rs-api classes from an older version of the
@@ -297,6 +311,12 @@
         <dependency>
             <groupId>com.streamsets</groupId>
             <artifactId>streamsets-datacollector-hbase-protolib</artifactId>
+            <version>${project.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.streamsets</groupId>
+            <artifactId>streamsets-datacollector-sdc-hbase-0_98</artifactId>
             <version>${project.version}</version>
             <scope>compile</scope>
             <exclusions>
